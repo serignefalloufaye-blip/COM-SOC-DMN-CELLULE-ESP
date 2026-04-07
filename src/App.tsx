@@ -402,15 +402,19 @@ export default function App() {
   };
 
   const renderDashboard = () => {
-    const totCotisations = filteredCotisations.reduce((s, c) => s + c.montant, 0);
-    const totWave = filteredCotisations.filter(c => c.mode === 'WAVE').reduce((s, c) => s + c.montant, 0);
-    const totOM = filteredCotisations.filter(c => c.mode === 'OM').reduce((s, c) => s + c.montant, 0);
-    const totDepenses = filteredDepenses.reduce((s, d) => s + d.montant, 0);
+    // Dashboard should show annual totals for the selected year
+    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
+    const annualDepenses = depenses.filter(d => d.annee === globalYear);
+    
+    const totCotisations = annualCotisations.reduce((s, c) => s + c.montant, 0);
+    const totWave = annualCotisations.filter(c => c.mode === 'WAVE').reduce((s, c) => s + c.montant, 0);
+    const totOM = annualCotisations.filter(c => c.mode === 'OM').reduce((s, c) => s + c.montant, 0);
+    const totDepenses = annualDepenses.reduce((s, d) => s + d.montant, 0);
     const solde = totCotisations - totDepenses;
     
     const monthlyData = MOIS.map(mois => {
-      const cot = cotisations.filter(c => c.annee === globalYear && c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
-      const dep = depenses.filter(d => d.annee === globalYear && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
+      const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
       return { name: mois.substring(0, 3), Cotisations: cot, Dépenses: dep };
     });
 
@@ -418,7 +422,7 @@ export default function App() {
     const COLORS = ['#3b82f6', '#f97316', '#10b981'];
     const pieData = modes.map(mode => ({
       name: mode,
-      value: filteredCotisations.filter(c => c.mode === mode).reduce((sum, c) => sum + c.montant, 0)
+      value: annualCotisations.filter(c => c.mode === mode).reduce((sum, c) => sum + c.montant, 0)
     })).filter(d => d.value > 0);
 
     return (
@@ -455,6 +459,10 @@ export default function App() {
             </div>
             <h2 className="text-xl sm:text-3xl md:text-4xl font-heading font-bold text-dmn-green-900 mb-2 sm:mb-4">Daara Madjmahoune Noreyni</h2>
             <p className="text-xs sm:text-lg text-gray-600 max-w-2xl mx-auto font-medium">Commission Sociale – Cellule ESP UCAD. Transparence et Solidarité.</p>
+            <div className="mt-4 inline-flex items-center gap-2 bg-dmn-green-50 px-4 py-2 rounded-full border border-dmn-green-100">
+              <Calendar size={16} className="text-dmn-green-600" />
+              <span className="text-sm font-bold text-dmn-green-900">Récapitulatif Annuel {globalYear}</span>
+            </div>
           </div>
         </div>
 
@@ -465,25 +473,25 @@ export default function App() {
             <div className="absolute top-0 left-0 w-full h-1 bg-dmn-green-600"></div>
             <div className="w-10 h-10 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Wallet size={20} /></div>
             <h2 className="text-2xl font-heading font-bold text-gray-900">{totCotisations.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Cotisations</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Cotisations {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
             <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Smartphone size={20} /></div>
             <h2 className="text-2xl font-heading font-bold text-gray-900">{totWave.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Wave</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Wave {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-orange-500"></div>
             <div className="w-10 h-10 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Smartphone size={20} /></div>
             <h2 className="text-2xl font-heading font-bold text-gray-900">{totOM.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">OM</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">OM {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
             <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><TrendingDown size={20} /></div>
             <h2 className="text-2xl font-heading font-bold text-gray-900">{totDepenses.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Dépenses</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Dépenses {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className={`absolute top-0 left-0 w-full h-1 ${solde >= 0 ? 'bg-dmn-green-500' : 'bg-red-500'}`}></div>
@@ -491,7 +499,7 @@ export default function App() {
             <h2 className={`text-2xl font-heading font-bold ${solde >= 0 ? 'text-dmn-green-600' : 'text-red-600'}`}>
               {solde.toLocaleString()} <span className="text-sm opacity-70 font-medium">F</span>
             </h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Solde</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Solde {globalYear}</p>
           </div>
         </div>
 
