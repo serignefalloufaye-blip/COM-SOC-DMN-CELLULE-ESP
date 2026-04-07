@@ -449,8 +449,8 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 print:hidden">
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-md border border-gray-100 p-4 sm:p-6">
             <h3 className="font-heading font-bold text-dmn-green-900 mb-6 text-xs sm:text-sm uppercase tracking-wider">Évolution Mensuelle {globalYear}</h3>
-            <div className="h-48 sm:h-64">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-48 sm:h-64 w-full relative min-w-0">
+              <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <BarChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#6b7280'}} />
@@ -465,8 +465,8 @@ export default function App() {
           </div>
           <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-4 sm:p-6">
             <h3 className="font-heading font-bold text-dmn-green-900 mb-6 text-xs sm:text-sm uppercase tracking-wider">Répartition par Mode</h3>
-            <div className="h-48 sm:h-64">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-48 sm:h-64 w-full relative min-w-0">
+              <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <PieChart>
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value">
                     {pieData.map((entry, index) => (
