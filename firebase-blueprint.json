@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Membre": {
+      "title": "Membre",
+      "description": "Un membre de la caisse",
+      "type": "object",
+      "properties": {
+        "prenom": { "type": "string" },
+        "nom": { "type": "string" }
+      },
+      "required": ["prenom", "nom"]
+    },
+    "Cotisation": {
+      "title": "Cotisation",
+      "description": "Paiement mensuel d'un membre",
+      "type": "object",
+      "properties": {
+        "mId": { "type": "string", "description": "ID du membre" },
+        "mois": { "type": "string" },
+        "annee": { "type": "number" },
+        "montant": { "type": "number" },
+        "mode": { "type": "string", "enum": ["WAVE", "OM", "ESPÈCES"] }
+      },
+      "required": ["mId", "mois", "annee", "montant", "mode"]
+    },
+    "Depense": {
+      "title": "Depense",
+      "description": "Dépense de la caisse",
+      "type": "object",
+      "properties": {
+        "evenement": { "type": "string" },
+        "mois": { "type": "string" },
+        "annee": { "type": "number" },
+        "montant": { "type": "number" }
+      },
+      "required": ["evenement", "mois", "annee", "montant"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Utilisateur admin",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/membres/{membreId}": {
+      "schema": { "$ref": "#/entities/Membre" },
+      "description": "Liste des membres"
+    },
+    "/cotisations/{cotisationId}": {
+      "schema": { "$ref": "#/entities/Cotisation" },
+      "description": "Liste des cotisations"
+    },
+    "/depenses/{depenseId}": {
+      "schema": { "$ref": "#/entities/Depense" },
+      "description": "Liste des dépenses"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Liste des utilisateurs admin"
+    }
+  }
+}
