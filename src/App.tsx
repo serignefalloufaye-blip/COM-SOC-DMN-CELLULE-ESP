@@ -117,6 +117,7 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      console.log("Auth state changed:", currentUser ? currentUser.email : "No user");
       setUser(currentUser);
       if (currentUser) {
         try {
@@ -132,11 +133,9 @@ export default function App() {
             });
             setUserRole(initialRole);
           }
-          await getDocFromServer(doc(db, 'test', 'connection'));
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('the client is offline')) {
-            console.error("Please check your Firebase configuration.");
-          }
+        } catch (error: any) {
+          console.error("Firestore initialization error:", error);
+          showToast(`Erreur d'accès aux données : ${error.message}`, 'error');
           setUserRole('visitor');
         }
       } else {
@@ -165,7 +164,10 @@ export default function App() {
     return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); };
   }, [isAuthReady, user]);
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const handleLogin = async () => {
+    setIsLoggingIn(true);
     try {
       await signInWithGoogle();
     } catch (error: any) {
@@ -175,8 +177,10 @@ export default function App() {
       } else if (error.code === 'auth/unauthorized-domain') {
         showToast("Domaine non autorisé dans Firebase", 'error');
       } else {
-        showToast("Erreur de connexion Google", 'error');
+        showToast(`Erreur de connexion : ${error.message}`, 'error');
       }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -1331,7 +1335,7 @@ export default function App() {
                 alt="Logo DMN" 
                 className="w-full h-full object-cover" 
                 onError={(e) => { 
-                  console.error("Logo failed to load");
+                  console.error("Logo failed to load at /logo.png");
                   e.currentTarget.style.display = 'none'; 
                   e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
                 }} 
@@ -1341,8 +1345,19 @@ export default function App() {
             <h1 className="text-2xl font-heading font-bold text-dmn-green-900 mb-2">Commission Sociale DMN</h1>
             <p className="text-sm font-heading font-semibold text-dmn-green-700 mb-4">Daara Madjmahoune Noreyni – UCAD ESP</p>
             <p className="text-gray-500 mb-8 font-medium">Connectez-vous pour gérer les cotisations et les dépenses.</p>
-            <button onClick={handleLogin} className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2">
-              Se connecter avec Google
+            <button 
+              onClick={handleLogin} 
+              disabled={isLoggingIn}
+              className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
+            >
+              {isLoggingIn ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Connexion en cours...
+                </>
+              ) : (
+                "Se connecter avec Google"
+              )}
             </button>
           </div>
         </div>
