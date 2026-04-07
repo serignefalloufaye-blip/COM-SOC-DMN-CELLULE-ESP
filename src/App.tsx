@@ -165,6 +165,21 @@ export default function App() {
     return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); };
   }, [isAuthReady, user]);
 
+  const handleLogin = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      console.error("Login error:", error);
+      if (error.code === 'auth/popup-blocked') {
+        showToast("Le popup a été bloqué par votre navigateur", 'error');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        showToast("Domaine non autorisé dans Firebase", 'error');
+      } else {
+        showToast("Erreur de connexion Google", 'error');
+      }
+    }
+  };
+
   const handleAdminCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (adminCodeInput === ADMIN_CODE && user) {
@@ -378,7 +393,15 @@ export default function App() {
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-dmn-gold-light/10 rounded-full -ml-24 -mb-24 opacity-50"></div>
           <div className="relative z-10">
             <div className="w-16 h-16 sm:w-24 sm:h-24 mx-auto bg-white rounded-full flex items-center justify-center overflow-hidden shadow-md mb-4 sm:mb-6 border-4 border-dmn-green-50">
-              <img src="/logo.png" alt="Logo DMN" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} />
+              <img 
+                src="/logo.png" 
+                alt="Logo DMN" 
+                className="w-full h-full object-cover" 
+                onError={(e) => { 
+                  e.currentTarget.style.display = 'none'; 
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+                }} 
+              />
               <span className="hidden text-dmn-green-900 font-bold text-2xl sm:text-4xl">🕌</span>
             </div>
             <h2 className="text-xl sm:text-3xl md:text-4xl font-heading font-bold text-dmn-green-900 mb-2 sm:mb-4">Daara Madjmahoune Noreyni</h2>
@@ -1303,13 +1326,22 @@ export default function App() {
           
           <div className="relative z-10">
             <div className="w-24 h-24 mx-auto bg-white rounded-full flex items-center justify-center overflow-hidden shadow-md mb-6 border-4 border-dmn-green-50">
-              <img src="/logo.png" alt="Logo DMN" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} />
+              <img 
+                src="/logo.png" 
+                alt="Logo DMN" 
+                className="w-full h-full object-cover" 
+                onError={(e) => { 
+                  console.error("Logo failed to load");
+                  e.currentTarget.style.display = 'none'; 
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+                }} 
+              />
               <span className="hidden text-dmn-green-900 font-bold text-4xl">🕌</span>
             </div>
             <h1 className="text-2xl font-heading font-bold text-dmn-green-900 mb-2">Commission Sociale DMN</h1>
             <p className="text-sm font-heading font-semibold text-dmn-green-700 mb-4">Daara Madjmahoune Noreyni – UCAD ESP</p>
             <p className="text-gray-500 mb-8 font-medium">Connectez-vous pour gérer les cotisations et les dépenses.</p>
-            <button onClick={signInWithGoogle} className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2">
+            <button onClick={handleLogin} className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2">
               Se connecter avec Google
             </button>
           </div>
@@ -1324,7 +1356,15 @@ export default function App() {
       <header className="bg-dmn-green-900 text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-0 z-40 shadow-lg border-b border-dmn-green-800">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-inner border-2 border-dmn-green-700">
-            <img src="/logo.png" alt="Logo DMN" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} />
+            <img 
+              src="/logo.png" 
+              alt="Logo DMN" 
+              className="w-full h-full object-cover" 
+              onError={(e) => { 
+                e.currentTarget.style.display = 'none'; 
+                e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+              }} 
+            />
             <span className="hidden text-dmn-green-900 font-bold text-xl">🕌</span>
           </div>
           <div>
