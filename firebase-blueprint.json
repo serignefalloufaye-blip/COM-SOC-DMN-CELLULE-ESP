@@ -44,9 +44,22 @@
         "role": { "type": "string", "enum": ["admin"] }
       },
       "required": ["email", "role"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Paramètres de l'application",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string", "description": "URL ou Base64 du logo" }
+      },
+      "required": ["logoUrl"]
     }
   },
   "firestore": {
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AppSettings" },
+      "description": "Paramètres globaux de l'application"
+    },
     "/membres/{membreId}": {
       "schema": { "$ref": "#/entities/Membre" },
       "description": "Liste des membres"

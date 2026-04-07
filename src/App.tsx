@@ -43,6 +43,7 @@ export default function App() {
   const [membres, setMembres] = useState<Membre[]>([]);
   const [cotisations, setCotisations] = useState<Cotisation[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
+  const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
   const [editingMembre, setEditingMembre] = useState<Membre | null>(null);
@@ -161,7 +162,12 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'depenses');
       setIsLoading(false);
     });
-    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); };
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'app'), (snapshot) => {
+      if (snapshot.exists()) {
+        setAppSettings(snapshot.data() as { logoUrl: string });
+      }
+    }, (error) => console.error("Settings fetch error:", error));
+    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubSettings(); };
   }, [isAuthReady, user]);
 
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -199,6 +205,27 @@ export default function App() {
     } else {
       showToast('Code incorrect', 'error');
     }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 800000) { // ~800KB limit for safety (Firestore doc limit is 1MB)
+      showToast("L'image est trop lourde (max 800KB)", 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      try {
+        await setDoc(doc(db, 'settings', 'app'), { logoUrl: base64String }, { merge: true });
+        showToast("Logo mis à jour avec succès");
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'settings');
+        showToast("Erreur lors de la mise à jour du logo", 'error');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const getMembre = (id: string) => membres.find(m => m.id === id);
@@ -396,18 +423,31 @@ export default function App() {
           <div className="absolute top-0 right-0 w-64 h-64 bg-dmn-green-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-dmn-gold-light/10 rounded-full -ml-24 -mb-24 opacity-50"></div>
           <div className="relative z-10">
-            <div className="w-16 h-16 sm:w-24 sm:h-24 mx-auto bg-white rounded-full flex items-center justify-center overflow-hidden shadow-md mb-4 sm:mb-6 border-4 border-dmn-green-50">
-              <img 
-                src="logo.png" 
-                alt="Logo DMN" 
-                className="w-full h-full object-cover" 
-                referrerPolicy="no-referrer"
-                onError={(e) => { 
-                  e.currentTarget.style.display = 'none'; 
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
-                }} 
-              />
-              <span className="hidden text-dmn-green-900 font-bold text-2xl sm:text-4xl">🕌</span>
+            <div className="relative w-16 h-16 sm:w-24 sm:h-24 mx-auto group">
+              <div className="w-full h-full bg-white rounded-full flex items-center justify-center overflow-hidden shadow-md mb-4 sm:mb-6 border-4 border-dmn-green-50">
+                <img 
+                  src={appSettings.logoUrl || "logo.png"} 
+                  alt="Logo DMN" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => { 
+                    if (appSettings.logoUrl) {
+                      // If dynamic logo fails, try static
+                      e.currentTarget.src = "logo.png";
+                    } else {
+                      e.currentTarget.style.display = 'none'; 
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+                    }
+                  }} 
+                />
+                <span className="hidden text-dmn-green-900 font-bold text-2xl sm:text-4xl">🕌</span>
+              </div>
+              {userRole === 'admin' && (
+                <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <Edit2 size={24} className="text-white" />
+                  <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                </label>
+              )}
             </div>
             <h2 className="text-xl sm:text-3xl md:text-4xl font-heading font-bold text-dmn-green-900 mb-2 sm:mb-4">Daara Madjmahoune Noreyni</h2>
             <p className="text-xs sm:text-lg text-gray-600 max-w-2xl mx-auto font-medium">Commission Sociale – Cellule ESP UCAD. Transparence et Solidarité.</p>
