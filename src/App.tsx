@@ -162,13 +162,17 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'depenses');
       setIsLoading(false);
     });
+    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); };
+  }, [isAuthReady, user]);
+
+  useEffect(() => {
     const unsubSettings = onSnapshot(doc(db, 'settings', 'app'), (snapshot) => {
       if (snapshot.exists()) {
         setAppSettings(snapshot.data() as { logoUrl: string });
       }
     }, (error) => console.error("Settings fetch error:", error));
-    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubSettings(); };
-  }, [isAuthReady, user]);
+    return () => unsubSettings();
+  }, []);
 
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -1372,14 +1376,18 @@ export default function App() {
           <div className="relative z-10">
             <div className="w-24 h-24 mx-auto bg-white rounded-full flex items-center justify-center overflow-hidden shadow-md mb-6 border-4 border-dmn-green-50">
               <img 
-                src="logo.png" 
+                src={appSettings.logoUrl || "logo.png"} 
                 alt="Logo DMN" 
                 className="w-full h-full object-cover" 
                 referrerPolicy="no-referrer"
                 onError={(e) => { 
-                  console.error("Logo failed to load at logo.png");
-                  e.currentTarget.style.display = 'none'; 
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+                  if (appSettings.logoUrl) {
+                    e.currentTarget.src = "logo.png";
+                  } else {
+                    console.error("Logo failed to load at logo.png");
+                    e.currentTarget.style.display = 'none'; 
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+                  }
                 }} 
               />
               <span className="hidden text-dmn-green-900 font-bold text-4xl">🕌</span>
@@ -1414,13 +1422,17 @@ export default function App() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-inner border-2 border-dmn-green-700">
             <img 
-              src="logo.png" 
+              src={appSettings.logoUrl || "logo.png"} 
               alt="Logo DMN" 
               className="w-full h-full object-cover" 
               referrerPolicy="no-referrer"
               onError={(e) => { 
-                e.currentTarget.style.display = 'none'; 
-                e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+                if (appSettings.logoUrl) {
+                  e.currentTarget.src = "logo.png";
+                } else {
+                  e.currentTarget.style.display = 'none'; 
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+                }
               }} 
             />
             <span className="hidden text-dmn-green-900 font-bold text-xl">🕌</span>
