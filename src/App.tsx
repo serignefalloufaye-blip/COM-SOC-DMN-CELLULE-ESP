@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { MOIS } from './data';
 import { Membre, Cotisation, ModePaiement, Depense, Recette } from './types';
@@ -496,25 +496,32 @@ export default function App() {
     const status = getMemberStatus(membre.id);
     const memberCotisations = cotisations.filter(c => c.mId === membre.id).sort((a, b) => b.annee - a.annee || MOIS.indexOf(b.mois) - MOIS.indexOf(a.mois));
     const totalPaid = memberCotisations.reduce((sum, c) => sum + c.montant, 0);
+    const monthsPaid = memberCotisations.filter(c => c.montant > 0).length;
 
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-        <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+        <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100">
           <div className="bg-dmn-green-900 p-8 text-white relative">
-            <button onClick={() => setSelectedMemberProfile(null)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors">
+            <button onClick={() => setSelectedMemberProfile(null)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
               <X size={24} />
             </button>
             <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center text-4xl font-bold border-4 border-white/20">
+              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center text-4xl font-bold border-4 border-white/20 shadow-inner">
                 {membre.prenom[0]}{membre.nom[0]}
               </div>
-              <div className="text-center sm:text-left">
-                <h2 className="text-2xl sm:text-3xl font-heading font-bold">{membre.prenom} {membre.nom}</h2>
-                <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-3">
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                    <Smartphone size={12} /> {membre.telephone || 'Non renseigné'}
+              <div className="text-center sm:text-left flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <h2 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight">{membre.prenom} {membre.nom}</h2>
+                  <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase self-center sm:self-auto ${status.isLate ? 'bg-red-500 text-white' : 'bg-dmn-green-500 text-white'}`}>
+                    {status.isLate ? 'En Retard' : 'Régulier'}
                   </span>
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">
+                </div>
+                <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-4">
+                  <span className="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 border border-white/10">
+                    <Smartphone size={14} className="text-dmn-gold-light" /> 
+                    <span className="text-dmn-green-100">+221</span> {membre.telephone || 'Non renseigné'}
+                  </span>
+                  <span className="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-medium border border-white/10">
                     {membre.statut || 'Statut non défini'}
                   </span>
                 </div>
@@ -522,41 +529,56 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-gray-50 p-4 rounded-2xl text-center">
-                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Total Payé</p>
-                <p className="text-2xl font-heading font-bold text-dmn-green-900">{totalPaid.toLocaleString()} F</p>
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 bg-gray-50/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-12 h-12 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center">
+                  <Wallet size={24} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">Total Cotisations</p>
+                  <p className="text-2xl font-heading font-bold text-dmn-green-900">{totalPaid.toLocaleString()} F</p>
+                </div>
               </div>
-              <div className="bg-gray-50 p-4 rounded-2xl text-center">
-                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Mois Impayés</p>
-                <p className="text-2xl font-heading font-bold text-red-600">{status.unpaidCount}</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-2xl text-center">
-                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Statut</p>
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold mt-1 ${status.isLate ? 'bg-red-100 text-red-600' : 'bg-dmn-green-100 text-dmn-green-600'}`}>
-                  {status.isLate ? 'EN RETARD' : 'RÉGULIER'}
-                </span>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                  <CalendarRange size={24} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">Mois Payés</p>
+                  <p className="text-2xl font-heading font-bold text-blue-900">{monthsPaid}</p>
+                </div>
               </div>
             </div>
 
             <div>
-              <h3 className="font-heading font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <History size={18} className="text-dmn-green-600" /> Historique des Paiements
+              <h3 className="font-heading font-bold text-gray-900 mb-6 flex items-center gap-2 text-lg">
+                <History size={20} className="text-dmn-green-600" /> Historique des Paiements
               </h3>
-              <div className="space-y-3">
+              <div className="relative pl-8 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
                 {memberCotisations.length > 0 ? (
-                  memberCotisations.map(c => (
-                    <div key={c.id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
-                      <div>
-                        <p className="font-bold text-gray-900">{c.mois} {c.annee}</p>
-                        <p className="text-xs text-gray-500">{c.mode}</p>
+                  memberCotisations.map((c, idx) => (
+                    <div key={c.id} className="relative animate-in slide-in-from-left-4 duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
+                      <div className="absolute -left-[29px] top-1.5 w-6 h-6 bg-white border-2 border-dmn-green-500 rounded-full z-10 flex items-center justify-center">
+                        <div className="w-2 h-2 bg-dmn-green-500 rounded-full"></div>
                       </div>
-                      <p className="font-bold text-dmn-green-600">+{c.montant.toLocaleString()} F</p>
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900 text-sm">{c.mois} {c.annee}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge mode={c.mode} />
+                            <span className="text-[10px] text-gray-400 font-medium italic">Enregistré le {new Date(c.createdAt || Date.now()).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <p className="font-black text-dmn-green-600">+{c.montant.toLocaleString()} F</p>
+                      </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-center py-8 text-gray-400 italic">Aucun paiement enregistré</p>
+                  <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                    <History size={48} className="mx-auto text-gray-200 mb-4" />
+                    <p className="text-gray-400 italic text-sm">Aucun paiement enregistré pour ce membre</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -585,30 +607,54 @@ export default function App() {
     });
 
     return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
-          <h3 className="font-heading font-bold text-dmn-green-900 mb-6 flex items-center gap-2">
-            <TrendingDown size={20} /> Évolution des Flux Financiers {globalYear}
-          </h3>
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="font-heading font-bold text-dmn-green-900 text-xl flex items-center gap-3">
+              <div className="w-10 h-10 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center">
+                <TrendingDown size={20} />
+              </div>
+              Évolution des Flux Financiers {globalYear}
+            </h3>
+            <div className="flex gap-2">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                <div className="w-2 h-2 bg-dmn-green-500 rounded-full"></div> Cotisations
+              </span>
+              <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div> Dépenses
+              </span>
+            </div>
+          </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData}>
+              <AreaChart data={monthlyData}>
+                <defs>
+                  <linearGradient id="colorCot" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorDep" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <RechartsTooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                <Legend />
-                <Bar dataKey="Cotisations" fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Recettes" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Dépenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                <RechartsTooltip 
+                  contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}}
+                  itemStyle={{fontWeight: 700}}
+                />
+                <Area type="monotone" dataKey="Cotisations" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorCot)" />
+                <Area type="monotone" dataKey="Dépenses" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorDep)" />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
-            <h3 className="font-heading font-bold text-dmn-green-900 mb-6">Répartition des Entrées</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+            <h3 className="font-heading font-bold text-dmn-green-900 mb-8 text-lg">Répartition des Entrées</h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -617,27 +663,31 @@ export default function App() {
                       { name: 'Cotisations', value: annualCotisations.reduce((s, c) => s + c.montant, 0) },
                       { name: 'Autres Recettes', value: annualRecettes.reduce((s, r) => s + r.montant, 0) }
                     ]} 
-                    cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"
+                    cx="50%" cy="50%" innerRadius={70} outerRadius={90} paddingAngle={8} dataKey="value"
                   >
                     <Cell fill="#10b981" />
                     <Cell fill="#f59e0b" />
                   </Pie>
                   <RechartsTooltip />
-                  <Legend />
+                  <Legend verticalAlign="bottom" height={36}/>
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
-          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
-            <h3 className="font-heading font-bold text-dmn-green-900 mb-6">Solde Mensuel Cumulé</h3>
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+            <h3 className="font-heading font-bold text-dmn-green-900 mb-8 text-lg">Solde Mensuel Net</h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
                   <RechartsTooltip />
-                  <Bar dataKey="Solde" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Solde" radius={[6, 6, 0, 0]}>
+                    {monthlyData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.Solde >= 0 ? '#3b82f6' : '#ef4444'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -706,34 +756,84 @@ export default function App() {
   };
 
   const renderRapports = () => {
+    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
+    const annualDepenses = depenses.filter(d => d.annee === globalYear);
+    const annualRecettes = recettes.filter(r => r.annee === globalYear);
+
+    const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
+    const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
+    const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
+    const solde = totCot + totRec - totDep;
+
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 text-center">
-          <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Printer size={32} />
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 text-center group hover:border-red-200 transition-all">
+            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+              <Printer size={40} />
+            </div>
+            <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Rapport PDF Officiel</h3>
+            <p className="text-gray-500 mb-8 text-sm leading-relaxed">Générez un document PDF professionnel incluant les statistiques, la liste des membres et les zones de signature.</p>
+            <button 
+              onClick={exportToPDF}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-black transition-all shadow-lg hover:shadow-red-200 active:scale-95 flex items-center justify-center gap-3"
+            >
+              <Printer size={20} /> Télécharger le Rapport PDF
+            </button>
           </div>
-          <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Rapport PDF</h3>
-          <p className="text-gray-500 mb-6 text-sm">Générez un rapport complet au format PDF avec les statistiques et la liste des membres.</p>
-          <button 
-            onClick={exportToPDF}
-            className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
-          >
-            <Printer size={18} /> Télécharger PDF
-          </button>
+
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 text-center group hover:border-emerald-200 transition-all">
+            <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+              <CreditCard size={40} />
+            </div>
+            <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Export Excel (Data)</h3>
+            <p className="text-gray-500 mb-8 text-sm leading-relaxed">Exportez l'intégralité de la base de données des membres et leur statut de paiement pour un traitement sous Excel.</p>
+            <button 
+              onClick={exportToExcel}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black transition-all shadow-lg hover:shadow-emerald-200 active:scale-95 flex items-center justify-center gap-3"
+            >
+              <Plus size={20} /> Télécharger la Base Excel
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 text-center">
-          <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <CreditCard size={32} />
+        <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden max-w-4xl mx-auto">
+          <div className="bg-dmn-green-900 p-8 text-white text-center">
+            <h3 className="text-xl font-heading font-bold uppercase tracking-widest">Aperçu du Rapport Financier {globalYear}</h3>
+            <p className="text-dmn-green-300 text-xs mt-2">Daara Madjmahoune Noreyni – Commission Sociale</p>
           </div>
-          <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Export Excel</h3>
-          <p className="text-gray-500 mb-6 text-sm">Exportez la liste des membres et leur statut de paiement dans un fichier Excel exploitable.</p>
-          <button 
-            onClick={exportToExcel}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
-          >
-            <Plus size={18} /> Télécharger Excel
-          </button>
+          <div className="p-10 space-y-12">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+              <div className="text-center">
+                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Entrées</p>
+                <p className="text-3xl font-heading font-black text-dmn-green-600">{(totCot + totRec).toLocaleString()} F</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Dépenses</p>
+                <p className="text-3xl font-heading font-black text-red-600">{totDep.toLocaleString()} F</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Solde Net</p>
+                <p className="text-3xl font-heading font-black text-blue-600">{solde.toLocaleString()} F</p>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-12 flex flex-col sm:flex-row justify-between gap-12">
+              <div className="flex-1 text-center sm:text-left">
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-16">Le Président</p>
+                <div className="w-48 h-0.5 bg-gray-200 mx-auto sm:mx-0"></div>
+                <p className="text-[10px] text-gray-400 mt-2 italic">Signature & Cachet</p>
+              </div>
+              <div className="flex-1 text-center sm:text-right">
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-16">Le Trésorier</p>
+                <div className="w-48 h-0.5 bg-gray-200 mx-auto sm:ml-auto"></div>
+                <p className="text-[10px] text-gray-400 mt-2 italic">Signature & Cachet</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">Document généré le {new Date().toLocaleDateString()} à {new Date().toLocaleTimeString()}</p>
+          </div>
         </div>
       </div>
     );
@@ -741,36 +841,50 @@ export default function App() {
 
   const renderNotifications = () => {
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold flex justify-between items-center">
-          <span className="flex items-center gap-2"><Zap size={18} className="text-dmn-gold-light" /> Centre de Notifications</span>
-          <button onClick={() => setNotifications([])} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg transition-colors">Tout effacer</button>
+      <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="bg-dmn-green-900 text-white px-8 py-6 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Zap size={24} className="text-dmn-gold-light" />
+            <h3 className="font-heading font-bold text-lg">Centre de Notifications</h3>
+          </div>
+          <button 
+            onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
+            className="text-xs font-bold text-dmn-green-300 hover:text-white transition-colors uppercase tracking-widest"
+          >
+            Tout marquer comme lu
+          </button>
         </div>
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
           {notifications.length > 0 ? (
-            notifications.map(n => (
-              <div key={n.id} className={`p-4 flex gap-4 ${n.read ? 'opacity-60' : 'bg-dmn-green-50/30'}`}>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                  n.type === 'success' ? 'bg-dmn-green-100 text-dmn-green-600' :
-                  n.type === 'warning' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+            notifications.sort((a, b) => b.date - a.date).map((n, idx) => (
+              <div key={n.id} className={`p-6 flex items-start gap-4 hover:bg-gray-50 transition-colors animate-in slide-in-from-right-4 duration-300 ${!n.read ? 'bg-dmn-green-50/30' : ''}`} style={{ animationDelay: `${idx * 50}ms` }}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                  n.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 
+                  n.type === 'warning' ? 'bg-amber-100 text-amber-600' : 
+                  'bg-blue-100 text-blue-600'
                 }`}>
-                  <Zap size={18} />
+                  {n.type === 'success' ? <CheckCircle2 size={24} /> : n.type === 'warning' ? <AlertTriangle size={24} /> : <Zap size={24} />}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{n.message}</p>
-                  <p className="text-[10px] text-gray-400 mt-1">{new Date(n.date).toLocaleString()}</p>
+                  <div className="flex justify-between items-start mb-1">
+                    <p className={`text-sm font-bold ${!n.read ? 'text-dmn-green-900' : 'text-gray-700'}`}>{n.message}</p>
+                    {!n.read && <span className="w-2 h-2 bg-dmn-gold rounded-full shadow-sm shadow-dmn-gold/50"></span>}
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{new Date(n.date).toLocaleString()}</p>
                 </div>
               </div>
             ))
           ) : (
-            <div className="p-12 text-center">
-              <Zap size={48} className="text-gray-200 mx-auto mb-4" />
-              <p className="text-gray-400 italic">Aucune notification pour le moment</p>
+            <div className="p-20 text-center">
+              <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Zap size={40} />
+              </div>
+              <p className="text-gray-400 font-medium italic">Aucune notification pour le moment</p>
             </div>
           )}
         </div>
-        <div className="p-4 bg-gray-50 border-t border-gray-100">
-          <p className="text-[10px] text-center text-gray-400 uppercase font-bold tracking-widest">Structure prête pour intégration WhatsApp API</p>
+        <div className="p-4 bg-gray-50 border-t border-gray-100 text-center">
+          <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.3em]">Système de Monitoring DMN v2.0</p>
         </div>
       </div>
     );
@@ -1610,66 +1724,75 @@ export default function App() {
     });
 
     return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-          <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex items-center gap-2">
-            <AlertTriangle size={18} className="text-dmn-gold-light" /> Suivi des Retards ({globalYear})
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 text-center">
+            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Total Retards</p>
+            <p className="text-3xl font-heading font-black text-red-600">{filteredMembres.length}</p>
           </div>
-          <div className="p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">
-                  ⚠️ <strong className="text-red-500">{filteredMembres.length}</strong> membre(s) sont actuellement en retard de paiement.
-                </p>
-              </div>
-              <button onClick={() => window.print()} className="bg-dmn-green-50 text-dmn-green-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-dmn-green-100 transition-all flex items-center gap-2">
-                <Printer size={14} /> Imprimer la liste
-              </button>
-            </div>
+          <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 text-center">
+            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Membres à jour</p>
+            <p className="text-3xl font-heading font-black text-dmn-green-600">{membres.length - filteredMembres.length}</p>
+          </div>
+          <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 text-center">
+            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Taux de Recouvrement</p>
+            <p className="text-3xl font-heading font-black text-blue-600">
+              {membres.length > 0 ? Math.round(((membres.length - filteredMembres.length) / membres.length) * 100) : 0}%
+            </p>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMembres.map(m => {
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+          <div className="bg-dmn-green-900 text-white px-8 py-6 font-heading font-bold text-lg flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={24} className="text-dmn-gold-light" /> 
+              Suivi des Retards de Paiement
+            </div>
+            <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
+              <Printer size={14} /> Imprimer
+            </button>
+          </div>
+          <div className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredMembres.map((m, idx) => {
                 const status = getMemberStatus(m.id);
                 return (
-                  <div key={m.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group">
-                    <div className="flex justify-between items-start mb-4">
+                  <div key={m.id} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden animate-in slide-in-from-bottom-4 duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-red-500"></div>
+                    <div className="flex justify-between items-start mb-6">
                       <div>
-                        <button onClick={() => setSelectedMemberProfile(m)} className="font-heading font-bold text-gray-900 hover:text-dmn-green-600 transition-colors">
+                        <button onClick={() => setSelectedMemberProfile(m)} className="font-heading font-bold text-gray-900 text-lg hover:text-dmn-green-600 transition-colors block text-left">
                           {m.prenom} {m.nom}
                         </button>
-                        <p className="text-xs text-gray-500 mt-1">{m.telephone || 'Pas de téléphone'}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">
+                          <Smartphone size={12} className="text-gray-300" /> +221 {m.telephone || '---'}
+                        </div>
                       </div>
-                      <span className="bg-red-100 text-red-600 px-2 py-1 rounded-lg text-[10px] font-black">
-                        {status.unpaidCount} MOIS
+                      <span className="bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm shadow-red-200">
+                        En Retard
                       </span>
                     </div>
                     
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {status.unpaidMonths.map(mois => (
-                        <span key={mois} className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold">
-                          {mois.substring(0, 3)}
-                        </span>
-                      ))}
+                    <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                      <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-3">Mois dus ({status.unpaidCount})</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {status.unpaidMonths.map(mois => (
+                          <span key={mois} className="text-[9px] bg-white text-red-600 border border-red-100 px-2 py-1 rounded-lg uppercase font-black shadow-sm">
+                            {mois.substring(0, 3)}
+                          </span>
+                        ))}
+                      </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       {userRole === 'admin' && (
                         <button 
                           onClick={() => { openAddCot(m.id, status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
-                          className="flex-1 bg-dmn-green-600 hover:bg-dmn-green-700 text-white py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
+                          className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-dmn-green-100 active:scale-95"
                         >
                           Régulariser
                         </button>
                       )}
-                      <a 
-                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=Bonjour ${m.prenom}, un petit rappel pour votre cotisation DMN du mois de ${status.unpaidMonths.join(', ')}. Merci !`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors"
-                        title="Rappel WhatsApp"
-                      >
-                        <Smartphone size={16} />
-                      </a>
                     </div>
                   </div>
                 );
@@ -1677,9 +1800,12 @@ export default function App() {
             </div>
 
             {filteredMembres.length === 0 && (
-              <div className="text-center py-12 bg-dmn-green-50 rounded-2xl border border-dmn-green-100">
-                <CheckCircle2 size={48} className="mx-auto text-dmn-green-600 mb-4" />
-                <p className="text-dmn-green-900 font-bold">Tous les membres sont à jour !</p>
+              <div className="text-center py-20 bg-dmn-green-50/50 rounded-[40px] border-2 border-dashed border-dmn-green-100">
+                <div className="w-24 h-24 bg-dmn-green-100 text-dmn-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                  <CheckCircle2 size={48} />
+                </div>
+                <h3 className="text-2xl font-heading font-black text-dmn-green-900 mb-2">Tout est en ordre !</h3>
+                <p className="text-dmn-green-600 font-medium">Félicitations, tous les membres sont à jour de leurs cotisations.</p>
               </div>
             )}
           </div>
