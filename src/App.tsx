@@ -10,7 +10,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { MOIS } from './data';
-import { Membre, Cotisation, ModePaiement, Depense } from './types';
+import { Membre, Cotisation, ModePaiement, Depense, Recette } from './types';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
@@ -18,8 +18,11 @@ import { User } from 'firebase/auth';
 
 import { useDebounce } from './utils/useDebounce';
 import { RotatingMessages } from './components/RotatingMessages';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
-type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recap' | 'nonpayeurs';
+type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recettes' | 'recap' | 'nonpayeurs' | 'stats' | 'rapports' | 'notifications';
 
 const ADMIN_CODE = (import.meta as any).env.VITE_ADMIN_CODE || 'DMN-ADMIN-ESP';
 
@@ -30,6 +33,11 @@ export default function App() {
   const [userRole, setUserRole] = useState<'admin' | 'visitor' | null>(null);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [adminCodeInput, setAdminCodeInput] = useState('');
+  
+  // Advanced Features State
+  const [selectedMemberProfile, setSelectedMemberProfile] = useState<Membre | null>(null);
+  const [notifications, setNotifications] = useState<{id: string; message: string; type: 'info' | 'success' | 'warning'; date: number; read: boolean}[]>([]);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -43,6 +51,7 @@ export default function App() {
   const [membres, setMembres] = useState<Membre[]>([]);
   const [cotisations, setCotisations] = useState<Cotisation[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
+  const [recettes, setRecettes] = useState<Recette[]>([]);
   const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
@@ -50,6 +59,9 @@ export default function App() {
   
   const [isDepenseModalOpen, setIsDepenseModalOpen] = useState(false);
   const [editingDepense, setEditingDepense] = useState<Partial<Depense>>({});
+
+  const [isRecetteModalOpen, setIsRecetteModalOpen] = useState(false);
+  const [editingRecette, setEditingRecette] = useState<Partial<Recette>>({});
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -93,9 +105,9 @@ export default function App() {
   const [npMois, setNpMois] = useState('');
 
   const availableYears = useMemo(() => {
-    const years = new Set([new Date().getFullYear(), ...cotisations.map(c => c.annee), ...depenses.map(d => d.annee)]);
+    const years = new Set([new Date().getFullYear(), ...cotisations.map(c => c.annee), ...depenses.map(d => d.annee), ...recettes.map(r => r.annee)]);
     return Array.from(years).sort((a, b) => b - a);
-  }, [cotisations, depenses]);
+  }, [cotisations, depenses, recettes]);
 
   const filteredCotisations = useMemo(() => {
     return cotisations.filter(c => {
@@ -115,6 +127,15 @@ export default function App() {
       return matchYear && matchMonth;
     });
   }, [depenses, globalYear, globalMonth]);
+
+  const filteredRecettes = useMemo(() => {
+    return recettes.filter(r => {
+      const matchYear = r.annee === globalYear;
+      const matchMonth = !globalMonth || r.mois === globalMonth;
+      const matchMode = !globalMode || r.mode === globalMode;
+      return matchYear && matchMonth && matchMode;
+    });
+  }, [recettes, globalYear, globalMonth, globalMode]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -162,7 +183,10 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'depenses');
       setIsLoading(false);
     });
-    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); };
+    const unsubRecettes = onSnapshot(collection(db, 'recettes'), (snapshot) => {
+      setRecettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recette)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'recettes'));
+    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); };
   }, [isAuthReady, user]);
 
   useEffect(() => {
@@ -240,13 +264,15 @@ export default function App() {
     const formData = new FormData(e.currentTarget);
     const prenom = (formData.get('prenom') as string).trim().toUpperCase();
     const nom = (formData.get('nom') as string).trim().toUpperCase();
+    const telephone = (formData.get('telephone') as string).trim();
+    const statut = formData.get('statut') as string;
     if (!prenom || !nom) return;
     try {
       if (editingMembre?.id) {
-        await updateDoc(doc(db, 'membres', editingMembre.id), { prenom, nom, updatedAt: Date.now(), updatedBy: user?.uid });
+        await updateDoc(doc(db, 'membres', editingMembre.id), { prenom, nom, telephone, statut, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Membre modifié avec succès');
       } else {
-        await addDoc(collection(db, 'membres'), { prenom, nom, createdAt: Date.now(), createdBy: user?.uid });
+        await addDoc(collection(db, 'membres'), { prenom, nom, telephone, statut, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Membre ajouté avec succès');
       }
       setIsMembreModalOpen(false);
@@ -323,6 +349,11 @@ export default function App() {
     setIsCotModalOpen(true);
   };
 
+  const addNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
+    const newNotif = { id: Date.now().toString(), message, type, date: Date.now(), read: false };
+    setNotifications(prev => [newNotif, ...prev].slice(0, 50));
+  };
+
   const handleSaveCotisation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -336,6 +367,7 @@ export default function App() {
       if (editingCot?.id) {
         await updateDoc(doc(db, 'cotisations', editingCot.id), { mId, mois, annee, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Cotisation modifiée avec succès');
+        addNotification(`Cotisation modifiée pour ${nomComplet(membres.find(m => m.id === mId)!)} (${mois} ${annee})`, 'info');
       } else {
         const existing = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === annee);
         if (existing && existing.montant > 0) {
@@ -344,9 +376,11 @@ export default function App() {
         } else if (existing) {
           await updateDoc(doc(db, 'cotisations', existing.id), { montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
           showToast('Cotisation enregistrée avec succès');
+          addNotification(`Paiement de ${montant}F reçu de ${nomComplet(membres.find(m => m.id === mId)!)} (${mois})`, 'success');
         } else {
           await addDoc(collection(db, 'cotisations'), { mId, mois, annee, montant, mode, createdAt: Date.now(), createdBy: user?.uid });
           showToast('Cotisation ajoutée avec succès');
+          addNotification(`Nouveau paiement de ${montant}F de ${nomComplet(membres.find(m => m.id === mId)!)}`, 'success');
         }
       }
       setIsCotModalOpen(false);
@@ -368,9 +402,11 @@ export default function App() {
       if (editingDepense?.id) {
         await updateDoc(doc(db, 'depenses', editingDepense.id), { evenement, mois, annee, montant, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Dépense modifiée avec succès');
+        addNotification(`Dépense modifiée : ${evenement} (${montant}F)`, 'info');
       } else {
         await addDoc(collection(db, 'depenses'), { evenement, mois, annee, montant, date, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Dépense ajoutée avec succès');
+        addNotification(`Nouvelle dépense enregistrée : ${evenement} (${montant}F)`, 'warning');
       }
       setIsDepenseModalOpen(false);
     } catch (error) {
@@ -395,34 +431,378 @@ export default function App() {
     );
   };
 
+  const handleSaveRecette = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const motif = formData.get('motif') as string;
+    const mois = formData.get('mois') as string;
+    const annee = parseInt(formData.get('annee') as string) || globalYear;
+    const montant = parseInt(formData.get('montant') as string) || 0;
+    const mode = formData.get('mode') as ModePaiement;
+    const date = new Date().toISOString();
+    try {
+      if (editingRecette?.id) {
+        await updateDoc(doc(db, 'recettes', editingRecette.id), { motif, mois, annee, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
+        showToast('Entrée modifiée avec succès');
+        addNotification(`Recette modifiée : ${motif} (${montant}F)`, 'info');
+      } else {
+        await addDoc(collection(db, 'recettes'), { motif, mois, annee, montant, mode, date, createdAt: Date.now(), createdBy: user?.uid });
+        showToast('Entrée ajoutée avec succès');
+        addNotification(`Nouvelle recette enregistrée : ${motif} (${montant}F)`, 'success');
+      }
+      setIsRecetteModalOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'recettes');
+      showToast('Erreur lors de l\'enregistrement', 'error');
+    }
+  };
+
+  const handleDeleteRecette = async (id: string) => {
+    confirmAction(
+      'Supprimer Entrée',
+      'Voulez-vous vraiment supprimer cette entrée d\'argent ?',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'recettes', id));
+          showToast('Entrée supprimée avec succès');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, 'recettes');
+          showToast('Erreur lors de la suppression', 'error');
+        }
+      }
+    );
+  };
+
   const Badge = ({ mode }: { mode: ModePaiement }) => {
     if (mode === 'WAVE') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-600">WAVE</span>;
     if (mode === 'OM') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-600">OM</span>;
     return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">ESP</span>;
   };
 
+  const getMemberStatus = (mId: string) => {
+    const currentMonthIndex = MOIS.indexOf(globalMonth || MOIS[new Date().getMonth()]);
+    const unpaidMonths = MOIS.slice(0, currentMonthIndex + 1).filter(mois => {
+      const cot = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === globalYear);
+      return !cot || cot.montant === 0;
+    });
+    return {
+      isLate: unpaidMonths.length > 0,
+      unpaidCount: unpaidMonths.length,
+      unpaidMonths
+    };
+  };
+
+  const renderMemberProfile = (membre: Membre) => {
+    const status = getMemberStatus(membre.id);
+    const memberCotisations = cotisations.filter(c => c.mId === membre.id).sort((a, b) => b.annee - a.annee || MOIS.indexOf(b.mois) - MOIS.indexOf(a.mois));
+    const totalPaid = memberCotisations.reduce((sum, c) => sum + c.montant, 0);
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+        <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+          <div className="bg-dmn-green-900 p-8 text-white relative">
+            <button onClick={() => setSelectedMemberProfile(null)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors">
+              <X size={24} />
+            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center text-4xl font-bold border-4 border-white/20">
+                {membre.prenom[0]}{membre.nom[0]}
+              </div>
+              <div className="text-center sm:text-left">
+                <h2 className="text-2xl sm:text-3xl font-heading font-bold">{membre.prenom} {membre.nom}</h2>
+                <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-3">
+                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                    <Smartphone size={12} /> {membre.telephone || 'Non renseigné'}
+                  </span>
+                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">
+                    {membre.statut || 'Statut non défini'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-gray-50 p-4 rounded-2xl text-center">
+                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Total Payé</p>
+                <p className="text-2xl font-heading font-bold text-dmn-green-900">{totalPaid.toLocaleString()} F</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-2xl text-center">
+                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Mois Impayés</p>
+                <p className="text-2xl font-heading font-bold text-red-600">{status.unpaidCount}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-2xl text-center">
+                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Statut</p>
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold mt-1 ${status.isLate ? 'bg-red-100 text-red-600' : 'bg-dmn-green-100 text-dmn-green-600'}`}>
+                  {status.isLate ? 'EN RETARD' : 'RÉGULIER'}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-heading font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <History size={18} className="text-dmn-green-600" /> Historique des Paiements
+              </h3>
+              <div className="space-y-3">
+                {memberCotisations.length > 0 ? (
+                  memberCotisations.map(c => (
+                    <div key={c.id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                      <div>
+                        <p className="font-bold text-gray-900">{c.mois} {c.annee}</p>
+                        <p className="text-xs text-gray-500">{c.mode}</p>
+                      </div>
+                      <p className="font-bold text-dmn-green-600">+{c.montant.toLocaleString()} F</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center py-8 text-gray-400 italic">Aucun paiement enregistré</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderStats = () => {
+    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
+    const annualDepenses = depenses.filter(d => d.annee === globalYear);
+    const annualRecettes = recettes.filter(r => r.annee === globalYear);
+
+    const monthlyData = MOIS.map(mois => {
+      const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
+      const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
+      const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      return { 
+        name: mois.substring(0, 3), 
+        Cotisations: cot,
+        Recettes: rec,
+        Dépenses: dep,
+        Solde: (cot + rec) - dep
+      };
+    });
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+          <h3 className="font-heading font-bold text-dmn-green-900 mb-6 flex items-center gap-2">
+            <TrendingDown size={20} /> Évolution des Flux Financiers {globalYear}
+          </h3>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} />
+                <RechartsTooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                <Legend />
+                <Bar dataKey="Cotisations" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Recettes" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Dépenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+            <h3 className="font-heading font-bold text-dmn-green-900 mb-6">Répartition des Entrées</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie 
+                    data={[
+                      { name: 'Cotisations', value: annualCotisations.reduce((s, c) => s + c.montant, 0) },
+                      { name: 'Autres Recettes', value: annualRecettes.reduce((s, r) => s + r.montant, 0) }
+                    ]} 
+                    cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"
+                  >
+                    <Cell fill="#10b981" />
+                    <Cell fill="#f59e0b" />
+                  </Pie>
+                  <RechartsTooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+            <h3 className="font-heading font-bold text-dmn-green-900 mb-6">Solde Mensuel Cumulé</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} />
+                  <RechartsTooltip />
+                  <Bar dataKey="Solde" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
+    const annualDepenses = depenses.filter(d => d.annee === globalYear);
+    const annualRecettes = recettes.filter(r => r.annee === globalYear);
+
+    const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
+    const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
+    const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
+
+    doc.setFontSize(20);
+    doc.text('Rapport Financier Annuel ' + globalYear, 14, 22);
+    doc.setFontSize(12);
+    doc.text('Daara Madjmahoune Noreyni', 14, 30);
+    
+    doc.text(`Total Cotisations: ${totCot.toLocaleString()} F`, 14, 45);
+    doc.text(`Autres Recettes: ${totRec.toLocaleString()} F`, 14, 52);
+    doc.text(`Total Dépenses: ${totDep.toLocaleString()} F`, 14, 59);
+    doc.text(`Solde Final: ${(totCot + totRec - totDep).toLocaleString()} F`, 14, 66);
+
+    const tableData = membres.map(m => {
+      const status = getMemberStatus(m.id);
+      return [nomComplet(m), m.telephone || '-', m.statut || '-', status.isLate ? 'En Retard' : 'Régulier', status.unpaidCount];
+    });
+
+    (doc as any).autoTable({
+      head: [['Membre', 'Téléphone', 'Statut', 'État', 'Mois Impayés']],
+      body: tableData,
+      startY: 80,
+    });
+
+    doc.text('Signature du Trésorier:', 14, (doc as any).lastAutoTable.finalY + 20);
+    doc.line(14, (doc as any).lastAutoTable.finalY + 35, 80, (doc as any).lastAutoTable.finalY + 35);
+
+    doc.save(`Rapport_DMN_${globalYear}.pdf`);
+    showToast('PDF généré avec succès');
+  };
+
+  const exportToExcel = () => {
+    const data = membres.map(m => {
+      const status = getMemberStatus(m.id);
+      return {
+        'Prénom': m.prenom,
+        'Nom': m.nom,
+        'Téléphone': m.telephone || '',
+        'Statut': m.statut || '',
+        'État': status.isLate ? 'En Retard' : 'Régulier',
+        'Mois Impayés': status.unpaidCount
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Membres');
+    XLSX.writeFile(wb, `Export_DMN_${globalYear}.xlsx`);
+    showToast('Excel généré avec succès');
+  };
+
+  const renderRapports = () => {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 text-center">
+          <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Printer size={32} />
+          </div>
+          <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Rapport PDF</h3>
+          <p className="text-gray-500 mb-6 text-sm">Générez un rapport complet au format PDF avec les statistiques et la liste des membres.</p>
+          <button 
+            onClick={exportToPDF}
+            className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
+          >
+            <Printer size={18} /> Télécharger PDF
+          </button>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 text-center">
+          <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <CreditCard size={32} />
+          </div>
+          <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Export Excel</h3>
+          <p className="text-gray-500 mb-6 text-sm">Exportez la liste des membres et leur statut de paiement dans un fichier Excel exploitable.</p>
+          <button 
+            onClick={exportToExcel}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
+          >
+            <Plus size={18} /> Télécharger Excel
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderNotifications = () => {
+    return (
+      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
+        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold flex justify-between items-center">
+          <span className="flex items-center gap-2"><Zap size={18} className="text-dmn-gold-light" /> Centre de Notifications</span>
+          <button onClick={() => setNotifications([])} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg transition-colors">Tout effacer</button>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {notifications.length > 0 ? (
+            notifications.map(n => (
+              <div key={n.id} className={`p-4 flex gap-4 ${n.read ? 'opacity-60' : 'bg-dmn-green-50/30'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                  n.type === 'success' ? 'bg-dmn-green-100 text-dmn-green-600' :
+                  n.type === 'warning' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                }`}>
+                  <Zap size={18} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">{n.message}</p>
+                  <p className="text-[10px] text-gray-400 mt-1">{new Date(n.date).toLocaleString()}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-12 text-center">
+              <Zap size={48} className="text-gray-200 mx-auto mb-4" />
+              <p className="text-gray-400 italic">Aucune notification pour le moment</p>
+            </div>
+          )}
+        </div>
+        <div className="p-4 bg-gray-50 border-t border-gray-100">
+          <p className="text-[10px] text-center text-gray-400 uppercase font-bold tracking-widest">Structure prête pour intégration WhatsApp API</p>
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboard = () => {
     // Dashboard should show annual totals for the selected year
     const annualCotisations = cotisations.filter(c => c.annee === globalYear);
     const annualDepenses = depenses.filter(d => d.annee === globalYear);
+    const annualRecettes = recettes.filter(r => r.annee === globalYear);
     
     const totCotisations = annualCotisations.reduce((s, c) => s + c.montant, 0);
-    const totWave = annualCotisations.filter(c => c.mode === 'WAVE').reduce((s, c) => s + c.montant, 0);
-    const totOM = annualCotisations.filter(c => c.mode === 'OM').reduce((s, c) => s + c.montant, 0);
+    const totAutresRecettes = annualRecettes.reduce((s, r) => s + r.montant, 0);
+    const totEntrees = totCotisations + totAutresRecettes;
+    
+    const totWave = annualCotisations.filter(c => c.mode === 'WAVE').reduce((s, c) => s + c.montant, 0) + annualRecettes.filter(r => r.mode === 'WAVE').reduce((s, r) => s + r.montant, 0);
+    const totOM = annualCotisations.filter(c => c.mode === 'OM').reduce((s, c) => s + c.montant, 0) + annualRecettes.filter(r => r.mode === 'OM').reduce((s, r) => s + r.montant, 0);
     const totDepenses = annualDepenses.reduce((s, d) => s + d.montant, 0);
-    const solde = totCotisations - totDepenses;
+    const solde = totEntrees - totDepenses;
     
     const monthlyData = MOIS.map(mois => {
       const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
+      const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
       const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      return { name: mois.substring(0, 3), Cotisations: cot, Dépenses: dep };
+      return { name: mois.substring(0, 3), Entrées: cot + rec, Dépenses: dep };
     });
 
     const modes = ['WAVE', 'OM', 'ESPÈCES'];
     const COLORS = ['#3b82f6', '#f97316', '#10b981'];
     const pieData = modes.map(mode => ({
       name: mode,
-      value: annualCotisations.filter(c => c.mode === mode).reduce((sum, c) => sum + c.montant, 0)
+      value: annualCotisations.filter(c => c.mode === mode).reduce((sum, c) => sum + c.montant, 0) + annualRecettes.filter(r => r.mode === mode).reduce((sum, r) => sum + r.montant, 0)
     })).filter(d => d.value > 0);
 
     return (
@@ -468,12 +848,26 @@ export default function App() {
 
         <RotatingMessages />
         
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-dmn-green-600"></div>
             <div className="w-10 h-10 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Wallet size={20} /></div>
             <h2 className="text-2xl font-heading font-bold text-gray-900">{totCotisations.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
             <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Cotisations {globalYear}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+            <div className="absolute top-0 left-0 w-full h-1 bg-dmn-gold"></div>
+            <div className="w-10 h-10 bg-dmn-gold-light/20 text-dmn-gold rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Plus size={20} /></div>
+            <h2 className="text-2xl font-heading font-bold text-gray-900">{totAutresRecettes.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
+            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Autres Entrées {globalYear}</p>
+            {userRole === 'admin' && (
+              <button 
+                onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
+                className="mt-3 text-[10px] font-bold text-dmn-gold hover:text-dmn-gold-dark flex items-center gap-1 mx-auto transition-colors"
+              >
+                <Plus size={12} /> Ajouter une recette
+              </button>
+            )}
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
@@ -503,6 +897,29 @@ export default function App() {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 flex items-center gap-6 group hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('stats')}>
+            <div className="w-14 h-14 bg-dmn-green-50 text-dmn-green-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <TrendingDown size={28} />
+            </div>
+            <div>
+              <h3 className="text-lg font-heading font-bold text-gray-900">Statistiques Avancées</h3>
+              <p className="text-sm text-gray-500">Analyses graphiques et évolution des flux</p>
+            </div>
+            <ChevronRight className="ml-auto text-gray-300 group-hover:text-dmn-green-600 transition-colors" />
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 flex items-center gap-6 group hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('rapports')}>
+            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Printer size={28} />
+            </div>
+            <div>
+              <h3 className="text-lg font-heading font-bold text-gray-900">Rapports & Exports</h3>
+              <p className="text-sm text-gray-500">Générer PDF et Excel pour la commission</p>
+            </div>
+            <ChevronRight className="ml-auto text-gray-300 group-hover:text-red-600 transition-colors" />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 print:hidden">
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-md border border-gray-100 p-4 sm:p-6">
             <h3 className="font-heading font-bold text-dmn-green-900 mb-6 text-xs sm:text-sm uppercase tracking-wider">Évolution Mensuelle {globalYear}</h3>
@@ -514,7 +931,7 @@ export default function App() {
                   <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#6b7280'}} width={30} />
                   <RechartsTooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
                   <Legend wrapperStyle={{fontSize: '10px'}} />
-                  <Bar dataKey="Cotisations" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Entrées" fill="#10b981" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Dépenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -551,7 +968,15 @@ export default function App() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
           <span className="flex items-center gap-2"><Zap size={18} className="text-dmn-gold-light" /> Saisie Rapide ({globalYear})</span>
-          {globalMonth && <span className="hidden sm:inline-block bg-dmn-green-800/50 border border-dmn-green-700 px-3 py-1.5 rounded-lg text-xs font-medium">Mois : {globalMonth}</span>}
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
+              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              <Plus size={14} /> Recette
+            </button>
+            {globalMonth && <span className="hidden sm:inline-block bg-dmn-green-800/50 border border-dmn-green-700 px-3 py-1.5 rounded-lg text-xs font-medium">Mois : {globalMonth}</span>}
+          </div>
         </div>
 
         {/* Desktop Table View */}
@@ -809,14 +1234,21 @@ export default function App() {
                   <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
                     <td className="px-6 py-4 text-gray-500">{i + 1}</td>
                     <td className="px-6 py-4 text-left whitespace-nowrap">
-                      <button onClick={() => setSelectedMemberHistory(m)} className="hover:text-dmn-green-600 font-semibold text-gray-900 text-left flex items-center gap-2 transition-colors">
-                        {m.prenom} <strong>{m.nom}</strong>
-                        <History size={14} className="text-gray-400" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setSelectedMemberProfile(m)} className="hover:text-dmn-green-600 font-semibold text-gray-900 text-left flex items-center gap-2 transition-colors">
+                          {m.prenom} <strong>{m.nom}</strong>
+                        </button>
+                        <button onClick={() => setSelectedMemberHistory(m)} className="p-1 text-gray-400 hover:text-dmn-green-600 transition-colors" title="Historique">
+                          <History size={14} />
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-dmn-green-700">{tot.toLocaleString()} F</td>
                     {userRole === 'admin' && (
                       <td className="px-6 py-4 flex justify-center gap-2">
+                        <button onClick={() => setSelectedMemberProfile(m)} className="p-2 bg-dmn-green-50 text-dmn-green-600 rounded-lg hover:bg-dmn-green-100 transition-colors" title="Profil">
+                          <Users size={16} />
+                        </button>
                         <button onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
                           <Edit2 size={16} />
                         </button>
@@ -842,14 +1274,22 @@ export default function App() {
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-bold text-gray-400 w-5">{i + 1}</span>
                   <div>
-                    <button onClick={() => setSelectedMemberHistory(m)} className="font-bold text-dmn-green-900 flex items-center gap-2">
-                      {m.prenom} {m.nom} <History size={12} className="text-gray-400" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setSelectedMemberProfile(m)} className="font-bold text-dmn-green-900">
+                        {m.prenom} {m.nom}
+                      </button>
+                      <button onClick={() => setSelectedMemberHistory(m)} className="p-1 text-gray-400">
+                        <History size={12} />
+                      </button>
+                    </div>
                     <p className="text-xs font-bold text-dmn-green-600 mt-0.5">{tot.toLocaleString()} F payés</p>
                   </div>
                 </div>
                 {userRole === 'admin' && (
                   <div className="flex gap-2">
+                    <button onClick={() => setSelectedMemberProfile(m)} className="p-2 bg-dmn-green-50 text-dmn-green-600 rounded-lg">
+                      <Users size={16} />
+                    </button>
                     <button onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg">
                       <Edit2 size={16} />
                     </button>
@@ -1039,6 +1479,93 @@ export default function App() {
     );
   };
 
+  const renderRecettes = () => {
+    return (
+      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
+        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
+          <span className="flex items-center gap-2"><Plus size={18} className="text-dmn-gold-light" /> Autres Entrées ({globalYear})</span>
+          {userRole === 'admin' && (
+            <button 
+              onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
+              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+            >
+              <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
+            </button>
+          )}
+        </div>
+        
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm text-center">
+            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Motif</th>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mois</th>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Montant</th>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mode</th>
+                {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredRecettes.map(r => (
+                <tr key={r.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
+                  <td className="px-6 py-4 text-left font-medium text-gray-900">{r.motif}</td>
+                  <td className="px-6 py-4 text-gray-600">{r.mois}</td>
+                  <td className="px-6 py-4 font-bold text-dmn-green-700">{r.montant.toLocaleString()} F</td>
+                  <td className="px-6 py-4"><Badge mode={r.mode} /></td>
+                  {userRole === 'admin' && (
+                    <td className="px-6 py-4 flex justify-center gap-2">
+                      <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
+                        <Edit2 size={16} />
+                      </button>
+                      <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {filteredRecettes.length === 0 && (
+                <tr><td colSpan={5} className="p-8 text-gray-400 text-center">Aucune autre entrée trouvée</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filteredRecettes.map(r => (
+            <div key={r.id} className="p-4 space-y-3 bg-white hover:bg-gray-50 transition-colors">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-bold text-dmn-green-900">{r.motif}</p>
+                  <p className="text-xs text-gray-500">{r.mois} {r.annee}</p>
+                </div>
+                <Badge mode={r.mode} />
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-gray-50">
+                <p className="font-bold text-dmn-green-600">{r.montant.toLocaleString()} F</p>
+                {userRole === 'admin' && (
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                      <Edit2 size={14} />
+                    </button>
+                    <button onClick={() => handleDeleteRecette(r.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {filteredRecettes.length === 0 && (
+            <div className="p-8 text-center text-gray-400">Aucune autre entrée</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderRecap = () => {
     const yearCots = cotisations.filter(c => c.annee === globalYear);
     const moisDispo = [...new Set(yearCots.map(c => c.mois))];
@@ -1077,60 +1604,85 @@ export default function App() {
   };
 
   const renderNonPayeurs = () => {
-    const yearCots = cotisations.filter(c => c.annee === globalYear);
-    const payeurs = new Set(yearCots.filter(c => c.mois === npMois && c.montant > 0).map(c => c.mId));
-    const np = membres.filter(m => !payeurs.has(m.id));
+    const filteredMembres = membres.filter(m => {
+      const status = getMemberStatus(m.id);
+      return status.isLate;
+    });
 
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex items-center gap-2">
-          <AlertTriangle size={18} className="text-dmn-gold-light" /> Membres n'ayant pas encore payé ({globalYear})
-        </div>
-        <div className="p-4 bg-gray-50/50 border-b border-gray-100">
-          <select value={npMois} onChange={e => setNpMois(e.target.value)} className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:outline-none focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-500/20 bg-white shadow-sm transition-all w-full max-w-xs">
-            <option value="">Choisir un mois...</option>
-            {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-        <div className="p-4 sm:p-6">
-          {!npMois ? (
-            <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-              <Calendar size={48} className="mx-auto text-gray-300 mb-4 opacity-50" />
-              <p className="text-gray-500 text-sm font-medium">Sélectionnez un mois pour voir les non-payeurs.</p>
-            </div>
-          ) : np.length === 0 ? (
-            <div className="text-dmn-green-600 font-semibold text-sm flex flex-col items-center gap-4 bg-dmn-green-50 p-8 rounded-2xl border border-dmn-green-100 text-center">
-              <div className="w-12 h-12 rounded-full bg-dmn-green-100 flex items-center justify-center text-dmn-green-700 text-2xl shadow-sm">✓</div> 
-              <p>Félicitations ! Tous les membres ont payé pour le mois de {npMois}.</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-2">
-                <p className="text-gray-600 text-sm font-medium">⚠️ <strong className="text-red-500">{np.length}</strong> membre(s) n'ont pas encore payé en {npMois} :</p>
-                <button onClick={() => window.print()} className="text-xs text-dmn-green-600 hover:underline flex items-center gap-1 font-bold">
-                  <Printer size={14} /> Imprimer la liste
-                </button>
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+          <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex items-center gap-2">
+            <AlertTriangle size={18} className="text-dmn-gold-light" /> Suivi des Retards ({globalYear})
+          </div>
+          <div className="p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">
+                  ⚠️ <strong className="text-red-500">{filteredMembres.length}</strong> membre(s) sont actuellement en retard de paiement.
+                </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {np.map(m => (
-                  <div key={m.id} className="bg-red-50/50 border border-red-100 rounded-xl p-4 text-sm flex flex-col justify-between hover:bg-red-50 transition-colors shadow-sm group">
-                    <div>
-                      <strong className="text-red-600 block mb-1 font-heading group-hover:scale-105 transition-transform origin-left">{m.prenom}</strong>
-                      <span className="text-gray-800 font-medium">{m.nom}</span>
+              <button onClick={() => window.print()} className="bg-dmn-green-50 text-dmn-green-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-dmn-green-100 transition-all flex items-center gap-2">
+                <Printer size={14} /> Imprimer la liste
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredMembres.map(m => {
+                const status = getMemberStatus(m.id);
+                return (
+                  <div key={m.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <button onClick={() => setSelectedMemberProfile(m)} className="font-heading font-bold text-gray-900 hover:text-dmn-green-600 transition-colors">
+                          {m.prenom} {m.nom}
+                        </button>
+                        <p className="text-xs text-gray-500 mt-1">{m.telephone || 'Pas de téléphone'}</p>
+                      </div>
+                      <span className="bg-red-100 text-red-600 px-2 py-1 rounded-lg text-[10px] font-black">
+                        {status.unpaidCount} MOIS
+                      </span>
                     </div>
-                    {userRole === 'admin' && (
-                      <button 
-                        onClick={() => { openAddCot(m.id, npMois, globalYear); setActiveTab('cotisations'); }}
-                        className="mt-4 bg-dmn-gold-light hover:bg-dmn-gold text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95 w-full flex justify-center items-center gap-1"
+                    
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      {status.unpaidMonths.map(mois => (
+                        <span key={mois} className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold">
+                          {mois.substring(0, 3)}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2">
+                      {userRole === 'admin' && (
+                        <button 
+                          onClick={() => { openAddCot(m.id, status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
+                          className="flex-1 bg-dmn-green-600 hover:bg-dmn-green-700 text-white py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
+                        >
+                          Régulariser
+                        </button>
+                      )}
+                      <a 
+                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=Bonjour ${m.prenom}, un petit rappel pour votre cotisation DMN du mois de ${status.unpaidMonths.join(', ')}. Merci !`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors"
+                        title="Rappel WhatsApp"
                       >
-                        <Plus size={14} /> Enregistrer
-                      </button>
-                    )}
+                        <Smartphone size={16} />
+                      </a>
+                    </div>
                   </div>
-                ))}
+                );
+              })}
+            </div>
+
+            {filteredMembres.length === 0 && (
+              <div className="text-center py-12 bg-dmn-green-50 rounded-2xl border border-dmn-green-100">
+                <CheckCircle2 size={48} className="mx-auto text-dmn-green-600 mb-4" />
+                <p className="text-dmn-green-900 font-bold">Tous les membres sont à jour !</p>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1451,6 +2003,16 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          <button 
+            onClick={() => setActiveTab('notifications')}
+            className="relative p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
+            title="Notifications"
+          >
+            <Zap size={18} className="text-dmn-gold-light" />
+            {notifications.some(n => !n.read) && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border border-dmn-green-900 rounded-full"></span>
+            )}
+          </button>
           {userRole !== 'admin' && (
             <button onClick={() => setIsAdminModalOpen(true)} className="flex items-center gap-2 bg-dmn-gold-light hover:bg-dmn-gold text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95">
               <Zap size={14} /> Admin
@@ -1504,9 +2066,13 @@ export default function App() {
           { id: 'annuel', label: 'Annuel', icon: CalendarRange },
           { id: 'membres', label: 'Membres', icon: Users },
           { id: 'cotisations', label: 'Cotisations', icon: CreditCard },
+          { id: 'recettes', label: 'Recettes', icon: Plus },
           { id: 'depenses', label: 'Dépenses', icon: Wallet },
           { id: 'recap', label: 'Récap', icon: CalendarDays },
           { id: 'nonpayeurs', label: 'Retards', icon: AlertTriangle },
+          { id: 'stats', label: 'Stats', icon: TrendingDown },
+          { id: 'rapports', label: 'Rapports', icon: Printer },
+          { id: 'notifications', label: 'Alertes', icon: Zap },
         ].map(tab => (
           <button
             key={tab.id}
@@ -1530,9 +2096,13 @@ export default function App() {
         {activeTab === 'membres' && renderMembres()}
         {activeTab === 'annuel' && renderAnnuel()}
         {activeTab === 'cotisations' && renderCotisations()}
+        {activeTab === 'recettes' && renderRecettes()}
         {activeTab === 'depenses' && renderDepenses()}
         {activeTab === 'recap' && renderRecap()}
         {activeTab === 'nonpayeurs' && renderNonPayeurs()}
+        {activeTab === 'stats' && renderStats()}
+        {activeTab === 'rapports' && renderRapports()}
+        {activeTab === 'notifications' && renderNotifications()}
       </main>
 
       {/* Footer */}
@@ -1542,6 +2112,7 @@ export default function App() {
       </footer>
 
       {renderMemberHistoryModal()}
+      {selectedMemberProfile && renderMemberProfile(selectedMemberProfile)}
 
       {/* Modals for Membre and Depense */}
       {isMembreModalOpen && (
@@ -1561,6 +2132,19 @@ export default function App() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nom</label>
                 <input name="nom" defaultValue={editingMembre?.nom} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Téléphone</label>
+                <input name="telephone" defaultValue={editingMembre?.telephone} placeholder="77 000 00 00" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Statut</label>
+                <select name="statut" defaultValue={editingMembre?.statut || 'Non Boursier'} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
+                  <option value="Boursier">Boursier</option>
+                  <option value="Non Boursier">Non Boursier</option>
+                  <option value="Professionnel">Professionnel</option>
+                  <option value="Autre">Autre</option>
+                </select>
               </div>
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsMembreModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
@@ -1650,6 +2234,51 @@ export default function App() {
               </div>
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsDepenseModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
+                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isRecetteModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
+                <Plus size={20} className="text-dmn-gold-light" /> Enregistrer une entrée
+              </h3>
+              <button onClick={() => setIsRecetteModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSaveRecette} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Motif / Source</label>
+                <input name="motif" defaultValue={editingRecette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Don, Subvention..." />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois</label>
+                <select name="mois" defaultValue={editingRecette.mois || globalMonth || MOIS[currentMonthIndex]} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
+                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année</label>
+                <input type="number" name="annee" defaultValue={editingRecette.annee || globalYear} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
+                <input type="number" name="montant" defaultValue={editingRecette.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mode de paiement</label>
+                <select name="mode" defaultValue={editingRecette.mode || 'WAVE'} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
+                  <option value="WAVE">WAVE</option>
+                  <option value="OM">OM</option>
+                  <option value="ESPÈCES">ESPÈCES</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => setIsRecetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
               </div>
             </form>

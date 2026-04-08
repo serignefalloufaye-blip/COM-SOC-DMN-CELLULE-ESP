@@ -6,7 +6,9 @@
       "type": "object",
       "properties": {
         "prenom": { "type": "string" },
-        "nom": { "type": "string" }
+        "nom": { "type": "string" },
+        "telephone": { "type": "string" },
+        "statut": { "type": "string", "enum": ["Boursier", "Non Boursier", "Professionnel", "Autre"] }
       },
       "required": ["prenom", "nom"]
     },
@@ -34,6 +36,19 @@
         "montant": { "type": "number" }
       },
       "required": ["evenement", "mois", "annee", "montant"]
+    },
+    "Recette": {
+      "title": "Recette",
+      "description": "Autre entrée d'argent dans la caisse",
+      "type": "object",
+      "properties": {
+        "motif": { "type": "string" },
+        "mois": { "type": "string" },
+        "annee": { "type": "number" },
+        "montant": { "type": "number" },
+        "mode": { "type": "string", "enum": ["WAVE", "OM", "ESPÈCES"] }
+      },
+      "required": ["motif", "mois", "annee", "montant", "mode"]
     },
     "User": {
       "title": "User",
@@ -71,6 +86,10 @@
     "/depenses/{depenseId}": {
       "schema": { "$ref": "#/entities/Depense" },
       "description": "Liste des dépenses"
+    },
+    "/recettes/{recetteId}": {
+      "schema": { "$ref": "#/entities/Recette" },
+      "description": "Liste des autres entrées d'argent"
     },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },

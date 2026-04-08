@@ -2,6 +2,8 @@ export interface Membre {
   id: string;
   prenom: string;
   nom: string;
+  telephone?: string;
+  statut?: 'Boursier' | 'Non Boursier' | 'Professionnel' | 'Autre';
   createdAt?: number;
   updatedAt?: number;
   createdBy?: string;
@@ -28,6 +30,19 @@ export interface Depense {
   mois: string;
   annee: number;
   date: string;
+  createdAt?: number;
+  updatedAt?: number;
+  createdBy?: string;
+}
+
+export interface Recette {
+  id: string;
+  motif: string;
+  montant: number;
+  mois: string;
+  annee: number;
+  date: string;
+  mode: ModePaiement;
   createdAt?: number;
   updatedAt?: number;
   createdBy?: string;

@@ -22,7 +22,9 @@ service cloud.firestore {
     // Domain Validators
     function isValidMembre(data) {
       return data.prenom is string && data.prenom.size() > 0 && data.prenom.size() < 100 &&
-             data.nom is string && data.nom.size() > 0 && data.nom.size() < 100;
+             data.nom is string && data.nom.size() > 0 && data.nom.size() < 100 &&
+             (!('telephone' in data) || (data.telephone is string && data.telephone.size() < 20)) &&
+             (!('statut' in data) || (data.statut in ['Boursier', 'Non Boursier', 'Professionnel', 'Autre']));
     }
 
     function isValidCotisation(data) {
@@ -38,6 +40,14 @@ service cloud.firestore {
              data.mois is string && data.mois.size() > 0 && data.mois.size() < 20 &&
              data.annee is number && data.annee > 2000 && data.annee < 2100 &&
              data.montant is number && data.montant >= 0;
+    }
+
+    function isValidRecette(data) {
+      return data.motif is string && data.motif.size() > 0 && data.motif.size() < 200 &&
+             data.mois is string && data.mois.size() > 0 && data.mois.size() < 20 &&
+             data.annee is number && data.annee > 2000 && data.annee < 2100 &&
+             data.montant is number && data.montant >= 0 &&
+             data.mode in ['WAVE', 'OM', 'ESPÈCES'];
     }
 
     function isValidUser(data) {
@@ -73,6 +83,13 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAdmin() && isValidDepense(request.resource.data);
       allow update: if isAdmin() && isValidDepense(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /recettes/{recetteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidRecette(request.resource.data);
+      allow update: if isAdmin() && isValidRecette(request.resource.data);
       allow delete: if isAdmin();
     }
 
