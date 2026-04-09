@@ -103,6 +103,8 @@ export default function App() {
   const [searchCot, setSearchCot] = useState('');
   const debouncedSearchCot = useDebounce(searchCot, 300);
   const [npMois, setNpMois] = useState('');
+  const [npSearch, setNpSearch] = useState('');
+  const debouncedNpSearch = useDebounce(npSearch, 300);
 
   const availableYears = useMemo(() => {
     const years = new Set([new Date().getFullYear(), ...cotisations.map(c => c.annee), ...depenses.map(d => d.annee), ...recettes.map(r => r.annee)]);
@@ -481,7 +483,19 @@ export default function App() {
 
   const getMemberStatus = (mId: string) => {
     const currentMonthIndex = MOIS.indexOf(globalMonth || MOIS[new Date().getMonth()]);
-    const unpaidMonths = MOIS.slice(0, currentMonthIndex + 1).filter(mois => {
+    const membre = membres.find(m => m.id === mId);
+    
+    let startMonthIndex = 0;
+    if (membre?.createdAt) {
+      const createdDate = new Date(membre.createdAt);
+      if (createdDate.getFullYear() === globalYear) {
+        startMonthIndex = createdDate.getMonth();
+      } else if (createdDate.getFullYear() > globalYear) {
+        return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
+      }
+    }
+
+    const unpaidMonths = MOIS.slice(startMonthIndex, currentMonthIndex + 1).filter(mois => {
       const cot = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === globalYear);
       return !cot || cot.montant === 0;
     });
@@ -1720,7 +1734,17 @@ export default function App() {
   const renderNonPayeurs = () => {
     const filteredMembres = membres.filter(m => {
       const status = getMemberStatus(m.id);
-      return status.isLate;
+      
+      // Filtre de recherche
+      const matchSearch = !debouncedNpSearch || `${m.prenom} ${m.nom}`.toLowerCase().includes(debouncedNpSearch.toLowerCase());
+      
+      // Filtre de mois spécifique
+      let matchMonth = true;
+      if (npMois) {
+        matchMonth = status.unpaidMonths.includes(npMois);
+      }
+
+      return status.isLate && matchSearch && matchMonth;
     });
 
     return (
@@ -1753,6 +1777,31 @@ export default function App() {
             </button>
           </div>
           <div className="p-8">
+            {/* Filtres */}
+            <div className="flex flex-col md:flex-row gap-4 mb-8">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Rechercher un membre..." 
+                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-dmn-green-500 outline-none transition-all font-medium"
+                  value={npSearch}
+                  onChange={(e) => setNpSearch(e.target.value)}
+                />
+              </div>
+              <div className="relative w-full md:w-64">
+                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <select 
+                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-dmn-green-500 outline-none transition-all font-medium appearance-none"
+                  value={npMois}
+                  onChange={(e) => setNpMois(e.target.value)}
+                >
+                  <option value="">Tous les mois (Retards cumulés)</option>
+                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredMembres.map((m, idx) => {
                 const status = getMemberStatus(m.id);
@@ -1777,7 +1826,7 @@ export default function App() {
                       <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-3">Mois dus ({status.unpaidCount})</p>
                       <div className="flex flex-wrap gap-1.5">
                         {status.unpaidMonths.map(mois => (
-                          <span key={mois} className="text-[9px] bg-white text-red-600 border border-red-100 px-2 py-1 rounded-lg uppercase font-black shadow-sm">
+                          <span key={mois} className={`text-[9px] px-2 py-1 rounded-lg uppercase font-black shadow-sm ${npMois === mois ? 'bg-red-600 text-white' : 'bg-white text-red-600 border border-red-100'}`}>
                             {mois.substring(0, 3)}
                           </span>
                         ))}
@@ -1787,12 +1836,21 @@ export default function App() {
                     <div className="flex gap-3">
                       {userRole === 'admin' && (
                         <button 
-                          onClick={() => { openAddCot(m.id, status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
-                          className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-dmn-green-100 active:scale-95"
+                          onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
+                          className="flex-1 bg-dmn-green-600 hover:bg-dmn-green-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-dmn-green-100 active:scale-95"
                         >
-                          Régulariser
+                          Régulariser {npMois ? `(${npMois})` : ''}
                         </button>
                       )}
+                      <a 
+                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
+                        title="Rappel WhatsApp"
+                      >
+                        <Smartphone size={20} />
+                      </a>
                     </div>
                   </div>
                 );
