@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History,
-  Smartphone, TrendingDown, Landmark, Zap, Calendar
+  Smartphone, TrendingDown, Landmark, Zap, Calendar, MessageCircle
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -803,42 +803,31 @@ export default function App() {
       doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Page ${i} sur ${pageCount}`, 14, doc.internal.pageSize.height - 10);
     }
 
-    doc.save(`Rapport_DMN_${globalYear}.pdf`);
+    doc.save(`Rapport_DMN_Cellule_ESP_${globalYear}.pdf`);
     showToast('Rapport PDF généré avec succès', 'success');
   };
 
   const exportToExcel = () => {
-    const data = membres.map(m => {
-      const status = getMemberStatus(m.id);
-      return {
-        'Prénom': m.prenom,
-        'Nom': m.nom,
-        'Téléphone': m.telephone || '',
-        'Statut': m.statut || '',
-        'État de Paiement': status.isLate ? 'En Retard' : 'Régulier',
-        'Mois Impayés': status.unpaidCount,
-        'Total Cotisé (FCFA)': cotisations.filter(c => c.mId === m.id && c.annee === globalYear).reduce((s, c) => s + c.montant, 0)
-      };
-    });
+    const data = membres.map(m => ({
+      'Prénom': m.prenom,
+      'Nom': m.nom,
+      'Téléphone': m.telephone || '',
+      'Statut': m.statut || ''
+    }));
 
     const ws = XLSX.utils.json_to_sheet(data);
-    
-    // Set column widths
     const wscols = [
-      {wch: 20}, // Prénom
-      {wch: 20}, // Nom
-      {wch: 15}, // Téléphone
-      {wch: 15}, // Statut
-      {wch: 18}, // État
-      {wch: 15}, // Mois Impayés
-      {wch: 20}, // Total Cotisé
+      {wch: 25}, // Prénom
+      {wch: 25}, // Nom
+      {wch: 20}, // Téléphone
+      {wch: 25}, // Statut
     ];
     ws['!cols'] = wscols;
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `Membres_${globalYear}`);
-    XLSX.writeFile(wb, `Base_Donnees_DMN_${globalYear}.xlsx`);
-    showToast('Fichier Excel généré avec succès', 'success');
+    XLSX.utils.book_append_sheet(wb, ws, "Membres");
+    XLSX.writeFile(wb, `Liste_Membres_DMN_Cellule_ESP_${globalYear}.xlsx`);
+    showToast('Liste des membres exportée (Excel) !', 'success');
   };
 
   const renderRapports = () => {
@@ -876,8 +865,8 @@ export default function App() {
               <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-inner">
                 <CreditCard size={32} />
               </div>
-              <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Base de Données Excel</h3>
-              <p className="text-gray-500 mb-8 text-sm leading-relaxed">Export complet des membres avec leurs statuts et totaux de cotisations pour analyse approfondie.</p>
+              <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Liste des Membres en Excel</h3>
+              <p className="text-gray-500 mb-8 text-sm leading-relaxed">Export Excel contenant uniquement : Prénom, Nom, Téléphone et Statut.</p>
               <button 
                 onClick={exportToExcel}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-600/20 active:scale-95 flex items-center justify-center gap-3"
@@ -1407,14 +1396,16 @@ export default function App() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
           <span className="flex items-center gap-2"><Users size={18} className="text-dmn-gold-light" /> Membres ({membres.length})</span>
-          {userRole === 'admin' && (
-            <button 
-              onClick={() => { setEditingMembre(null); setIsMembreModalOpen(true); }}
-              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
-            >
-              <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {userRole === 'admin' && (
+              <button 
+                onClick={() => { setEditingMembre(null); setIsMembreModalOpen(true); }}
+                className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+              >
+                <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Desktop Table */}
@@ -1525,6 +1516,44 @@ export default function App() {
   };
 
   const renderCotisations = () => {
+    const shareWhatsAppList = () => {
+      const monthToShare = fMois || MOIS[new Date().getMonth()];
+      
+      const cots = cotisations.filter(c => c.annee === globalYear && c.mois === monthToShare && c.montant > 0);
+      
+      const sortedCots = [...cots].sort((a, b) => {
+        const dateA = a.createdAt || 0;
+        const dateB = b.createdAt || 0;
+        return dateA - dateB;
+      });
+
+      if (sortedCots.length === 0) {
+        showToast(`Aucune cotisation pour le mois de ${monthToShare}.`, 'error');
+        return;
+      }
+
+      let message = `Mensualité mois d’${monthToShare} ${globalYear}\n\n`;
+      
+      sortedCots.forEach((c, index) => {
+        const m = getMembre(c.mId);
+        message += `${index + 1}- ${m.prenom} ${m.nom} ✅\n`;
+      });
+
+      const totalMembres = membres.length;
+      const percentage = totalMembres > 0 ? Math.round((sortedCots.length / totalMembres) * 100) : 0;
+
+      message += `\nTotal : ${sortedCots.length} membre(s) sur ${totalMembres} (${percentage}%)\n`;
+      message += `Daara Madjmahoune Noreyni - Com Soc Cellule ESP`;
+
+      navigator.clipboard.writeText(message).then(() => {
+        showToast('Liste copiée dans le presse-papier !', 'success');
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      }).catch(() => {
+        showToast('Erreur lors de la copie.', 'error');
+      });
+    };
+
     const filtered = cotisations.filter(c => {
       const m = getMembre(c.mId);
       const matchYear = c.annee === globalYear;
@@ -1536,16 +1565,25 @@ export default function App() {
 
     return (
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
+        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <span className="flex items-center gap-2"><CreditCard size={18} className="text-dmn-gold-light" /> Cotisations ({globalYear})</span>
-          {userRole === 'admin' && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button 
-              onClick={() => openAddCot(undefined, undefined, globalYear)}
-              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+              onClick={shareWhatsAppList}
+              className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
+              title="Partager sur WhatsApp"
             >
-              <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
+              <MessageCircle size={16} /> <span className="hidden sm:inline">WhatsApp</span>
             </button>
-          )}
+            {userRole === 'admin' && (
+              <button 
+                onClick={() => openAddCot(undefined, undefined, globalYear)}
+                className="flex-1 sm:flex-none bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
+              </button>
+            )}
+          </div>
         </div>
         <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-wrap gap-4 items-center">
           <select value={fMois} onChange={e => setFMois(e.target.value)} className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:outline-none focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-500/20 bg-white shadow-sm transition-all flex-1 sm:flex-none">
