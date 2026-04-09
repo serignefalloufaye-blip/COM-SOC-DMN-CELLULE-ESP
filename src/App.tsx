@@ -18,8 +18,9 @@ import { User } from 'firebase/auth';
 
 import { useDebounce } from './utils/useDebounce';
 import { RotatingMessages } from './components/RotatingMessages';
+import { Annuel } from './components/Annuel';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recettes' | 'recap' | 'nonpayeurs' | 'stats' | 'rapports' | 'notifications';
@@ -138,6 +139,10 @@ export default function App() {
       return matchYear && matchMonth && matchMode;
     });
   }, [recettes, globalYear, globalMonth, globalMode]);
+
+  const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
+  const annualDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear), [depenses, globalYear]);
+  const annualRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear), [recettes, globalYear]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -551,7 +556,7 @@ export default function App() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">Total Cotisations</p>
-                  <p className="text-2xl font-heading font-bold text-dmn-green-900">{totalPaid.toLocaleString()} F</p>
+                  <p className="text-2xl font-heading font-bold text-dmn-green-900">{formatPrice(totalPaid)} F</p>
                 </div>
               </div>
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
@@ -584,7 +589,7 @@ export default function App() {
                             <span className="text-[10px] text-gray-400 font-medium italic">Enregistré le {new Date(c.createdAt || Date.now()).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <p className="font-black text-dmn-green-600">+{c.montant.toLocaleString()} F</p>
+                        <p className="font-black text-dmn-green-600">+{formatPrice(c.montant)} F</p>
                       </div>
                     </div>
                   ))
@@ -603,10 +608,6 @@ export default function App() {
   };
 
   const renderStats = () => {
-    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
-    const annualDepenses = depenses.filter(d => d.annee === globalYear);
-    const annualRecettes = recettes.filter(r => r.annee === globalYear);
-
     const monthlyData = MOIS.map(mois => {
       const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
       const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
@@ -711,42 +712,99 @@ export default function App() {
     );
   };
 
+  const formatPrice = (amount: number) => amount.toLocaleString('fr-FR');
+
+  const formatFCFA = (val: number) => {
+    return val.toLocaleString('fr-FR') + ' FCFA';
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF();
-    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
-    const annualDepenses = depenses.filter(d => d.annee === globalYear);
-    const annualRecettes = recettes.filter(r => r.annee === globalYear);
+    const pageWidth = doc.internal.pageSize.width;
 
     const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
     const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
     const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
+    const solde = totCot + totRec - totDep;
 
-    doc.setFontSize(20);
-    doc.text('Rapport Financier Annuel ' + globalYear, 14, 22);
+    // Header Background
+    doc.setFillColor(6, 78, 59); // dmn-green-900
+    doc.rect(0, 0, pageWidth, 40, 'F');
+
+    // Header Text
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Rapport Financier Annuel - ${globalYear}`, 14, 20);
+
     doc.setFontSize(12);
-    doc.text('Daara Madjmahoune Noreyni', 14, 30);
-    
-    doc.text(`Total Cotisations: ${totCot.toLocaleString()} F`, 14, 45);
-    doc.text(`Autres Recettes: ${totRec.toLocaleString()} F`, 14, 52);
-    doc.text(`Total Dépenses: ${totDep.toLocaleString()} F`, 14, 59);
-    doc.text(`Solde Final: ${(totCot + totRec - totDep).toLocaleString()} F`, 14, 66);
+    doc.setFont("helvetica", "normal");
+    doc.text('Daara Madjmahoune Noreyni – UCAD ESP', 14, 30);
+
+    // Summary Section
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text('Résumé Financier', 14, 55);
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total Cotisations : ${formatFCFA(totCot)}`, 14, 65);
+    doc.text(`Autres Recettes : ${formatFCFA(totRec)}`, 14, 72);
+    doc.text(`Total Dépenses : ${formatFCFA(totDep)}`, 14, 79);
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(solde >= 0 ? 5 : 220, solde >= 0 ? 150 : 38, solde >= 0 ? 105 : 38); // Green or Red
+    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, 88);
 
     const tableData = membres.map(m => {
       const status = getMemberStatus(m.id);
-      return [nomComplet(m), m.telephone || '-', m.statut || '-', status.isLate ? 'En Retard' : 'Régulier', status.unpaidCount];
+      const totalCotise = cotisations.filter(c => c.mId === m.id && c.annee === globalYear).reduce((s, c) => s + c.montant, 0);
+      return [
+        nomComplet(m), 
+        m.telephone || '-', 
+        m.statut || '-', 
+        status.isLate ? 'En Retard' : 'Régulier', 
+        status.unpaidCount,
+        totalCotise > 0 ? totalCotise.toLocaleString('fr-FR') : '0'
+      ];
     });
 
-    (doc as any).autoTable({
-      head: [['Membre', 'Téléphone', 'Statut', 'État', 'Mois Impayés']],
+    autoTable(doc, {
+      head: [['Membre', 'Téléphone', 'Statut', 'État', 'Impayés', 'Total (F)']],
       body: tableData,
-      startY: 80,
+      startY: 100,
+      theme: 'grid',
+      headStyles: { fillColor: [6, 78, 59], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { font: 'helvetica', fontSize: 9, cellPadding: 4 },
+      columnStyles: {
+        4: { halign: 'center' },
+        5: { halign: 'right', fontStyle: 'bold' }
+      }
     });
 
-    doc.text('Signature du Trésorier:', 14, (doc as any).lastAutoTable.finalY + 20);
-    doc.line(14, (doc as any).lastAutoTable.finalY + 35, 80, (doc as any).lastAutoTable.finalY + 35);
+    const finalY = (doc as any).lastAutoTable.finalY;
+    
+    // Footer / Signature
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text('Le Trésorier', pageWidth - 50, finalY + 20);
+    doc.line(pageWidth - 60, finalY + 35, pageWidth - 14, finalY + 35);
+    
+    // Page numbers & generation date
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Page ${i} sur ${pageCount}`, 14, doc.internal.pageSize.height - 10);
+    }
 
     doc.save(`Rapport_DMN_${globalYear}.pdf`);
-    showToast('PDF généré avec succès');
+    showToast('Rapport PDF généré avec succès', 'success');
   };
 
   const exportToExcel = () => {
@@ -757,23 +815,33 @@ export default function App() {
         'Nom': m.nom,
         'Téléphone': m.telephone || '',
         'Statut': m.statut || '',
-        'État': status.isLate ? 'En Retard' : 'Régulier',
-        'Mois Impayés': status.unpaidCount
+        'État de Paiement': status.isLate ? 'En Retard' : 'Régulier',
+        'Mois Impayés': status.unpaidCount,
+        'Total Cotisé (FCFA)': cotisations.filter(c => c.mId === m.id && c.annee === globalYear).reduce((s, c) => s + c.montant, 0)
       };
     });
 
     const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Set column widths
+    const wscols = [
+      {wch: 20}, // Prénom
+      {wch: 20}, // Nom
+      {wch: 15}, // Téléphone
+      {wch: 15}, // Statut
+      {wch: 18}, // État
+      {wch: 15}, // Mois Impayés
+      {wch: 20}, // Total Cotisé
+    ];
+    ws['!cols'] = wscols;
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Membres');
-    XLSX.writeFile(wb, `Export_DMN_${globalYear}.xlsx`);
-    showToast('Excel généré avec succès');
+    XLSX.utils.book_append_sheet(wb, ws, `Membres_${globalYear}`);
+    XLSX.writeFile(wb, `Base_Donnees_DMN_${globalYear}.xlsx`);
+    showToast('Fichier Excel généré avec succès', 'success');
   };
 
   const renderRapports = () => {
-    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
-    const annualDepenses = depenses.filter(d => d.annee === globalYear);
-    const annualRecettes = recettes.filter(r => r.annee === globalYear);
-
     const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
     const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
     const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
@@ -781,33 +849,42 @@ export default function App() {
 
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 text-center group hover:border-red-200 transition-all">
-            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-              <Printer size={40} />
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-dmn-green-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
+          
+          <h2 className="text-3xl font-heading font-black text-dmn-green-900 mb-2 relative z-10">Centre de Rapports</h2>
+          <p className="text-gray-500 mb-8 relative z-10 font-medium">Générez et téléchargez les documents officiels et exports de données.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+            {/* PDF Card */}
+            <div className="bg-gradient-to-br from-white to-red-50/30 rounded-3xl shadow-sm border border-red-100 p-8 hover:shadow-md transition-all group">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                <Printer size={32} />
+              </div>
+              <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Bilan Financier PDF</h3>
+              <p className="text-gray-500 mb-8 text-sm leading-relaxed">Document officiel formaté pour l'impression, incluant le résumé financier et l'état des membres.</p>
+              <button 
+                onClick={exportToPDF}
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-600/20 active:scale-95 flex items-center justify-center gap-3"
+              >
+                <Printer size={20} /> Générer le Rapport PDF
+              </button>
             </div>
-            <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Rapport PDF Officiel</h3>
-            <p className="text-gray-500 mb-8 text-sm leading-relaxed">Générez un document PDF professionnel incluant les statistiques, la liste des membres et les zones de signature.</p>
-            <button 
-              onClick={exportToPDF}
-              className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-black transition-all shadow-lg hover:shadow-red-200 active:scale-95 flex items-center justify-center gap-3"
-            >
-              <Printer size={20} /> Télécharger le Rapport PDF
-            </button>
-          </div>
-
-          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 text-center group hover:border-emerald-200 transition-all">
-            <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-              <CreditCard size={40} />
+            
+            {/* Excel Card */}
+            <div className="bg-gradient-to-br from-white to-emerald-50/30 rounded-3xl shadow-sm border border-emerald-100 p-8 hover:shadow-md transition-all group">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                <CreditCard size={32} />
+              </div>
+              <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Base de Données Excel</h3>
+              <p className="text-gray-500 mb-8 text-sm leading-relaxed">Export complet des membres avec leurs statuts et totaux de cotisations pour analyse approfondie.</p>
+              <button 
+                onClick={exportToExcel}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-600/20 active:scale-95 flex items-center justify-center gap-3"
+              >
+                <CreditCard size={20} /> Télécharger l'Export Excel
+              </button>
             </div>
-            <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Export Excel (Data)</h3>
-            <p className="text-gray-500 mb-8 text-sm leading-relaxed">Exportez l'intégralité de la base de données des membres et leur statut de paiement pour un traitement sous Excel.</p>
-            <button 
-              onClick={exportToExcel}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black transition-all shadow-lg hover:shadow-emerald-200 active:scale-95 flex items-center justify-center gap-3"
-            >
-              <Plus size={20} /> Télécharger la Base Excel
-            </button>
           </div>
         </div>
 
@@ -820,15 +897,15 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
               <div className="text-center">
                 <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Entrées</p>
-                <p className="text-3xl font-heading font-black text-dmn-green-600">{(totCot + totRec).toLocaleString()} F</p>
+                <p className="text-3xl font-heading font-black text-dmn-green-600">{formatPrice(totCot + totRec)} F</p>
               </div>
               <div className="text-center">
                 <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Dépenses</p>
-                <p className="text-3xl font-heading font-black text-red-600">{totDep.toLocaleString()} F</p>
+                <p className="text-3xl font-heading font-black text-red-600">{formatPrice(totDep)} F</p>
               </div>
               <div className="text-center">
                 <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Solde Net</p>
-                <p className="text-3xl font-heading font-black text-blue-600">{solde.toLocaleString()} F</p>
+                <p className="text-3xl font-heading font-black text-blue-600">{formatPrice(solde)} F</p>
               </div>
             </div>
 
@@ -906,9 +983,6 @@ export default function App() {
 
   const renderDashboard = () => {
     // Dashboard should show annual totals for the selected year
-    const annualCotisations = cotisations.filter(c => c.annee === globalYear);
-    const annualDepenses = depenses.filter(d => d.annee === globalYear);
-    const annualRecettes = recettes.filter(r => r.annee === globalYear);
     
     const totCotisations = annualCotisations.reduce((s, c) => s + c.montant, 0);
     const totAutresRecettes = annualRecettes.reduce((s, r) => s + r.montant, 0);
@@ -980,13 +1054,13 @@ export default function App() {
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-dmn-green-600"></div>
             <div className="w-10 h-10 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Wallet size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{totCotisations.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
+            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totCotisations)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
             <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Cotisations {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-dmn-gold"></div>
             <div className="w-10 h-10 bg-dmn-gold-light/20 text-dmn-gold rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Plus size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{totAutresRecettes.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
+            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totAutresRecettes)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
             <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Autres Entrées {globalYear}</p>
             {userRole === 'admin' && (
               <button 
@@ -1000,26 +1074,26 @@ export default function App() {
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
             <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Smartphone size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{totWave.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
+            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totWave)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
             <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Wave {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-orange-500"></div>
             <div className="w-10 h-10 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Smartphone size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{totOM.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
+            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totOM)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
             <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">OM {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
             <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><TrendingDown size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{totDepenses.toLocaleString()} <span className="text-sm text-gray-400 font-medium">F</span></h2>
+            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totDepenses)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
             <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Dépenses {globalYear}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
             <div className={`absolute top-0 left-0 w-full h-1 ${solde >= 0 ? 'bg-dmn-green-500' : 'bg-red-500'}`}></div>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform ${solde >= 0 ? 'bg-dmn-green-50 text-dmn-green-600' : 'bg-red-50 text-red-500'}`}><Landmark size={20} /></div>
             <h2 className={`text-2xl font-heading font-bold ${solde >= 0 ? 'text-dmn-green-600' : 'text-red-600'}`}>
-              {solde.toLocaleString()} <span className="text-sm opacity-70 font-medium">F</span>
+              {formatPrice(solde)} <span className="text-sm opacity-70 font-medium">F</span>
             </h2>
             <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Solde {globalYear}</p>
           </div>
@@ -1212,7 +1286,7 @@ export default function App() {
                       />
                       {selectedMonths.length > 1 && currentAmount !== '' && (
                         <div className="text-xs font-bold text-dmn-green-700 bg-dmn-green-50 px-2 py-1 rounded-lg border border-dmn-green-100 mt-2 inline-block">
-                          Total: {(selectedMonths.length * Number(currentAmount)).toLocaleString()} F
+                          Total: {formatPrice(selectedMonths.length * Number(currentAmount))} F
                         </div>
                       )}
                     </td>
@@ -1371,7 +1445,7 @@ export default function App() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-bold text-dmn-green-700">{tot.toLocaleString()} F</td>
+                    <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(tot)} F</td>
                     {userRole === 'admin' && (
                       <td className="px-6 py-4 flex justify-center gap-2">
                         <button onClick={() => setSelectedMemberProfile(m)} className="p-2 bg-dmn-green-50 text-dmn-green-600 rounded-lg hover:bg-dmn-green-100 transition-colors" title="Profil">
@@ -1410,7 +1484,7 @@ export default function App() {
                         <History size={12} />
                       </button>
                     </div>
-                    <p className="text-xs font-bold text-dmn-green-600 mt-0.5">{tot.toLocaleString()} F payés</p>
+                    <p className="text-xs font-bold text-dmn-green-600 mt-0.5">{formatPrice(tot)} F payés</p>
                   </div>
                 </div>
                 {userRole === 'admin' && (
@@ -1435,54 +1509,18 @@ export default function App() {
   };
 
   const renderAnnuel = () => {
-    const filtered = membres.filter(m => nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase()));
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
-          <span className="flex items-center gap-2"><Calendar size={18} className="text-dmn-gold-light" /> Vue Annuelle {globalYear}</span>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex text-sm text-dmn-green-100 gap-4 font-normal">
-              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-dmn-green-400 shadow-sm"></span> Payé</span>
-              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-400 shadow-sm"></span> Non payé</span>
-            </div>
-            <Printer size={16} className="cursor-pointer hover:text-dmn-gold-light transition-colors" onClick={() => window.print()} />
-          </div>
-        </div>
-        <div className="overflow-x-auto max-h-[700px]">
-          <table className="w-full text-[10px] sm:text-xs text-center border-collapse">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-20 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-2 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">N°</th>
-                <th className="px-4 py-4 font-semibold text-xs uppercase tracking-wider text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50/95 backdrop-blur-sm z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Membre</th>
-                {MOIS.map(m => <th key={m} className="px-1 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">{m.substring(0, 3)}</th>)}
-                <th className="px-2 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">TOTAL</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((m, i) => {
-                const tot = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0).reduce((s, c) => s + c.montant, 0);
-                return (
-                  <tr key={m.id} className="hover:bg-dmn-green-50/30 group transition-colors">
-                    <td className="px-2 py-3 border-r border-gray-100 text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-3 text-left whitespace-nowrap border-r border-gray-100 sticky left-0 bg-white z-10 group-hover:bg-dmn-green-50/30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)] transition-colors font-medium">
-                      <button onClick={() => setSelectedMemberHistory(m)} className="hover:text-dmn-green-600 text-gray-900 text-left transition-colors">
-                        {nomComplet(m)}
-                      </button>
-                    </td>
-                    {MOIS.map(mo => {
-                      const c = cotisations.find(x => x.mId === m.id && x.mois === mo && x.annee === globalYear);
-                      if (!c) return <td key={mo} className="px-1 py-3 bg-gray-50/30 text-gray-300 border-r border-gray-100">—</td>;
-                      if (c.montant > 0) return <td key={mo} className="px-1 py-3 bg-dmn-green-50 text-dmn-green-700 font-bold border-r border-dmn-green-100/50" title={c.mode}>{c.montant}</td>;
-                      return <td key={mo} className="px-1 py-3 bg-red-50 text-red-600 font-medium border-r border-red-100/50">✗</td>;
-                    })}
-                    <td className="px-2 py-3 font-bold text-dmn-green-700 bg-dmn-green-50/30">{tot > 0 ? tot.toLocaleString() : ''}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Annuel 
+        globalYear={globalYear}
+        setGlobalYear={setGlobalYear}
+        membres={membres}
+        cotisations={cotisations}
+        depenses={depenses}
+        recettes={recettes}
+        appSettings={appSettings}
+        globalSearch={globalSearch}
+        setSelectedMemberHistory={setSelectedMemberHistory}
+      />
     );
   };
 
@@ -1549,7 +1587,7 @@ export default function App() {
                 <tr key={c.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
                   <td className="px-6 py-4 text-left whitespace-nowrap font-medium text-gray-900">{nomComplet(getMembre(c.mId))}</td>
                   <td className="px-6 py-4 text-gray-600">{c.mois}</td>
-                  <td className="px-6 py-4 font-bold text-dmn-green-700">{c.montant > 0 ? `${c.montant.toLocaleString()} F` : <span className="text-gray-400">—</span>}</td>
+                  <td className="px-6 py-4 font-bold text-dmn-green-700">{c.montant > 0 ? `${formatPrice(c.montant)} F` : <span className="text-gray-400">—</span>}</td>
                   <td className="px-6 py-4"><Badge mode={c.mode} /></td>
                   {userRole === 'admin' && (
                     <td className="px-6 py-4 flex justify-center gap-2">
@@ -1584,7 +1622,7 @@ export default function App() {
                   <Badge mode={c.mode} />
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-gray-50">
-                  <p className="font-bold text-dmn-green-600">{c.montant.toLocaleString()} F</p>
+                  <p className="font-bold text-dmn-green-600">{formatPrice(c.montant)} F</p>
                   {userRole === 'admin' && (
                     <div className="flex gap-2">
                       <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
@@ -1639,7 +1677,7 @@ export default function App() {
                 <tr key={r.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
                   <td className="px-6 py-4 text-left font-medium text-gray-900">{r.motif}</td>
                   <td className="px-6 py-4 text-gray-600">{r.mois}</td>
-                  <td className="px-6 py-4 font-bold text-dmn-green-700">{r.montant.toLocaleString()} F</td>
+                  <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(r.montant)} F</td>
                   <td className="px-6 py-4"><Badge mode={r.mode} /></td>
                   {userRole === 'admin' && (
                     <td className="px-6 py-4 flex justify-center gap-2">
@@ -1672,7 +1710,7 @@ export default function App() {
                 <Badge mode={r.mode} />
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-gray-50">
-                <p className="font-bold text-dmn-green-600">{r.montant.toLocaleString()} F</p>
+                <p className="font-bold text-dmn-green-600">{formatPrice(r.montant)} F</p>
                 {userRole === 'admin' && (
                   <div className="flex gap-2">
                     <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
@@ -1716,7 +1754,7 @@ export default function App() {
               <h3 className="text-sm sm:text-base font-heading font-bold text-dmn-green-900 mb-3 flex items-center gap-2">
                 <CalendarDays size={16} className="text-dmn-green-500" /> {m}
               </h3>
-              <div className="text-xl sm:text-2xl font-bold text-dmn-green-700">{tot.toLocaleString()} <span className="text-xs sm:text-sm font-medium opacity-70">FCFA</span></div>
+              <div className="text-xl sm:text-2xl font-bold text-dmn-green-700">{formatPrice(tot)} <span className="text-xs sm:text-sm font-medium opacity-70">FCFA</span></div>
               <div className="text-[10px] sm:text-xs text-gray-500 mt-2 font-medium">{nb} cotisants · WAVE:{w} · OM:{o}</div>
               <div className="bg-gray-100 rounded-full h-1.5 sm:h-2 mt-4 overflow-hidden">
                 <div className="bg-dmn-green-500 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${pct}%` }}></div>
@@ -1902,7 +1940,7 @@ export default function App() {
                 <tr key={d.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
                   <td className="px-6 py-4 font-medium text-gray-900">{d.evenement}</td>
                   <td className="px-6 py-4 text-gray-600">{d.mois} {d.annee}</td>
-                  <td className="px-6 py-4 text-right font-bold text-red-600">{d.montant.toLocaleString()} F</td>
+                  <td className="px-6 py-4 text-right font-bold text-red-600">{formatPrice(d.montant)} F</td>
                   {userRole === 'admin' && (
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2">
@@ -1933,7 +1971,7 @@ export default function App() {
                   <p className="font-bold text-dmn-green-900">{d.evenement}</p>
                   <p className="text-xs text-gray-500">{d.mois} {d.annee}</p>
                 </div>
-                <p className="font-bold text-red-600">{d.montant.toLocaleString()} F</p>
+                <p className="font-bold text-red-600">{formatPrice(d.montant)} F</p>
               </div>
               {userRole === 'admin' && (
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-50">
@@ -1986,7 +2024,7 @@ export default function App() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-dmn-green-50 p-4 rounded-xl border border-dmn-green-100">
                 <p className="text-xs text-dmn-green-600 font-bold uppercase tracking-wider mb-1">Total Payé</p>
-                <p className="text-2xl font-black text-dmn-green-800">{totalPaid.toLocaleString()} F</p>
+                <p className="text-2xl font-black text-dmn-green-800">{formatPrice(totalPaid)} F</p>
               </div>
               <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                 <p className="text-xs text-blue-600 font-bold uppercase tracking-wider mb-1">Mois Payés</p>
@@ -2021,7 +2059,7 @@ export default function App() {
                         {paidCots.sort((a, b) => MOIS.indexOf(a.mois) - MOIS.indexOf(b.mois)).map(c => (
                           <tr key={c.id} className="hover:bg-dmn-green-50/30 transition-colors">
                             <td className="px-4 py-3 font-medium text-gray-800">{c.mois}</td>
-                            <td className="px-4 py-3 font-bold text-dmn-green-600">{c.montant.toLocaleString()} F</td>
+                            <td className="px-4 py-3 font-bold text-dmn-green-600">{formatPrice(c.montant)} F</td>
                             <td className="px-4 py-3"><Badge mode={c.mode} /></td>
                           </tr>
                         ))}
@@ -2091,20 +2129,30 @@ export default function App() {
     showToast('Export CSV réussi');
   };
 
-  if (!isAuthReady) {
-    return (
-      <div className="min-h-screen bg-dmn-bg flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-dmn-green-600 border-t-transparent"></div>
-      </div>
-    );
-  }
-
   if (!isAuthReady || (user && isLoading)) {
     return (
-      <div className="min-h-screen bg-dmn-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-dmn-green-200 border-t-dmn-green-600 rounded-full animate-spin"></div>
-          <p className="text-dmn-green-900 font-heading font-bold animate-pulse">Chargement des données...</p>
+      <div className="min-h-screen bg-dmn-bg flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-10 rounded-[40px] shadow-2xl max-w-sm w-full text-center border border-gray-100 animate-in zoom-in-95 duration-500 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-dmn-green-400 via-dmn-green-600 to-dmn-gold"></div>
+          <div className="w-24 h-24 mx-auto bg-dmn-green-50 rounded-3xl flex items-center justify-center mb-8 shadow-inner relative">
+            <div className="absolute inset-0 border-4 border-dmn-green-200 border-t-dmn-green-600 rounded-3xl animate-spin"></div>
+            <img 
+              src={appSettings.logoUrl || "logo.png"} 
+              alt="Logo DMN" 
+              className="w-16 h-16 object-contain animate-pulse" 
+              referrerPolicy="no-referrer"
+              onError={(e) => { 
+                e.currentTarget.style.display = 'none'; 
+                e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
+              }} 
+            />
+            <span className="hidden text-dmn-green-600 font-bold text-3xl">🕌</span>
+          </div>
+          <h2 className="text-2xl font-heading font-black text-dmn-green-900 mb-2 tracking-tight">Commission Sociale DMN</h2>
+          <p className="text-dmn-green-600 font-bold text-sm uppercase tracking-widest mb-6">Chargement sécurisé...</p>
+          <div className="bg-gray-50 p-4 rounded-2xl">
+            <p className="text-xs text-gray-500 italic font-medium">"La constance dans l'effort est la clé de la réussite."</p>
+          </div>
         </div>
       </div>
     );
@@ -2113,12 +2161,13 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-dmn-bg flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-gray-100 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-dmn-green-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-dmn-gold-light/10 rounded-full -ml-12 -mb-12 opacity-50"></div>
+        <div className="bg-white p-10 rounded-[40px] shadow-2xl max-w-md w-full text-center border border-gray-100 relative overflow-hidden animate-in zoom-in-95 duration-500">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-dmn-green-400 via-dmn-green-600 to-dmn-gold"></div>
+          <div className="absolute top-0 right-0 w-40 h-40 bg-dmn-green-50 rounded-full -mr-20 -mt-20 opacity-50"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-dmn-gold-light/10 rounded-full -ml-16 -mb-16 opacity-50"></div>
           
           <div className="relative z-10">
-            <div className="w-24 h-24 mx-auto bg-white rounded-full flex items-center justify-center overflow-hidden shadow-md mb-6 border-4 border-dmn-green-50">
+            <div className="w-28 h-28 mx-auto bg-white rounded-[32px] flex items-center justify-center overflow-hidden shadow-xl mb-8 border-4 border-dmn-green-50 rotate-3 hover:rotate-0 transition-transform duration-300">
               <img 
                 src={appSettings.logoUrl || "logo.png"} 
                 alt="Logo DMN" 
@@ -2134,23 +2183,29 @@ export default function App() {
                   }
                 }} 
               />
-              <span className="hidden text-dmn-green-900 font-bold text-4xl">🕌</span>
+              <span className="hidden text-dmn-green-600 font-bold text-5xl">🕌</span>
             </div>
-            <h1 className="text-2xl font-heading font-bold text-dmn-green-900 mb-2">Commission Sociale DMN</h1>
-            <p className="text-sm font-heading font-semibold text-dmn-green-700 mb-4">Daara Madjmahoune Noreyni – UCAD ESP</p>
-            <p className="text-gray-500 mb-8 font-medium">Connectez-vous pour gérer les cotisations et les dépenses.</p>
+            <h1 className="text-3xl font-heading font-black text-dmn-green-900 mb-2 tracking-tight">Commission Sociale</h1>
+            <p className="text-sm font-bold text-dmn-green-600 uppercase tracking-widest mb-6">Daara Madjmahoune Noreyni</p>
+            
+            <div className="bg-gray-50 p-5 rounded-3xl mb-8 border border-gray-100">
+              <p className="text-gray-500 font-medium text-sm leading-relaxed">
+                Plateforme sécurisée de gestion des cotisations et des flux financiers.
+              </p>
+            </div>
+
             <button 
               onClick={handleLogin} 
               disabled={isLoggingIn}
-              className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
+              className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 disabled:bg-gray-400 text-white font-black py-4 px-6 rounded-2xl transition-all shadow-lg shadow-dmn-green-100 active:scale-95 flex items-center justify-center gap-3 text-lg"
             >
               {isLoggingIn ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Connexion en cours...
+                  <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Connexion...
                 </>
               ) : (
-                "Se connecter avec Google"
+                "Accéder au Portail"
               )}
             </button>
           </div>
@@ -2290,9 +2345,21 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-12 py-6 border-t border-gray-200 bg-white/50 backdrop-blur-sm text-center">
-        <p className="text-dmn-green-900 font-heading font-bold text-lg mb-1">Daara Madjmahoune Noreyni – UCAD ESP</p>
-        <p className="text-gray-500 text-sm">Développé pour la Commission Sociale DMN © {new Date().getFullYear()}</p>
+      <footer className="mt-16 py-8 border-t border-gray-200 bg-white text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-center items-center gap-2 mb-3">
+            <span className="text-dmn-green-600 font-bold text-2xl">🕌</span>
+            <p className="text-dmn-green-900 font-heading font-black text-xl tracking-tight">Daara Madjmahoune Noreyni</p>
+          </div>
+          <p className="text-dmn-green-700 font-bold text-sm uppercase tracking-widest mb-4">Commission Sociale – UCAD ESP</p>
+          <div className="w-16 h-1 bg-dmn-gold mx-auto rounded-full mb-4"></div>
+          <p className="text-gray-500 text-sm font-medium mb-2">
+            "Le meilleur des hommes est celui qui est le plus utile aux autres."
+          </p>
+          <p className="text-gray-400 text-xs">
+            Plateforme de gestion financière sécurisée © {new Date().getFullYear()}
+          </p>
+        </div>
       </footer>
 
       {renderMemberHistoryModal()}
@@ -2502,19 +2569,19 @@ export default function App() {
 
       {/* Confirmation Modal */}
       {confirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="flex items-center gap-3 mb-4 text-red-600">
-              <AlertTriangle size={24} />
-              <h3 className="text-xl font-heading font-bold">{confirmModal.title}</h3>
+        <div className="fixed inset-0 bg-dmn-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300">
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
+              <AlertTriangle size={32} />
             </div>
-            <p className="text-gray-600 text-sm mb-8 leading-relaxed">
+            <h3 className="text-2xl font-heading font-black text-gray-900 mb-3">{confirmModal.title}</h3>
+            <p className="text-gray-500 text-sm mb-8 leading-relaxed font-medium">
               {confirmModal.message}
             </p>
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <div className="flex justify-end gap-3">
               <button 
                 onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
-                className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
+                className="px-6 py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors"
               >
                 Annuler
               </button>
@@ -2523,9 +2590,9 @@ export default function App() {
                   confirmModal.onConfirm();
                   setConfirmModal(prev => ({ ...prev, isOpen: false }));
                 }} 
-                className="px-5 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-all shadow-sm hover:shadow-md active:scale-95"
+                className="px-6 py-3 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/20 active:scale-95"
               >
-                Confirmer
+                Confirmer l'action
               </button>
             </div>
           </div>
@@ -2534,13 +2601,22 @@ export default function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className={`flex items-center gap-3 px-6 py-4 rounded-xl shadow-lg border ${
-            toast.type === 'success' ? 'bg-white border-dmn-green-100 text-dmn-green-800' : 'bg-white border-red-100 text-red-800'
+        <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-8 fade-in duration-300">
+          <div className={`flex items-center gap-4 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-md ${
+            toast.type === 'success' 
+              ? 'bg-white/95 border-emerald-100 text-emerald-900 shadow-emerald-900/10' 
+              : 'bg-white/95 border-red-100 text-red-900 shadow-red-900/10'
           }`}>
-            {toast.type === 'success' ? <CheckCircle2 className="text-dmn-green-500" size={24} /> : <XCircle className="text-red-500" size={24} />}
-            <span className="font-medium">{toast.message}</span>
-            <button onClick={() => setToast(null)} className="ml-2 text-gray-400 hover:text-gray-600">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+              toast.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+            }`}>
+              {toast.type === 'success' ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
+            </div>
+            <div>
+              <h4 className="font-bold text-sm">{toast.type === 'success' ? 'Succès' : 'Erreur'}</h4>
+              <p className="text-sm opacity-80 font-medium">{toast.message}</p>
+            </div>
+            <button onClick={() => setToast(null)} className="ml-4 p-2 hover:bg-gray-100 rounded-full transition-colors opacity-50 hover:opacity-100">
               <X size={16} />
             </button>
           </div>
