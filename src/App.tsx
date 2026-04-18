@@ -729,44 +729,75 @@ export default function App() {
     return val.toLocaleString('fr-FR') + ' FCFA';
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
+
+    // Load logo if exists
+    let logoData: HTMLImageElement | null = null;
+    let logoHeight = 0;
+    const logoWidth = 35;
+
+    if (appSettings?.logoUrl) {
+      try {
+        logoData = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Logo load failed'));
+          img.src = appSettings.logoUrl!;
+        });
+        logoHeight = (logoData!.height * logoWidth) / logoData!.width;
+      } catch (err) {
+        console.warn("Logo non chargé pour le PDF:", err);
+      }
+    }
 
     const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
     const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
     const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
     const solde = totCot + totRec - totDep;
 
+    // Header Dimensions
+    const headerHeight = logoData ? logoHeight + 50 : 40;
+    const logoY = 10;
+    const titleY = logoData ? logoY + logoHeight + 15 : 20;
+
     // Header Background
     doc.setFillColor(6, 78, 59); // dmn-green-900
-    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.rect(0, 0, pageWidth, headerHeight, 'F');
+
+    // Add Logo
+    if (logoData) {
+      doc.addImage(logoData, 'PNG', (pageWidth - logoWidth) / 2, logoY, logoWidth, logoHeight);
+    }
 
     // Header Text
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
-    doc.text(`Rapport Financier Annuel - ${globalYear}`, 14, 20);
+    doc.text(`Rapport Financier Annuel - ${globalYear}`, logoData ? pageWidth / 2 : 14, titleY, { align: logoData ? 'center' : 'left' });
 
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
-    doc.text('Daara Madjmahoune Noreyni – UCAD ESP', 14, 30);
+    doc.text('Daara Madjmahoune Noreyni – UCAD ESP', logoData ? pageWidth / 2 : 14, titleY + 10, { align: logoData ? 'center' : 'left' });
 
     // Summary Section
+    const summaryY = headerHeight + 15;
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text('Résumé Financier', 14, 55);
+    doc.text('Résumé Financier', 14, summaryY);
 
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
-    doc.text(`Total Cotisations : ${formatFCFA(totCot)}`, 14, 65);
-    doc.text(`Autres Recettes : ${formatFCFA(totRec)}`, 14, 72);
-    doc.text(`Total Dépenses : ${formatFCFA(totDep)}`, 14, 79);
+    doc.text(`Total Cotisations : ${formatFCFA(totCot)}`, 14, summaryY + 10);
+    doc.text(`Autres Recettes : ${formatFCFA(totRec)}`, 14, summaryY + 17);
+    doc.text(`Total Dépenses : ${formatFCFA(totDep)}`, 14, summaryY + 24);
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(solde >= 0 ? 5 : 220, solde >= 0 ? 150 : 38, solde >= 0 ? 105 : 38); // Green or Red
-    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, 88);
+    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, summaryY + 33);
 
     const tableData = membres.map(m => {
       const status = getMemberStatus(m.id);
@@ -784,7 +815,7 @@ export default function App() {
     autoTable(doc, {
       head: [['Membre', 'Téléphone', 'Statut', 'État', 'Impayés', 'Total (F)']],
       body: tableData,
-      startY: 100,
+      startY: summaryY + 45,
       theme: 'grid',
       headStyles: { fillColor: [6, 78, 59], textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
