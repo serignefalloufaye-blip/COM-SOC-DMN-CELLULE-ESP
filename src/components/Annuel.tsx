@@ -165,12 +165,12 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
           <h3 className="text-lg font-bold text-dmn-green-900 mb-6 flex items-center gap-2">
             <PieChartIcon className="text-dmn-green-500" size={20} /> Répartition Dépenses
           </h3>
           {depensesByCategory.length > 0 ? (
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full grow">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -195,11 +195,46 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-[300px] flex flex-col items-center justify-center text-gray-400">
+            <div className="h-[300px] flex flex-col items-center justify-center text-gray-400 grow">
               <PieChartIcon size={48} className="mb-4 opacity-20" />
               <p>Aucune dépense enregistrée</p>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Graphique Solde Mensuel */}
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+        <h3 className="text-lg font-bold text-dmn-green-900 mb-6 flex items-center gap-2">
+          <Activity className="text-blue-500" size={20} /> Évolution du Solde Mensuel
+        </h3>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorSolde" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(val) => `${val/1000}k`} />
+              <RechartsTooltip 
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                formatter={(value: number) => [`${value.toLocaleString()} F`, 'Solde']}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="Solde" 
+                stroke="#3b82f6" 
+                strokeWidth={3} 
+                fillOpacity={1} 
+                fill="url(#colorSolde)" 
+                activeDot={{ r: 8, strokeWidth: 2, stroke: '#fff' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
