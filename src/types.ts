@@ -4,6 +4,8 @@ export interface Membre {
   nom: string;
   telephone?: string;
   statut?: 'Boursier' | 'Non Boursier' | 'Professionnel' | 'Autre';
+  moisIntegration?: string;
+  anneeIntegration?: number;
   createdAt?: number;
   updatedAt?: number;
   createdBy?: string;

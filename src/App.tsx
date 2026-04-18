@@ -273,13 +273,16 @@ export default function App() {
     const nom = (formData.get('nom') as string).trim().toUpperCase();
     const telephone = (formData.get('telephone') as string).trim();
     const statut = formData.get('statut') as string;
+    const moisIntegration = formData.get('moisIntegration') as string || MOIS[new Date().getMonth()];
+    const anneeIntegration = Number(formData.get('anneeIntegration')) || new Date().getFullYear();
+    
     if (!prenom || !nom) return;
     try {
       if (editingMembre?.id) {
-        await updateDoc(doc(db, 'membres', editingMembre.id), { prenom, nom, telephone, statut, updatedAt: Date.now(), updatedBy: user?.uid });
+        await updateDoc(doc(db, 'membres', editingMembre.id), { prenom, nom, telephone, statut, moisIntegration, anneeIntegration, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Membre modifié avec succès');
       } else {
-        await addDoc(collection(db, 'membres'), { prenom, nom, telephone, statut, createdAt: Date.now(), createdBy: user?.uid });
+        await addDoc(collection(db, 'membres'), { prenom, nom, telephone, statut, moisIntegration, anneeIntegration, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Membre ajouté avec succès');
       }
       setIsMembreModalOpen(false);
@@ -491,12 +494,20 @@ export default function App() {
     const membre = membres.find(m => m.id === mId);
     
     let startMonthIndex = 0;
-    if (membre?.createdAt) {
-      const createdDate = new Date(membre.createdAt);
-      if (createdDate.getFullYear() === globalYear) {
-        startMonthIndex = createdDate.getMonth();
-      } else if (createdDate.getFullYear() > globalYear) {
-        return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
+    if (membre) {
+      if (membre.anneeIntegration && membre.moisIntegration) {
+        if (membre.anneeIntegration === globalYear) {
+          startMonthIndex = MOIS.indexOf(membre.moisIntegration) + 1; // Commence le mois suivant
+        } else if (membre.anneeIntegration > globalYear) {
+          return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
+        }
+      } else if (membre.createdAt) {
+        const createdDate = new Date(membre.createdAt);
+        if (createdDate.getFullYear() === globalYear) {
+          startMonthIndex = createdDate.getMonth() + 1; // Commence le mois suivant
+        } else if (createdDate.getFullYear() > globalYear) {
+          return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
+        }
       }
     }
 
@@ -2434,6 +2445,18 @@ export default function App() {
                   <option value="Professionnel">Professionnel</option>
                   <option value="Autre">Autre</option>
                 </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois d'intégration</label>
+                  <select name="moisIntegration" defaultValue={editingMembre?.moisIntegration || MOIS[new Date().getMonth()]} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
+                    {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année d'intégration</label>
+                  <input type="number" name="anneeIntegration" defaultValue={editingMembre?.anneeIntegration || new Date().getFullYear()} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+                </div>
               </div>
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsMembreModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
