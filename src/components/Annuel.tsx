@@ -8,7 +8,7 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { MOIS } from '../data';
-import { Membre, Cotisation, Depense, Recette } from '../types';
+import { Membre, Cotisation, Depense, Recette, Dette } from '../types';
 
 interface AnnuelProps {
   globalYear: number;
@@ -17,22 +17,27 @@ interface AnnuelProps {
   cotisations: Cotisation[];
   depenses: Depense[];
   recettes: Recette[];
+  dettes: Dette[];
   appSettings: any;
   globalSearch: string;
   setSelectedMemberHistory: (m: Membre) => void;
 }
 
-export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depenses, recettes, appSettings, globalSearch, setSelectedMemberHistory }: AnnuelProps) => {
+export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depenses, recettes, dettes, appSettings, globalSearch, setSelectedMemberHistory }: AnnuelProps) => {
   const nomComplet = (m: Membre) => `${m.prenom} ${m.nom}`;
   
   const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
   const annualDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear), [depenses, globalYear]);
   const annualRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear), [recettes, globalYear]);
+  const annualDettes = useMemo(() => dettes.filter(d => d.annee === globalYear), [dettes, globalYear]);
 
   const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
   const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
   const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
-  const solde = totCot + totRec - totDep;
+  
+  const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+  const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
+  const solde = totCot + totRec - totDep + totDettesNonPayees - totDettesPayees;
   const moyenneMensuelle = Math.round(totCot / 12);
 
   const monthlyData = useMemo(() => {
@@ -40,15 +45,19 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
       const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
       const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
       const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      
+      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      const dp = annualDettes.filter(d => d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      
       return { 
         name: mois.substring(0, 3),
         fullMonth: mois,
         Cotisations: cot + rec,
         Dépenses: dep,
-        Solde: (cot + rec) - dep
+        Solde: (cot + rec) - dep + dnp - dp
       };
     });
-  }, [annualCotisations, annualRecettes, annualDepenses]);
+  }, [annualCotisations, annualRecettes, annualDepenses, annualDettes]);
 
   const currentMonthIndex = new Date().getMonth();
   const currentMonthName = MOIS[currentMonthIndex];

@@ -3,14 +3,14 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History,
-  Smartphone, TrendingDown, Landmark, Zap, Calendar, MessageCircle
+  Smartphone, TrendingDown, Landmark, Zap, Calendar, MessageCircle, Banknote
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { MOIS } from './data';
-import { Membre, Cotisation, ModePaiement, Depense, Recette } from './types';
+import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette } from './types';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
@@ -23,7 +23,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recettes' | 'recap' | 'nonpayeurs' | 'stats' | 'rapports' | 'notifications';
+type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recettes' | 'dettes' | 'recap' | 'nonpayeurs' | 'stats' | 'rapports' | 'notifications';
 
 const ADMIN_CODE = (import.meta as any).env.VITE_ADMIN_CODE || 'DMN-ADMIN-ESP';
 
@@ -53,6 +53,7 @@ export default function App() {
   const [cotisations, setCotisations] = useState<Cotisation[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
   const [recettes, setRecettes] = useState<Recette[]>([]);
+  const [dettes, setDettes] = useState<Dette[]>([]);
   const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
@@ -63,6 +64,9 @@ export default function App() {
 
   const [isRecetteModalOpen, setIsRecetteModalOpen] = useState(false);
   const [editingRecette, setEditingRecette] = useState<Partial<Recette>>({});
+
+  const [isDetteModalOpen, setIsDetteModalOpen] = useState(false);
+  const [editingDette, setEditingDette] = useState<Partial<Dette>>({});
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -193,7 +197,10 @@ export default function App() {
     const unsubRecettes = onSnapshot(collection(db, 'recettes'), (snapshot) => {
       setRecettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recette)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'recettes'));
-    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); };
+    const unsubDettes = onSnapshot(collection(db, 'dettes'), (snapshot) => {
+      setDettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dette)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'dettes'));
+    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); };
   }, [isAuthReady, user]);
 
   useEffect(() => {
@@ -483,10 +490,84 @@ export default function App() {
     );
   };
 
-  const Badge = ({ mode }: { mode: ModePaiement }) => {
-    if (mode === 'WAVE') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-600">WAVE</span>;
-    if (mode === 'OM') return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-600">OM</span>;
-    return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">ESP</span>;
+  const handleSaveDette = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const motif = formData.get('motif') as string;
+    const mois = formData.get('mois') as string;
+    const annee = parseInt(formData.get('annee') as string) || globalYear;
+    const montant = parseInt(formData.get('montant') as string) || 0;
+    const date = new Date().toISOString();
+    try {
+      if (editingDette?.id) {
+        await updateDoc(doc(db, 'dettes', editingDette.id), { motif, mois, annee, montant, updatedAt: Date.now(), updatedBy: user?.uid });
+        showToast('Dette modifiée avec succès');
+      } else {
+        await addDoc(collection(db, 'dettes'), { motif, mois, annee, montant, date, estPayee: false, createdAt: Date.now(), createdBy: user?.uid });
+        showToast('Dette ajoutée avec succès');
+      }
+      setIsDetteModalOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'dettes');
+      showToast('Erreur lors de l\'enregistrement', 'error');
+    }
+  };
+
+  const handleDeleteDette = async (id: string) => {
+    confirmAction(
+      'Supprimer Dette',
+      'Voulez-vous vraiment supprimer cette dette ?',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'dettes', id));
+          showToast('Dette supprimée avec succès');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, 'dettes');
+          showToast('Erreur lors de la suppression', 'error');
+        }
+      }
+    );
+  };
+
+  const handleToggleDetteStatus = async (dette: Dette) => {
+    try {
+      await updateDoc(doc(db, 'dettes', dette.id), { estPayee: !dette.estPayee, updatedAt: Date.now(), updatedBy: user?.uid });
+      showToast(`Dette marquée comme ${!dette.estPayee ? 'payée' : 'non payée'}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'dettes');
+      showToast('Erreur lors de la modification', 'error');
+    }
+  };
+
+  const Badge = ({ mode, date }: { mode: ModePaiement, date?: number | string }) => {
+    const formattedDate = date ? new Date(date).toLocaleDateString('fr-FR') : null;
+    const baseClass = "inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap";
+    let colorClass = "bg-emerald-100 text-emerald-700";
+    let label = "ESP";
+    
+    if (mode === 'WAVE') {
+      colorClass = "bg-blue-100 text-blue-600";
+      label = "WAVE";
+    } else if (mode === 'OM') {
+      colorClass = "bg-orange-100 text-orange-600";
+      label = "OM";
+    }
+
+    return (
+      <span className={`${baseClass} ${colorClass}`}>
+        {label} {formattedDate && `- ${formattedDate}`}
+      </span>
+    );
+  };
+  
+  const DateBadge = ({ date }: { date?: number | string }) => {
+    if (!date) return null;
+    const formattedDate = new Date(date).toLocaleDateString('fr-FR');
+    return (
+      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap bg-gray-100 text-gray-500">
+        Enregistré le {formattedDate}
+      </span>
+    );
   };
 
   const getMemberStatus = (mId: string) => {
@@ -596,7 +677,7 @@ export default function App() {
                         <div>
                           <p className="font-bold text-gray-900 text-sm">{c.mois} {c.annee}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge mode={c.mode} />
+                            <Badge mode={c.mode} date={c.createdAt || c.updatedAt} />
                             <span className="text-[10px] text-gray-400 font-medium italic">Enregistré le {new Date(c.createdAt || Date.now()).toLocaleDateString()}</span>
                           </div>
                         </div>
@@ -756,9 +837,11 @@ export default function App() {
     const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
     const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
     const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
-    const solde = totCot + totRec - totDep;
-
-    // Header Dimensions
+    
+    const annualDettes = dettes.filter(d => d.annee === globalYear);
+    const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const solde = totCot + totRec - totDep + totDettesNonPayees - totDettesPayees;
     const headerHeight = logoData ? logoHeight + 50 : 40;
     const logoY = 10;
     const titleY = logoData ? logoY + logoHeight + 15 : 20;
@@ -794,10 +877,14 @@ export default function App() {
     doc.text(`Total Cotisations : ${formatFCFA(totCot)}`, 14, summaryY + 10);
     doc.text(`Autres Recettes : ${formatFCFA(totRec)}`, 14, summaryY + 17);
     doc.text(`Total Dépenses : ${formatFCFA(totDep)}`, 14, summaryY + 24);
+    if (totDettesNonPayees > 0 || totDettesPayees > 0) {
+      doc.text(`Dettes (Non Payées) : +${formatFCFA(totDettesNonPayees)}`, 14, summaryY + 31);
+      doc.text(`Dettes (Payées) : -${formatFCFA(totDettesPayees)}`, 14, summaryY + 38);
+    }
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(solde >= 0 ? 5 : 220, solde >= 0 ? 150 : 38, solde >= 0 ? 105 : 38); // Green or Red
-    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, summaryY + 33);
+    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, summaryY + (totDettesNonPayees > 0 || totDettesPayees > 0 ? 47 : 33));
 
     const tableData = membres.map(m => {
       const status = getMemberStatus(m.id);
@@ -876,7 +963,10 @@ export default function App() {
     const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
     const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
     const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
-    const solde = totCot + totRec - totDep;
+    const annualDettes = dettes.filter(d => d.annee === globalYear);
+    const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const solde = totCot + totRec - totDep + totDettesNonPayees - totDettesPayees;
 
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
@@ -1022,7 +1112,12 @@ export default function App() {
     const totWave = annualCotisations.filter(c => c.mode === 'WAVE').reduce((s, c) => s + c.montant, 0) + annualRecettes.filter(r => r.mode === 'WAVE').reduce((s, r) => s + r.montant, 0);
     const totOM = annualCotisations.filter(c => c.mode === 'OM').reduce((s, c) => s + c.montant, 0) + annualRecettes.filter(r => r.mode === 'OM').reduce((s, r) => s + r.montant, 0);
     const totDepenses = annualDepenses.reduce((s, d) => s + d.montant, 0);
-    const solde = totEntrees - totDepenses;
+    
+    const annualDettes = dettes.filter(d => d.annee === globalYear);
+    const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
+    
+    const solde = totEntrees - totDepenses + totDettesNonPayees - totDettesPayees;
     
     const monthlyData = MOIS.map(mois => {
       const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
@@ -1550,6 +1645,7 @@ export default function App() {
         cotisations={cotisations}
         depenses={depenses}
         recettes={recettes}
+        dettes={dettes}
         appSettings={appSettings}
         globalSearch={globalSearch}
         setSelectedMemberHistory={setSelectedMemberHistory}
@@ -1668,7 +1764,7 @@ export default function App() {
                   <td className="px-6 py-4 text-left whitespace-nowrap font-medium text-gray-900">{nomComplet(getMembre(c.mId))}</td>
                   <td className="px-6 py-4 text-gray-600">{c.mois}</td>
                   <td className="px-6 py-4 font-bold text-dmn-green-700">{c.montant > 0 ? `${formatPrice(c.montant)} F` : <span className="text-gray-400">—</span>}</td>
-                  <td className="px-6 py-4"><Badge mode={c.mode} /></td>
+                  <td className="px-6 py-4"><Badge mode={c.mode} date={c.createdAt || c.updatedAt} /></td>
                   {userRole === 'admin' && (
                     <td className="px-6 py-4 flex justify-center gap-2">
                       <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
@@ -1699,7 +1795,7 @@ export default function App() {
                     <p className="font-bold text-dmn-green-900">{nomComplet(m)}</p>
                     <p className="text-xs text-gray-500">{c.mois} {c.annee}</p>
                   </div>
-                  <Badge mode={c.mode} />
+                  <Badge mode={c.mode} date={c.createdAt || c.updatedAt} />
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-gray-50">
                   <p className="font-bold text-dmn-green-600">{formatPrice(c.montant)} F</p>
@@ -1719,6 +1815,124 @@ export default function App() {
           })}
           {filtered.length === 0 && (
             <div className="p-8 text-center text-gray-400">Aucune cotisation</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDettes = () => {
+    const filteredDettes = dettes.filter(d => 
+      (globalYear ? d.annee === globalYear : true) && 
+      (globalMonth ? d.mois === globalMonth : true)
+    ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return (
+      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
+        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
+          <span className="flex items-center gap-2"><Banknote size={18} className="text-dmn-gold-light" /> Dettes ({globalYear})</span>
+          {userRole === 'admin' && (
+            <button 
+              onClick={() => { setEditingDette({ annee: globalYear, montant: 0, mois: globalMonth || MOIS[currentMonthIndex] }); setIsDetteModalOpen(true); }}
+              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+            >
+              <Plus size={16} /> Ajouter une Dette
+            </button>
+          )}
+        </div>
+        
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Motif / Bénéficiaire</th>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Période</th>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-right">Montant</th>
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Statut</th>
+                {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredDettes.map(d => (
+                <tr key={d.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
+                  <td className="px-6 py-4 font-medium text-gray-900">{d.motif}</td>
+                  <td className="px-6 py-4 text-gray-600">{d.mois} {d.annee}</td>
+                  <td className="px-6 py-4 text-right font-bold text-red-600">{formatPrice(d.montant)} F</td>
+                  <td className="px-6 py-4 text-center">
+                    {userRole === 'admin' ? (
+                      <button 
+                        onClick={() => handleToggleDetteStatus(d)}
+                        className={`px-3 py-1 text-xs font-bold rounded-full transition-colors ${d.estPayee ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'} whitespace-nowrap`}
+                      >
+                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non Payée depuis le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                      </button>
+                    ) : (
+                      <span className={`px-3 py-1 text-xs font-bold rounded-full ${d.estPayee ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} whitespace-nowrap`}>
+                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non Payée depuis le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                      </span>
+                    )}
+                  </td>
+                  {userRole === 'admin' && (
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
+                          <Edit2 size={16} />
+                        </button>
+                        <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {filteredDettes.length === 0 && (
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500 font-medium">Aucune dette trouvée.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filteredDettes.map(d => (
+            <div key={d.id} className="p-4 space-y-3 bg-white hover:bg-gray-50 transition-colors">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-bold text-dmn-green-900">{d.motif}</p>
+                  <p className="text-xs text-gray-500">{d.mois} {d.annee}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-red-600 mb-2">{formatPrice(d.montant)} F</p>
+                  {userRole === 'admin' ? (
+                      <button 
+                        onClick={() => handleToggleDetteStatus(d)}
+                        className={`inline-block px-3 py-1 text-[10px] font-bold rounded-full transition-colors ${d.estPayee ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'} whitespace-nowrap`}
+                      >
+                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non payée le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                      </button>
+                    ) : (
+                      <span className={`inline-block px-3 py-1 text-[10px] font-bold rounded-full ${d.estPayee ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} whitespace-nowrap`}>
+                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non payée le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                      </span>
+                    )}
+                </div>
+              </div>
+              {userRole === 'admin' && (
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-50 mt-2">
+                  <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                    <Edit2 size={14} />
+                  </button>
+                  <button onClick={() => handleDeleteDette(d.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {filteredDettes.length === 0 && (
+            <div className="p-8 text-center text-gray-400">Aucune dette</div>
           )}
         </div>
       </div>
@@ -1758,7 +1972,7 @@ export default function App() {
                   <td className="px-6 py-4 text-left font-medium text-gray-900">{r.motif}</td>
                   <td className="px-6 py-4 text-gray-600">{r.mois}</td>
                   <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(r.montant)} F</td>
-                  <td className="px-6 py-4"><Badge mode={r.mode} /></td>
+                  <td className="px-6 py-4"><Badge mode={r.mode} date={r.createdAt || r.updatedAt} /></td>
                   {userRole === 'admin' && (
                     <td className="px-6 py-4 flex justify-center gap-2">
                       <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
@@ -1787,7 +2001,7 @@ export default function App() {
                   <p className="font-bold text-dmn-green-900">{r.motif}</p>
                   <p className="text-xs text-gray-500">{r.mois} {r.annee}</p>
                 </div>
-                <Badge mode={r.mode} />
+                <Badge mode={r.mode} date={r.createdAt || r.updatedAt} />
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-gray-50">
                 <p className="font-bold text-dmn-green-600">{formatPrice(r.montant)} F</p>
@@ -2019,7 +2233,10 @@ export default function App() {
               {filteredDepenses.map(d => (
                 <tr key={d.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
                   <td className="px-6 py-4 font-medium text-gray-900">{d.evenement}</td>
-                  <td className="px-6 py-4 text-gray-600">{d.mois} {d.annee}</td>
+                  <td className="px-6 py-4 text-gray-600">
+                    <div>{d.mois} {d.annee}</div>
+                    <div className="mt-1"><DateBadge date={d.createdAt || d.updatedAt} /></div>
+                  </td>
                   <td className="px-6 py-4 text-right font-bold text-red-600">{formatPrice(d.montant)} F</td>
                   {userRole === 'admin' && (
                     <td className="px-6 py-4 text-center">
@@ -2049,7 +2266,8 @@ export default function App() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-bold text-dmn-green-900">{d.evenement}</p>
-                  <p className="text-xs text-gray-500">{d.mois} {d.annee}</p>
+                  <p className="text-xs text-gray-500 mb-1">{d.mois} {d.annee}</p>
+                  <DateBadge date={d.createdAt || d.updatedAt} />
                 </div>
                 <p className="font-bold text-red-600">{formatPrice(d.montant)} F</p>
               </div>
@@ -2140,7 +2358,7 @@ export default function App() {
                           <tr key={c.id} className="hover:bg-dmn-green-50/30 transition-colors">
                             <td className="px-4 py-3 font-medium text-gray-800">{c.mois}</td>
                             <td className="px-4 py-3 font-bold text-dmn-green-600">{formatPrice(c.montant)} F</td>
-                            <td className="px-4 py-3"><Badge mode={c.mode} /></td>
+                            <td className="px-4 py-3"><Badge mode={c.mode} date={c.createdAt || c.updatedAt} /></td>
                           </tr>
                         ))}
                       </tbody>
@@ -2387,6 +2605,7 @@ export default function App() {
           { id: 'cotisations', label: 'Cotisations', icon: CreditCard },
           { id: 'recettes', label: 'Recettes', icon: Plus },
           { id: 'depenses', label: 'Dépenses', icon: Wallet },
+          { id: 'dettes', label: 'Dettes', icon: Banknote },
           { id: 'recap', label: 'Récap', icon: CalendarDays },
           { id: 'nonpayeurs', label: 'Retards', icon: AlertTriangle },
           { id: 'stats', label: 'Stats', icon: TrendingDown },
@@ -2417,6 +2636,7 @@ export default function App() {
         {activeTab === 'cotisations' && renderCotisations()}
         {activeTab === 'recettes' && renderRecettes()}
         {activeTab === 'depenses' && renderDepenses()}
+        {activeTab === 'dettes' && renderDettes()}
         {activeTab === 'recap' && renderRecap()}
         {activeTab === 'nonpayeurs' && renderNonPayeurs()}
         {activeTab === 'stats' && renderStats()}
@@ -2622,6 +2842,43 @@ export default function App() {
               </div>
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsRecetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
+                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isDetteModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
+                <Banknote size={20} className="text-dmn-gold-light" /> Enregistrer une dette
+              </h3>
+              <button onClick={() => setIsDetteModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSaveDette} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Motif / Bénéficiaire</label>
+                <input name="motif" defaultValue={editingDette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Achat matériel, Prêt à X..." />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois</label>
+                <select name="mois" defaultValue={editingDette.mois || globalMonth || MOIS[currentMonthIndex]} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
+                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année</label>
+                <input type="number" name="annee" defaultValue={editingDette.annee || globalYear} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
+                <input type="number" name="montant" defaultValue={editingDette.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+              </div>
+              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => setIsDetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
               </div>
             </form>

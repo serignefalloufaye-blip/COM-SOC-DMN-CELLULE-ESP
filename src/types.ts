@@ -50,6 +50,19 @@ export interface Recette {
   createdBy?: string;
 }
 
+export interface Dette {
+  id: string;
+  motif: string;
+  montant: number;
+  mois: string;
+  annee: number;
+  date: string;
+  estPayee: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+  createdBy?: string;
+}
+
 export interface UserRole {
   uid: string;
   email: string;

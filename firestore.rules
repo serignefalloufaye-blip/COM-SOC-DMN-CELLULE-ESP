@@ -50,6 +50,13 @@ service cloud.firestore {
              data.mode in ['WAVE', 'OM', 'ESPÈCES'];
     }
 
+    function isValidDette(data) {
+      return data.motif is string && data.motif.size() > 0 && data.motif.size() < 200 &&
+             data.mois is string && data.mois.size() > 0 && data.mois.size() < 20 &&
+             data.annee is number && data.annee > 2000 && data.annee < 2100 &&
+             data.montant is number && data.montant >= 0;
+    }
+
     function isValidUser(data) {
       return data.email is string && data.email.size() > 0 &&
              data.role in ['admin', 'visitor'];
@@ -90,6 +97,13 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAdmin() && isValidRecette(request.resource.data);
       allow update: if isAdmin() && isValidRecette(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /dettes/{detteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidDette(request.resource.data);
+      allow update: if isAdmin() && isValidDette(request.resource.data);
       allow delete: if isAdmin();
     }
 
