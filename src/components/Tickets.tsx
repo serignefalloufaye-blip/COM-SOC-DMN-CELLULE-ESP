@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Membre, TicketCollecte, TicketConversion, TicketDistribution } from '../types';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
 import { MOIS } from '../data';
 import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity } from 'lucide-react';
 import { TicketsStats } from './TicketsStats';
@@ -12,29 +11,13 @@ interface TicketsProps {
   globalYear: number;
   globalMonth: string;
   showToast: (message: string, type?: 'success' | 'error') => void;
+  collectes: TicketCollecte[];
+  conversions: TicketConversion[];
+  distributions: TicketDistribution[];
 }
 
-export function Tickets({ membres, globalYear, globalMonth, showToast }: TicketsProps) {
+export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions }: TicketsProps) {
   const [activeTab, setActiveTab] = useState<'collecte' | 'conversion' | 'distribution' | 'historique' | 'statistiques'>('statistiques');
-  const [collectes, setCollectes] = useState<TicketCollecte[]>([]);
-  const [conversions, setConversions] = useState<TicketConversion[]>([]);
-  const [distributions, setDistributions] = useState<TicketDistribution[]>([]);
-
-  useEffect(() => {
-    const unsubCollectes = onSnapshot(collection(db, 'tickets_collectes'), (snapshot) => {
-      setCollectes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketCollecte)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_collectes'));
-
-    const unsubConversions = onSnapshot(collection(db, 'tickets_conversions'), (snapshot) => {
-      setConversions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketConversion)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_conversions'));
-
-    const unsubDistributions = onSnapshot(collection(db, 'tickets_distributions'), (snapshot) => {
-      setDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketDistribution)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_distributions'));
-
-    return () => { unsubCollectes(); unsubConversions(); unsubDistributions(); };
-  }, []);
 
   // Calculate global numbers
   const totalArgentCollecte = collectes.filter(c => c.type === 'argent').reduce((s, c) => s + (c.montantArgent || 0), 0);

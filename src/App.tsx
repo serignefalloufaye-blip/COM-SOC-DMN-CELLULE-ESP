@@ -10,7 +10,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { MOIS } from './data';
-import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette } from './types';
+import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution } from './types';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
@@ -20,6 +20,7 @@ import { useDebounce } from './utils/useDebounce';
 import { RotatingMessages } from './components/RotatingMessages';
 import { Annuel } from './components/Annuel';
 import { Tickets } from './components/Tickets';
+import { PremiumDashboard } from './components/PremiumDashboard';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -55,6 +56,9 @@ export default function App() {
   const [depenses, setDepenses] = useState<Depense[]>([]);
   const [recettes, setRecettes] = useState<Recette[]>([]);
   const [dettes, setDettes] = useState<Dette[]>([]);
+  const [ticketCollectes, setTicketCollectes] = useState<TicketCollecte[]>([]);
+  const [ticketConversions, setTicketConversions] = useState<TicketConversion[]>([]);
+  const [ticketDistributions, setTicketDistributions] = useState<TicketDistribution[]>([]);
   const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
@@ -201,7 +205,20 @@ export default function App() {
     const unsubDettes = onSnapshot(collection(db, 'dettes'), (snapshot) => {
       setDettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dette)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'dettes'));
-    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); };
+
+    const unsubTicketCollectes = onSnapshot(collection(db, 'tickets_collectes'), (snapshot) => {
+      setTicketCollectes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketCollecte)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_collectes'));
+
+    const unsubTicketConversions = onSnapshot(collection(db, 'tickets_conversions'), (snapshot) => {
+      setTicketConversions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketConversion)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_conversions'));
+
+    const unsubTicketDistributions = onSnapshot(collection(db, 'tickets_distributions'), (snapshot) => {
+      setTicketDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketDistribution)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_distributions'));
+
+    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); unsubTicketCollectes(); unsubTicketConversions(); unsubTicketDistributions(); };
   }, [isAuthReady, user]);
 
   useEffect(() => {
@@ -2747,7 +2764,12 @@ export default function App() {
 
       {/* Main Content */}
       <main className="px-4 max-w-7xl mx-auto flex-1">
-        {activeTab === 'dashboard' && renderDashboard()}
+        {activeTab === 'dashboard' && <PremiumDashboard 
+          membres={membres} cotisations={cotisations} depenses={depenses} 
+          recettes={recettes} dettes={dettes} 
+          ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
+          globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
+        />}
         {activeTab === 'saisie' && renderSaisieRapide()}
         {activeTab === 'membres' && renderMembres()}
         {activeTab === 'annuel' && renderAnnuel()}
@@ -2760,7 +2782,7 @@ export default function App() {
         {activeTab === 'stats' && renderStats()}
         {activeTab === 'rapports' && renderRapports()}
         {activeTab === 'notifications' && renderNotifications()}
-        {activeTab === 'ticketsresto' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} />}
+        {activeTab === 'ticketsresto' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} />}
       </main>
 
       {/* Footer */}
