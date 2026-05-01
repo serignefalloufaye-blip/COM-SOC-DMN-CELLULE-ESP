@@ -37,7 +37,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
   
   const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
   const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
-  const solde = totCot + totRec - totDep + totDettesNonPayees - totDettesPayees;
+  const solde = totCot + totRec - totDep + totDettesNonPayees;
   const moyenneMensuelle = Math.round(totCot / 12);
 
   const monthlyData = useMemo(() => {
@@ -50,11 +50,11 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
       const dp = annualDettes.filter(d => d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
       
       return { 
-        name: mois.substring(0, 3),
+        name: mois.substring(0, 4),
         fullMonth: mois,
         Cotisations: cot + rec,
         Dépenses: dep,
-        Solde: (cot + rec) - dep + dnp - dp
+        Solde: (cot + rec) - dep + dnp
       };
     });
   }, [annualCotisations, annualRecettes, annualDepenses, annualDettes]);
@@ -351,7 +351,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
               <tr>
                 <th className="px-2 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">N°</th>
                 <th className="px-4 py-4 font-semibold text-xs uppercase tracking-wider text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50/95 backdrop-blur-sm z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Membre</th>
-                {MOIS.map(m => <th key={m} className="px-1 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">{m.substring(0, 3)}</th>)}
+                {MOIS.map(m => <th key={m} className="px-1 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">{m.substring(0, 4)}</th>)}
                 <th className="px-2 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">TOTAL</th>
               </tr>
             </thead>

@@ -66,6 +66,33 @@ service cloud.firestore {
       return data.logoUrl is string && data.logoUrl.size() < 1048576; // 1MB limit for Base64
     }
 
+    function isValidTicketCollecte(data) {
+      return data.mId is string && data.mId.size() > 0 &&
+             data.mois is string && data.mois.size() > 0 && data.mois.size() < 20 &&
+             data.annee is number && data.annee > 2000 && data.annee < 2100 &&
+             data.type in ['argent', 'tickets'] &&
+             data.montantArgent is number && data.montantArgent >= 0 &&
+             data.petitDej is number && data.petitDej >= 0 &&
+             data.repas is number && data.repas >= 0 &&
+             data.createdAt is number;
+    }
+
+    function isValidTicketConversion(data) {
+      return data.montant is number && data.montant > 0 &&
+             data.petitDej is number && data.petitDej >= 0 &&
+             data.repas is number && data.repas >= 0 &&
+             data.createdAt is number;
+    }
+
+    function isValidTicketDistribution(data) {
+      return data.mId is string && data.mId.size() > 0 &&
+             data.mois is string && data.mois.size() > 0 && data.mois.size() < 20 &&
+             data.annee is number && data.annee > 2000 && data.annee < 2100 &&
+             data.petitDej is number && data.petitDej >= 0 &&
+             data.repas is number && data.repas >= 0 &&
+             data.createdAt is number;
+    }
+
     // Rules
     match /settings/{settingId} {
       allow read: if true;
@@ -111,6 +138,27 @@ service cloud.firestore {
       allow read: if isAuthenticated() && request.auth.uid == userId;
       allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
       allow update: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /tickets_collectes/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidTicketCollecte(request.resource.data);
+      allow update: if isAdmin() && isValidTicketCollecte(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /tickets_conversions/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidTicketConversion(request.resource.data);
+      allow update: if isAdmin() && isValidTicketConversion(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /tickets_distributions/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidTicketDistribution(request.resource.data);
+      allow update: if isAdmin() && isValidTicketDistribution(request.resource.data);
       allow delete: if isAdmin();
     }
   }

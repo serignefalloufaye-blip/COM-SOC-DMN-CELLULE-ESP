@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History,
-  Smartphone, TrendingDown, Landmark, Zap, Calendar, MessageCircle, Banknote
+  Smartphone, TrendingDown, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -19,11 +19,12 @@ import { User } from 'firebase/auth';
 import { useDebounce } from './utils/useDebounce';
 import { RotatingMessages } from './components/RotatingMessages';
 import { Annuel } from './components/Annuel';
+import { Tickets } from './components/Tickets';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recettes' | 'dettes' | 'recap' | 'nonpayeurs' | 'stats' | 'rapports' | 'notifications';
+type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recettes' | 'dettes' | 'recap' | 'nonpayeurs' | 'stats' | 'rapports' | 'notifications' | 'ticketsresto';
 
 const ADMIN_CODE = (import.meta as any).env.VITE_ADMIN_CODE || 'DMN-ADMIN-ESP';
 
@@ -88,7 +89,7 @@ export default function App() {
   // Global Filters
   const currentMonthIndex = new Date().getMonth();
   const [globalYear, setGlobalYear] = useState<number>(new Date().getFullYear());
-  const [globalMonth, setGlobalMonth] = useState<string>(MOIS[currentMonthIndex]);
+  const [globalMonth, setGlobalMonth] = useState<string>('');
   const [globalMode, setGlobalMode] = useState<string>('');
   const [globalSearch, setGlobalSearch] = useState<string>('');
   const debouncedGlobalSearch = useDebounce(globalSearch, 300);
@@ -223,7 +224,8 @@ export default function App() {
       if (error.code === 'auth/popup-blocked') {
         showToast("Le popup a été bloqué par votre navigateur", 'error');
       } else if (error.code === 'auth/unauthorized-domain') {
-        showToast("Domaine non autorisé dans Firebase", 'error');
+        const domain = window.location.hostname;
+        showToast(`Veuillez ajouter ${domain} dans les domaines autorisés Firebase (Authentication > Settings > Authorized domains)`, 'error');
       } else {
         showToast(`Erreur de connexion : ${error.message}`, 'error');
       }
@@ -320,9 +322,10 @@ export default function App() {
   };
 
   const handleQuickSaveCotisation = async (mId: string, montant: number, mode: ModePaiement) => {
+    const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
     const selectedMonths = quickMonths[mId] !== undefined 
       ? quickMonths[mId] 
-      : (globalMonth && !cotisations.some(c => c.mId === mId && c.mois === globalMonth && c.annee === globalYear && c.montant > 0) ? [globalMonth] : []);
+      : (!cotisations.some(c => c.mId === mId && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
       
     if (selectedMonths.length === 0) {
       showToast("Veuillez sélectionner au moins un mois à payer.", 'error');
@@ -700,16 +703,18 @@ export default function App() {
   };
 
   const renderStats = () => {
+    const annualDettes = dettes.filter(d => d.annee === globalYear);
     const monthlyData = MOIS.map(mois => {
       const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
       const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
       const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
       return { 
-        name: mois.substring(0, 3), 
+        name: mois.substring(0, 4), 
         Cotisations: cot,
         Recettes: rec,
         Dépenses: dep,
-        Solde: (cot + rec) - dep
+        Solde: (cot + rec) - dep + dnp
       };
     });
 
@@ -841,7 +846,7 @@ export default function App() {
     const annualDettes = dettes.filter(d => d.annee === globalYear);
     const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
     const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
-    const solde = totCot + totRec - totDep + totDettesNonPayees - totDettesPayees;
+    const solde = totCot + totRec - totDep + totDettesNonPayees;
     const headerHeight = logoData ? logoHeight + 50 : 40;
     const logoY = 10;
     const titleY = logoData ? logoY + logoHeight + 15 : 20;
@@ -877,14 +882,13 @@ export default function App() {
     doc.text(`Total Cotisations : ${formatFCFA(totCot)}`, 14, summaryY + 10);
     doc.text(`Autres Recettes : ${formatFCFA(totRec)}`, 14, summaryY + 17);
     doc.text(`Total Dépenses : ${formatFCFA(totDep)}`, 14, summaryY + 24);
-    if (totDettesNonPayees > 0 || totDettesPayees > 0) {
+    if (totDettesNonPayees > 0) {
       doc.text(`Dettes (Non Payées) : +${formatFCFA(totDettesNonPayees)}`, 14, summaryY + 31);
-      doc.text(`Dettes (Payées) : -${formatFCFA(totDettesPayees)}`, 14, summaryY + 38);
     }
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(solde >= 0 ? 5 : 220, solde >= 0 ? 150 : 38, solde >= 0 ? 105 : 38); // Green or Red
-    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, summaryY + (totDettesNonPayees > 0 || totDettesPayees > 0 ? 47 : 33));
+    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, summaryY + (totDettesNonPayees > 0 ? 40 : 33));
 
     const tableData = membres.map(m => {
       const status = getMemberStatus(m.id);
@@ -966,7 +970,7 @@ export default function App() {
     const annualDettes = dettes.filter(d => d.annee === globalYear);
     const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
     const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
-    const solde = totCot + totRec - totDep + totDettesNonPayees - totDettesPayees;
+    const solde = totCot + totRec - totDep + totDettesNonPayees;
 
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
@@ -1117,13 +1121,14 @@ export default function App() {
     const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
     const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
     
-    const solde = totEntrees - totDepenses + totDettesNonPayees - totDettesPayees;
+    const solde = totEntrees - totDepenses + totDettesNonPayees;
     
     const monthlyData = MOIS.map(mois => {
       const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
       const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
       const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      return { name: mois.substring(0, 3), Entrées: cot + rec, Dépenses: dep };
+      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      return { name: mois.substring(0, 4), Entrées: cot + rec + dnp, Dépenses: dep };
     });
 
     const modes = ['WAVE', 'OM', 'ESPÈCES'];
@@ -1321,9 +1326,10 @@ export default function App() {
             <tbody className="divide-y divide-gray-100">
               {filteredMembres.map(m => {
                 const currentAmount = quickAmounts[m.id] || '';
+                const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
                 const selectedMonths = quickMonths[m.id] !== undefined 
                   ? quickMonths[m.id] 
-                  : (globalMonth && !cotisations.some(c => c.mId === m.id && c.mois === globalMonth && c.annee === globalYear && c.montant > 0) ? [globalMonth] : []);
+                  : (!cotisations.some(c => c.mId === m.id && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
 
                 return (
                   <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
@@ -1364,7 +1370,7 @@ export default function App() {
                                 }`}
                                 title={isPaid ? `Payé: ${existingCot.montant}F (${existingCot.mode}) - Clic pour options` : `Sélectionner ${mois}`}
                               >
-                                {mois.substring(0, 3)} {isPaid ? '✓' : ''}
+                                {mois.substring(0, 4)} {isPaid ? '✓' : ''}
                               </button>
                               
                               {activeActionMenu?.mId === m.id && activeActionMenu?.mois === mois && isPaid && (
@@ -1445,9 +1451,10 @@ export default function App() {
         <div className="md:hidden divide-y divide-gray-100">
           {filteredMembres.map(m => {
             const currentAmount = quickAmounts[m.id] || '';
+            const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
             const selectedMonths = quickMonths[m.id] !== undefined 
               ? quickMonths[m.id] 
-              : (globalMonth && !cotisations.some(c => c.mId === m.id && c.mois === globalMonth && c.annee === globalYear && c.montant > 0) ? [globalMonth] : []);
+              : (!cotisations.some(c => c.mId === m.id && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
 
             return (
               <div key={m.id} className="p-4 space-y-4">
@@ -1497,7 +1504,7 @@ export default function App() {
                           'bg-white text-gray-500 border-gray-200'
                         }`}
                       >
-                        {mois.substring(0, 3)} {isPaid ? '✓' : ''}
+                        {mois.substring(0, 4)} {isPaid ? '✓' : ''}
                       </button>
                     );
                   })}
@@ -1823,7 +1830,7 @@ export default function App() {
 
   const renderDettes = () => {
     const filteredDettes = dettes.filter(d => 
-      (globalYear ? d.annee === globalYear : true) && 
+      (globalYear ? d.annee === globalYear : true) &&
       (globalMonth ? d.mois === globalMonth : true)
     ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -2134,7 +2141,91 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm text-center">
+                <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Membre</th>
+                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-x border-gray-100">Téléphone</th>
+                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Plus ancien retard</th>
+                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-x border-gray-100">Mois dus</th>
+                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Rappels</th>
+                    {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-l border-gray-100">Action</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredMembres.map((m, idx) => {
+                    const status = getMemberStatus(m.id);
+                    return (
+                      <tr key={m.id} className="hover:bg-red-50/30 transition-colors border-b border-gray-50 last:border-0 relative">
+                        <td className="px-6 py-4 text-left whitespace-nowrap">
+                          <button onClick={() => setSelectedMemberProfile(m)} className="font-bold text-gray-900 hover:text-red-600 transition-colors block">
+                            {m.prenom} {m.nom}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 border-x border-gray-50 border-dashed">
+                          <div className="inline-flex items-center gap-1.5 text-gray-600 font-medium">
+                            <Smartphone size={14} className="text-gray-400" /> +221 {m.telephone || '---'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm">
+                            {status.unpaidMonths[0]?.substring(0, 4)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 border-x border-gray-50 border-dashed min-w-[200px]">
+                          <div className="flex flex-col items-center gap-2">
+                            <span className="font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg text-xs">{status.unpaidCount} mois dûs</span>
+                            <div className="flex flex-wrap gap-1 justify-center">
+                              {status.unpaidMonths.slice(0, 4).map(mois => (
+                                <span key={mois} className={`text-[9px] px-1.5 py-0.5 rounded-md uppercase font-bold shadow-sm ${npMois === mois ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                                  {mois.substring(0, 3)}
+                                </span>
+                              ))}
+                              {status.unpaidMonths.length > 4 && <span className="text-[9px] px-1.5 py-0.5 rounded-md uppercase font-bold bg-gray-100 text-gray-500 shadow-sm">+{status.unpaidMonths.length - 4}</span>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center gap-2">
+                            <a 
+                              href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                              className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
+                              title="Rappel SMS"
+                            >
+                              <MessageCircle size={18} />
+                            </a>
+                            <a 
+                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
+                              title="Rappel WhatsApp"
+                            >
+                              <Smartphone size={18} />
+                            </a>
+                          </div>
+                        </td>
+                        {userRole === 'admin' && (
+                          <td className="px-6 py-4 border-l border-gray-50 border-dashed">
+                            <button 
+                              onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
+                              className="px-4 py-2 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition-all shadow-md shadow-red-600/20 active:scale-95 whitespace-nowrap"
+                            >
+                              Régulariser {npMois ? `(${npMois.substring(0, 3)})` : ''}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden grid grid-cols-1 gap-6">
               {filteredMembres.map((m, idx) => {
                 const status = getMemberStatus(m.id);
                 return (
@@ -2142,16 +2233,19 @@ export default function App() {
                     <div className="absolute top-0 left-0 w-1.5 h-full bg-red-500"></div>
                     <div className="flex justify-between items-start mb-6">
                       <div>
-                        <button onClick={() => setSelectedMemberProfile(m)} className="font-heading font-bold text-gray-900 text-lg hover:text-dmn-green-600 transition-colors block text-left">
+                        <button onClick={() => setSelectedMemberProfile(m)} className="font-heading font-bold text-gray-900 text-lg hover:text-red-600 transition-colors block text-left">
                           {m.prenom} {m.nom}
                         </button>
                         <div className="flex items-center gap-1.5 text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">
                           <Smartphone size={12} className="text-gray-300" /> +221 {m.telephone || '---'}
                         </div>
                       </div>
-                      <span className="bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm shadow-red-200">
-                        En Retard
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
+                          {status.unpaidMonths[0]?.substring(0, 4)}
+                        </span>
+                        <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">Plus ancien</span>
+                      </div>
                     </div>
                     
                     <div className="bg-gray-50 rounded-2xl p-4 mb-6">
@@ -2159,7 +2253,7 @@ export default function App() {
                       <div className="flex flex-wrap gap-1.5">
                         {status.unpaidMonths.map(mois => (
                           <span key={mois} className={`text-[9px] px-2 py-1 rounded-lg uppercase font-black shadow-sm ${npMois === mois ? 'bg-red-600 text-white' : 'bg-white text-red-600 border border-red-100'}`}>
-                            {mois.substring(0, 3)}
+                            {mois.substring(0, 4)}
                           </span>
                         ))}
                       </div>
@@ -2169,11 +2263,18 @@ export default function App() {
                       {userRole === 'admin' && (
                         <button 
                           onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
-                          className="flex-1 bg-dmn-green-600 hover:bg-dmn-green-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-dmn-green-100 active:scale-95"
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-red-600/20 active:scale-95 whitespace-nowrap"
                         >
-                          Régulariser {npMois ? `(${npMois})` : ''}
+                          Régulariser {npMois ? `(${npMois.substring(0, 3)})` : ''}
                         </button>
                       )}
+                      <a 
+                        href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                        className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
+                        title="Rappel SMS"
+                      >
+                        <MessageCircle size={20} />
+                      </a>
                       <a 
                         href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
                         target="_blank"
@@ -2416,6 +2517,22 @@ export default function App() {
     depenses.forEach(d => {
       csvContent += `${d.id},${d.evenement},${d.mois},${d.annee},${d.montant}\n`;
     });
+    csvContent += "\n";
+
+    // Recettes
+    csvContent += "AUTRES ENTREES\n";
+    csvContent += "ID,Motif,Mois,Annee,Montant,Mode\n";
+    recettes.forEach(r => {
+      csvContent += `${r.id},${r.motif},${r.mois},${r.annee},${r.montant},${r.mode}\n`;
+    });
+    csvContent += "\n";
+
+    // Dettes
+    csvContent += "DETTES\n";
+    csvContent += "ID,Motif,Mois,Annee,Montant,EstPayee\n";
+    dettes.forEach(d => {
+      csvContent += `${d.id},${d.motif},${d.mois},${d.annee},${d.montant},${d.estPayee}\n`;
+    });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -2606,6 +2723,7 @@ export default function App() {
           { id: 'recettes', label: 'Recettes', icon: Plus },
           { id: 'depenses', label: 'Dépenses', icon: Wallet },
           { id: 'dettes', label: 'Dettes', icon: Banknote },
+          { id: 'ticketsresto', label: 'Tickets Resto', icon: Ticket },
           { id: 'recap', label: 'Récap', icon: CalendarDays },
           { id: 'nonpayeurs', label: 'Retards', icon: AlertTriangle },
           { id: 'stats', label: 'Stats', icon: TrendingDown },
@@ -2642,6 +2760,7 @@ export default function App() {
         {activeTab === 'stats' && renderStats()}
         {activeTab === 'rapports' && renderRapports()}
         {activeTab === 'notifications' && renderNotifications()}
+        {activeTab === 'ticketsresto' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} />}
       </main>
 
       {/* Footer */}

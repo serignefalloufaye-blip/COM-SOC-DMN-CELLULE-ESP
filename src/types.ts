@@ -68,3 +68,34 @@ export interface UserRole {
   email: string;
   role: 'admin' | 'user';
 }
+
+export interface TicketCollecte {
+  id: string;
+  mId: string;
+  mois: string;
+  annee: number;
+  type: 'argent' | 'tickets';
+  montantArgent?: number;
+  petitDej: number;
+  repas: number;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface TicketConversion {
+  id: string;
+  montant: number;
+  petitDej: number;
+  repas: number;
+  createdAt?: number;
+}
+
+export interface TicketDistribution {
+  id: string;
+  mId: string;
+  petitDej: number;
+  repas: number;
+  mois: string;
+  annee: number;
+  createdAt?: number;
+}

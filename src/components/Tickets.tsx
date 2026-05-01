@@ -1,0 +1,476 @@
+import React, { useState, useEffect } from 'react';
+import { Membre, TicketCollecte, TicketConversion, TicketDistribution } from '../types';
+import { db } from '../firebase';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { MOIS } from '../data';
+import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity } from 'lucide-react';
+import { TicketsStats } from './TicketsStats';
+
+interface TicketsProps {
+  membres: Membre[];
+  globalYear: number;
+  globalMonth: string;
+  showToast: (message: string, type?: 'success' | 'error') => void;
+}
+
+export function Tickets({ membres, globalYear, globalMonth, showToast }: TicketsProps) {
+  const [activeTab, setActiveTab] = useState<'collecte' | 'conversion' | 'distribution' | 'historique' | 'statistiques'>('statistiques');
+  const [collectes, setCollectes] = useState<TicketCollecte[]>([]);
+  const [conversions, setConversions] = useState<TicketConversion[]>([]);
+  const [distributions, setDistributions] = useState<TicketDistribution[]>([]);
+
+  useEffect(() => {
+    const unsubCollectes = onSnapshot(collection(db, 'tickets_collectes'), (snapshot) => {
+      setCollectes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketCollecte)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_collectes'));
+
+    const unsubConversions = onSnapshot(collection(db, 'tickets_conversions'), (snapshot) => {
+      setConversions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketConversion)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_conversions'));
+
+    const unsubDistributions = onSnapshot(collection(db, 'tickets_distributions'), (snapshot) => {
+      setDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketDistribution)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_distributions'));
+
+    return () => { unsubCollectes(); unsubConversions(); unsubDistributions(); };
+  }, []);
+
+  // Calculate global numbers
+  const totalArgentCollecte = collectes.filter(c => c.type === 'argent').reduce((s, c) => s + (c.montantArgent || 0), 0);
+  const totalArgentConverti = conversions.reduce((s, c) => s + c.montant, 0);
+  const argentDisponible = totalArgentCollecte - totalArgentConverti;
+
+  const ticketsGeneresParConversionPetitDej = conversions.reduce((s, c) => s + (c.petitDej || 0), 0);
+  const ticketsGeneresParConversionRepas = conversions.reduce((s, c) => s + (c.repas || 0), 0);
+
+  const ticketsCollectesPetitDej = collectes.filter(c => c.type === 'tickets').reduce((s, c) => s + (c.petitDej || 0), 0);
+  const ticketsCollectesRepas = collectes.filter(c => c.type === 'tickets').reduce((s, c) => s + (c.repas || 0), 0);
+
+  const ticketsDistribuesPetitDej = distributions.reduce((s, c) => s + (c.petitDej || 0), 0);
+  const ticketsDistribuesRepas = distributions.reduce((s, c) => s + (c.repas || 0), 0);
+
+  const stockPetitDej = ticketsGeneresParConversionPetitDej + ticketsCollectesPetitDej - ticketsDistribuesPetitDej;
+  const stockRepas = ticketsGeneresParConversionRepas + ticketsCollectesRepas - ticketsDistribuesRepas;
+
+  // Render Collection View
+  const [searchMembre, setSearchMembre] = useState('');
+  
+  const handleCollecte = async (mId: string, type: 'argent' | 'tickets', petitDej: number, repas: number) => {
+    try {
+      if (type === 'tickets' && petitDej === 0 && repas === 0) {
+        showToast("Veuillez saisir au moins un ticket", 'error');
+        return;
+      }
+      
+      const colId = `${mId}_${globalYear}_${globalMonth}`;
+      await setDoc(doc(db, 'tickets_collectes', colId), {
+        mId,
+        annee: globalYear,
+        mois: globalMonth,
+        type,
+        montantArgent: type === 'argent' ? 500 : 0,
+        petitDej: type === 'tickets' ? petitDej : 0,
+        repas: type === 'tickets' ? repas : 0,
+        createdAt: Date.now()
+      });
+      showToast('Collecte enregistrée !');
+    } catch (e) {
+      showToast('Erreur lors de la collecte', 'error');
+    }
+  };
+
+  const handleAnnulerCollecte = async (mId: string) => {
+    try {
+      const colId = `${mId}_${globalYear}_${globalMonth}`;
+      await deleteDoc(doc(db, 'tickets_collectes', colId));
+      showToast('Collecte annulée !');
+    } catch (e) {
+      showToast('Erreur lors de l\'annulation', 'error');
+    }
+  };
+
+  const renderCollecte = () => {
+    const filteredMembres = membres.filter(m => (m.prenom + ' ' + m.nom).toLowerCase().includes(searchMembre.toLowerCase()));
+
+    return (
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="Rechercher un membre..."
+            value={searchMembre}
+            onChange={(e) => setSearchMembre(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 rounded-2xl bg-gray-50 border-transparent focus:bg-white focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-200 outline-none transition-all shadow-sm"
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredMembres.map(m => {
+            const collecteDuMois = collectes.find(c => c.mId === m.id && c.annee === globalYear && c.mois === globalMonth);
+            
+            return (
+              <div key={m.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative hover:shadow-md transition-all">
+                <h3 className="font-bold text-gray-900 text-lg">{m.prenom} {m.nom}</h3>
+                
+                {collecteDuMois ? (
+                  <div className="mt-4 p-4 rounded-xl bg-dmn-green-50 border border-dmn-green-100 flex justify-between items-center">
+                    <div>
+                      <p className="text-dmn-green-700 font-bold uppercase text-xs tracking-wider mb-1">Payé ce mois-ci</p>
+                      {collecteDuMois.type === 'argent' ? (
+                        <p className="text-base font-black text-gray-900">500 FCFA</p>
+                      ) : (
+                        <p className="text-sm font-bold text-gray-700">
+                          {collecteDuMois.petitDej} P.D <span className="mx-1">•</span> {collecteDuMois.repas} Repas
+                        </p>
+                      )}
+                    </div>
+                    <button onClick={() => handleAnnulerCollecte(m.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Annuler">
+                      <Minus size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <button 
+                      onClick={() => handleCollecte(m.id, 'argent', 0, 0)}
+                      className="w-full py-2.5 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                      500 FCFA (Argent)
+                    </button>
+                    
+                    <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                      <p className="text-xs font-bold text-orange-800 uppercase tracking-widest mb-2 text-center">Ou Tickets</p>
+                      <TicketForm onSubmit={(pd, r) => handleCollecte(m.id, 'tickets', pd, r)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const [convMontant, setConvMontant] = useState('');
+  const [convPD, setConvPD] = useState(0);
+  const [convRepas, setConvRepas] = useState(0);
+
+  const handleConvert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const montant = parseFloat(convMontant);
+    const pd = convPD;
+    const repas = convRepas;
+
+    if (!montant || montant <= 0 || montant > argentDisponible) {
+      showToast("Montant invalide ou supérieur au disponible", "error");
+      return;
+    }
+
+    const neededMoney = (pd * 50) + (repas * 100);
+    if (montant !== neededMoney) {
+      showToast(`Le montant doit être exactement ${neededMoney} FCFA pour ces tickets`, "error");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'tickets_conversions'), {
+        montant,
+        petitDej: pd,
+        repas: repas,
+        createdAt: Date.now()
+      });
+      setConvMontant(''); setConvPD(0); setConvRepas(0);
+      showToast("Conversion réussie !");
+    } catch (err) {
+      showToast("Erreur lors de la conversion", "error");
+    }
+  };
+
+  const renderConversion = () => {
+    return (
+      <div className="max-w-xl mx-auto bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+        <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-3">
+          <ArrowRightLeft className="text-dmn-green-600" />
+          Convertir Argent en Tickets
+        </h3>
+
+        <div className="bg-dmn-green-50 p-4 rounded-xl mb-6 border border-dmn-green-100">
+          <p className="text-sm text-dmn-green-800 font-bold uppercase tracking-widest mb-1">Argent Disponible</p>
+          <p className="text-3xl font-black text-dmn-green-700">{argentDisponible} FCFA</p>
+        </div>
+
+        <form onSubmit={handleConvert} className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Montant à convertir (FCFA)</label>
+            <input type="number" required value={convMontant} onChange={e => setConvMontant(e.target.value)} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none focus:border-dmn-green-500" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Tickets P.Déj (50F)</label>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setConvPD(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <span className="font-bold text-lg w-8 text-center">{convPD}</span>
+                <button type="button" onClick={() => setConvPD(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Tickets Repas (100F)</label>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setConvRepas(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <span className="font-bold text-lg w-8 text-center">{convRepas}</span>
+                <button type="button" onClick={() => setConvRepas(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl text-orange-800 font-bold text-sm text-center">
+            Total Tickets : {(convPD * 50) + (convRepas * 100)} FCFA
+          </div>
+
+          <button type="submit" className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold transition-all shadow-lg active:scale-95">
+            Convertir
+          </button>
+        </form>
+      </div>
+    );
+  };
+
+  const [distMembre, setDistMembre] = useState('');
+  const [distPD, setDistPD] = useState(0);
+  const [distRepas, setDistRepas] = useState(0);
+
+  const handleDistribute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!distMembre) return showToast("Sélectionnez un membre", "error");
+    if (distPD === 0 && distRepas === 0) return showToast("Saisissez des tickets", "error");
+
+    if (distPD > stockPetitDej) return showToast(`Stock Petit Dèj insuffisant (${stockPetitDej} restants)`, "error");
+    if (distRepas > stockRepas) return showToast(`Stock Repas insuffisant (${stockRepas} restants)`, "error");
+
+    try {
+      await addDoc(collection(db, 'tickets_distributions'), {
+        mId: distMembre,
+        petitDej: distPD,
+        repas: distRepas,
+        mois: globalMonth,
+        annee: globalYear,
+        createdAt: Date.now()
+      });
+      setDistMembre(''); setDistPD(0); setDistRepas(0);
+      showToast("Tickets distribués !");
+    } catch (err) {
+      showToast("Erreur de distribution", "error");
+    }
+  };
+
+  const renderDistribution = () => {
+    return (
+      <div className="max-w-xl mx-auto bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+        <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-3">
+          <Ticket className="text-orange-500" />
+          Distribuer des Tickets
+        </h3>
+
+        <form onSubmit={handleDistribute} className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Membre</label>
+            <select required value={distMembre} onChange={e => setDistMembre(e.target.value)} className="w-full p-4 rounded-xl bg-gray-50 border border-gray-200 outline-none focus:border-orange-500">
+              <option value="">-- Choisir un membre --</option>
+              {membres.map(m => <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Petit Dèj (Stock: {stockPetitDej})</label>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setDistPD(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <span className="font-bold text-lg w-8 text-center">{distPD}</span>
+                <button type="button" onClick={() => setDistPD(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Repas (Stock: {stockRepas})</label>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setDistRepas(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <span className="font-bold text-lg w-8 text-center">{distRepas}</span>
+                <button type="button" onClick={() => setDistRepas(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95">
+            Valider la distribution
+          </button>
+        </form>
+      </div>
+    );
+  };
+
+  const renderHistorique = () => {
+    type Operation = { date: number, type: 'Collecte' | 'Conversion' | 'Distribution', desc: string, detail: string };
+    const history: Operation[] = [];
+    
+    collectes.forEach(c => {
+      const membre = membres.find(m => m.id === c.mId);
+      history.push({
+        date: c.createdAt || 0,
+        type: 'Collecte',
+        desc: `Collecté de ${membre?.prenom} ${membre?.nom}`,
+        detail: c.type === 'argent' ? '500 FCFA' : `${c.petitDej} P.D, ${c.repas} Repas`
+      });
+    });
+
+    conversions.forEach(c => {
+      history.push({
+        date: c.createdAt || 0,
+        type: 'Conversion',
+        desc: 'Conversion d\'argent en tickets',
+        detail: `-${c.montant} FCFA ➔ +${c.petitDej} P.D, +${c.repas} Repas`
+      });
+    });
+
+    distributions.forEach(d => {
+      const membre = membres.find(m => m.id === d.mId);
+      history.push({
+        date: d.createdAt || 0,
+        type: 'Distribution',
+        desc: `Distribué à ${membre?.prenom} ${membre?.nom}`,
+        detail: `-${d.petitDej} P.D, -${d.repas} Repas`
+      });
+    });
+
+    const sortedHistory = history.sort((a, b) => b.date - a.date);
+
+    return (
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+            <tr>
+              <th className="px-6 py-4">Date</th>
+              <th className="px-6 py-4">Opération</th>
+              <th className="px-6 py-4">Détail</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {sortedHistory.map((h, i) => (
+              <tr key={i} className="hover:bg-gray-50/50">
+                <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                  {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---'}
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`inline-block px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest mr-3 ${
+                    h.type === 'Collecte' ? 'bg-dmn-green-100 text-dmn-green-700' :
+                    h.type === 'Conversion' ? 'bg-purple-100 text-purple-700' :
+                    'bg-orange-100 text-orange-700'
+                  }`}>
+                    {h.type}
+                  </span>
+                  <span className="font-medium text-gray-900">{h.desc}</span>
+                </td>
+                <td className="px-6 py-4 font-mono text-xs text-gray-600 bg-gray-50/50">{h.detail}</td>
+              </tr>
+            ))}
+            {sortedHistory.length === 0 && (
+              <tr><td colSpan={3} className="px-6 py-8 text-center text-gray-400">Aucune opération trouvée</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const tabs = [
+    { id: 'statistiques', label: 'Statistiques avancées', icon: Activity },
+    { id: 'collecte', label: 'Collecte Mensuelle', icon: Users },
+    { id: 'conversion', label: 'Conversion', icon: ArrowRightLeft },
+    { id: 'distribution', label: 'Distribution', icon: Ticket },
+    { id: 'historique', label: 'Historique', icon: History },
+  ] as const;
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      
+      {/* Dashboard Section */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-gray-50 rounded-full opacity-50"></div>
+          <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Argent Dispo</p>
+          <p className="text-3xl font-black text-gray-900">{argentDisponible}F</p>
+        </div>
+        <div className="bg-dmn-green-600 p-6 rounded-3xl shadow-sm border border-dmn-green-700 text-white relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10"></div>
+          <p className="text-dmn-green-100 text-[10px] font-black uppercase tracking-widest mb-1">Stock Petit Dèj (50F)</p>
+          <p className="text-3xl font-black">{stockPetitDej}</p>
+        </div>
+        <div className="bg-dmn-green-800 p-6 rounded-3xl shadow-sm border border-dmn-green-900 text-white relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10"></div>
+          <p className="text-dmn-green-100 text-[10px] font-black uppercase tracking-widest mb-1">Stock Repas (100F)</p>
+          <p className="text-3xl font-black">{stockRepas}</p>
+        </div>
+        <div className="bg-orange-500 p-6 rounded-3xl shadow-sm border border-orange-600 text-white relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10"></div>
+          <p className="text-orange-100 text-[10px] font-black uppercase tracking-widest mb-1">Total Distribués</p>
+          <p className="text-3xl font-black">{ticketsDistribuesPetitDej + ticketsDistribuesRepas}</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        
+        <div className="flex overflow-x-auto border-b border-gray-100 hide-scrollbar px-2 pt-2">
+          {tabs.map(t => (
+             <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-all rounded-t-2xl ${
+                activeTab === t.id 
+                  ? 'text-dmn-green-700 bg-dmn-green-50 shadow-sm border-b-2 border-dmn-green-500' 
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 border-b-2 border-transparent'
+              }`}
+             >
+               <t.icon size={18} /> {t.label}
+             </button>
+          ))}
+        </div>
+
+        <div className="p-6">
+          {activeTab === 'statistiques' && <TicketsStats membres={membres} collectes={collectes} conversions={conversions} distributions={distributions} />}
+          {activeTab === 'collecte' && renderCollecte()}
+          {activeTab === 'conversion' && renderConversion()}
+          {activeTab === 'distribution' && renderDistribution()}
+          {activeTab === 'historique' && renderHistorique()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TicketForm({ onSubmit }: { onSubmit: (pd: number, repas: number) => void }) {
+  const [pd, setPd] = useState(0);
+  const [repas, setRepas] = useState(0);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center gap-3 justify-center">
+      <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-orange-200 w-full sm:w-auto justify-between">
+        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest hidden sm:inline">PD</span>
+        <button onClick={() => setPd(p => Math.max(0, p - 1))} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Minus size={14}/></button>
+        <span className="text-sm font-bold w-6 text-center">{pd}</span>
+        <button onClick={() => setPd(p => p + 1)} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Plus size={14}/></button>
+      </div>
+      <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-orange-200 w-full sm:w-auto justify-between">
+        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest hidden sm:inline">RP</span>
+        <button onClick={() => setRepas(p => Math.max(0, p - 1))} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Minus size={14}/></button>
+        <span className="text-sm font-bold w-6 text-center">{repas}</span>
+        <button onClick={() => setRepas(p => p + 1)} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Plus size={14}/></button>
+      </div>
+      <button 
+        onClick={() => onSubmit(pd, repas)}
+        className="w-full sm:w-auto p-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition-all active:scale-95 flex items-center justify-center shadow-lg shadow-orange-500/20"
+      >
+        <Ticket size={20} />
+      </button>
+    </div>
+  );
+}
