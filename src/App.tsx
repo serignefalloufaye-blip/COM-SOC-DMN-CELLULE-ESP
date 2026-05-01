@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History,
-  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft
+  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -882,15 +882,20 @@ export default function App() {
         name: mois.substring(0, 4), 
         Cotisations: cot,
         Recettes: rec,
+        Dettes: dnp,
         Dépenses: dep,
         Participations: uniquePayers,
-        Solde: (cot + rec) - dep + dnp
+        Solde: (cot + rec + dnp) - dep
       };
     });
 
-    const totalIncome = annualCotisationsFiltered.reduce((s, c) => s + c.montant, 0) + annualRecettesFiltered.reduce((s, r) => s + r.montant, 0);
+    const totalDettesUnpaid = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const totalIncome = annualCotisationsFiltered.reduce((s, c) => s + c.montant, 0) + 
+                        annualRecettesFiltered.reduce((s, r) => s + r.montant, 0) + 
+                        totalDettesUnpaid;
+    
     const totalExpense = annualDepensesFiltered.reduce((s, d) => s + d.montant, 0);
-    const totalUnpaidDebts = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const totalUnpaidDebts = totalDettesUnpaid;
     const globalPaymentRate = membres.length > 0 ? (new Set(annualCotisationsFiltered.filter(c => c.mois === globalMonth).map(c => c.mId)).size / membres.length) * 100 : 0;
 
     return (
@@ -1027,7 +1032,7 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
             <h3 className="font-heading font-bold text-dmn-green-900 mb-8 text-lg flex items-center gap-2">
-              <BarChart size={18} className="text-blue-500" /> Solde Mensuel Net
+              <BarChart3 size={18} className="text-blue-500" /> Solde Mensuel Net
             </h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">

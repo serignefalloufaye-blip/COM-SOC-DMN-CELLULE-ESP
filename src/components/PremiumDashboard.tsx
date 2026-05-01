@@ -41,16 +41,23 @@ export function PremiumDashboard({
   
   const totCotisations = filteredCotisations.reduce((s, c) => s + c.montant, 0);
   const totRecettes = filteredRecettes.reduce((s, r) => s + r.montant, 0);
-  const totDettes = filteredDettes.reduce((s, d) => s + d.montant, 0);
-  const totEntrees = totCotisations + totRecettes + totDettes;
+  const totDettesEnAttente = filteredDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+
+  const totEntrees = totCotisations + totRecettes + totDettesEnAttente;
   const totDepenses = filteredDepenses.reduce((s, d) => s + d.montant, 0);
 
   // --- CALCUL DU SOLDE RÉEL (GLOBAL) ---
   const globalTotCotisations = useMemo(() => cotisations.reduce((s, c) => s + c.montant, 0), [cotisations]);
   const globalTotRecettes = useMemo(() => recettes.reduce((s, r) => s + r.montant, 0), [recettes]);
-  const globalTotDettes = useMemo(() => dettes.reduce((s, d) => s + d.montant, 0), [dettes]);
-  const globalTotIncome = globalTotCotisations + globalTotRecettes + globalTotDettes;
+  
+  const globalTotIncome = useMemo(() => {
+    const base = globalTotCotisations + globalTotRecettes;
+    const unpaid = dettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    return base + unpaid;
+  }, [globalTotCotisations, globalTotRecettes, dettes]);
+
   const globalTotExpenses = useMemo(() => depenses.reduce((s, d) => s + d.montant, 0), [depenses]);
+  
   const soldeGlobal = globalTotIncome - globalTotExpenses;
 
   // --- ANNUEL (Pour certains graphiques, indépendant de globalMonth) ---
