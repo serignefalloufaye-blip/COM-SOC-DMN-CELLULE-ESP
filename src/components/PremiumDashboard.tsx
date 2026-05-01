@@ -131,13 +131,13 @@ export function PremiumDashboard({
   ].sort((a, b) => b.date - a.date).slice(0, 5);
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-500 font-sans">
+    <div className="space-y-4 sm:space-y-6 pb-12 animate-in fade-in duration-500 font-sans">
       
       {/* HEADER BANDEAU */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl border border-gray-100 shadow-sm gap-4 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-green-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
-        <div className="relative z-10 flex items-center gap-4">
-          <div className="w-16 h-16 bg-white overflow-hidden text-green-700 rounded-2xl flex items-center justify-center font-black text-3xl shadow-inner uppercase relative group">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-3xl border border-gray-100 shadow-sm gap-4 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-green-50 rounded-full -mr-24 -mt-24 sm:-mr-32 sm:-mt-32 opacity-50"></div>
+        <div className="relative z-10 flex items-center gap-3 sm:gap-4">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white overflow-hidden text-green-700 rounded-2xl flex items-center justify-center font-black text-xl sm:text-3xl shadow-inner uppercase relative group">
              {logoUrl ? (
                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
              ) : (
@@ -151,91 +151,91 @@ export function PremiumDashboard({
              )}
           </div>
           <div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Daara Madjmahoune Noreyni</h1>
-            <p className="text-sm font-medium text-gray-500 uppercase tracking-widest mt-1">La transparence est une responsabilité spirituelle</p>
+            <h1 className="text-lg sm:text-2xl font-black text-gray-900 tracking-tight">Daara Madjmahoune</h1>
+            <p className="text-[8px] sm:text-sm font-medium text-gray-400 uppercase tracking-widest mt-0.5">Cellule ESP – UCAD</p>
           </div>
         </div>
-        <div className="relative z-10 bg-gray-50 px-5 py-3 rounded-2xl border border-gray-200">
-          <div className="flex items-center gap-2 text-gray-600 font-bold text-sm">
-             <Calendar size={18} /> Période affichée
+        <div className="relative z-10 bg-gray-50 px-4 py-2 sm:px-5 sm:py-3 rounded-2xl border border-gray-200 w-full sm:w-auto">
+          <div className="flex items-center gap-2 text-gray-500 font-bold text-[10px] sm:text-sm uppercase tracking-wider">
+             <Calendar size={14} /> Affichage
           </div>
-          <div className="text-gray-900 font-black mt-1 text-lg">
+          <div className="text-gray-900 font-black mt-0.5 text-base sm:text-lg">
              {globalMonth ? `${globalMonth} ` : 'Année '} {globalYear}
           </div>
         </div>
       </div>
 
       {/* CARTES SUPERIEURES */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         
-        {/* CARTE SOLDE (Façon Carte Bancaire) */}
-        <div className="lg:col-span-1 bg-gradient-to-br from-green-800 to-green-950 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[220px]">
+        {/* CARTE SOLDE */}
+        <div className="lg:col-span-1 bg-gradient-to-br from-green-800 to-green-950 p-6 sm:p-8 rounded-3xl text-white shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[180px] sm:min-h-[220px]">
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-12 -mt-12"></div>
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-green-500/20 rounded-full blur-xl -ml-8 -mb-8"></div>
           
-          <div className="relative z-10 flex justify-between items-center mb-6">
-            <span className="uppercase tracking-[0.2em] text-[10px] font-bold text-green-200/80">Solde Réel de la Caisse</span>
-            <Building2 size={24} className="text-green-300 opacity-80" />
+          <div className="relative z-10 flex justify-between items-center mb-4 sm:mb-6">
+            <span className="uppercase tracking-[0.2em] text-[8px] sm:text-[10px] font-black text-green-200/80">Solde Global Réel</span>
+            <Building2 size={20} className="text-green-300 opacity-80" />
           </div>
           
           <div className="relative z-10">
-            <h2 className="text-4xl lg:text-5xl font-black tracking-tight drop-shadow-md">
-              {formatPrice(soldeGlobal)} <span className="text-2xl text-green-300">FCFA</span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight drop-shadow-md">
+              {formatPrice(soldeGlobal)} <span className="text-lg sm:text-2xl text-green-300">F</span>
             </h2>
-            <div className="mt-4 flex items-center gap-6">
+            <div className="mt-4 flex items-center gap-4 sm:gap-6">
                <div className="flex flex-col">
-                  <span className="text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Entrées ({globalMonth || globalYear})</span>
-                  <span className="font-bold text-sm mt-1">+{formatPrice(totEntrees)} F</span>
+                  <span className="text-[8px] sm:text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Entrées</span>
+                  <span className="font-bold text-xs sm:text-sm mt-0.5">+{formatPrice(totEntrees)} F</span>
                </div>
                <div className="flex flex-col">
-                  <span className="text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Dépenses ({globalMonth || globalYear})</span>
-                  <span className="font-bold text-sm mt-1">-{formatPrice(totDepenses)} F</span>
+                  <span className="text-[8px] sm:text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Dépenses</span>
+                  <span className="font-bold text-xs sm:text-sm mt-0.5">-{formatPrice(totDepenses)} F</span>
                </div>
             </div>
           </div>
         </div>
 
         {/* INDICATEURS GRID */}
-        <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="lg:col-span-2 grid grid-cols-2 gap-3 sm:gap-4">
            
-           <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-green-200 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                 <ArrowUpRight size={20} />
+           <div className="bg-white p-4 sm:p-5 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-green-200 transition-colors">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform">
+                 <ArrowUpRight size={18} />
               </div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Cotisations ({globalMonth || 'An'})</p>
-              <h3 className="text-xl font-black text-gray-900">{formatPrice(totCotisations)} F</h3>
+              <p className="text-[9px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Cotisations</p>
+              <h3 className="text-lg sm:text-xl font-black text-gray-900">{formatPrice(totCotisations)} F</h3>
            </div>
            
-           <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-red-200 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                 <ArrowDownRight size={20} />
+           <div className="bg-white p-4 sm:p-5 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-red-200 transition-colors">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform">
+                 <ArrowDownRight size={18} />
               </div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Dépenses ({globalMonth || 'An'})</p>
-              <h3 className="text-xl font-black text-gray-900">{formatPrice(totDepenses)} F</h3>
+              <p className="text-[9px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Dépenses</p>
+              <h3 className="text-lg sm:text-xl font-black text-gray-900">{formatPrice(totDepenses)} F</h3>
            </div>
 
-           <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-orange-200 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                 <Package size={20} />
+           <div className="bg-white p-4 sm:p-5 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-orange-200 transition-colors">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform">
+                 <Package size={18} />
               </div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Stock Tickets</p>
-              <div className="flex items-center gap-2">
-                 <span className="text-sm font-black text-gray-900 bg-gray-50 px-2 py-1 rounded-md">{stockPD} PD</span>
-                 <span className="text-sm font-black text-gray-900 bg-gray-50 px-2 py-1 rounded-md">{stockRepas} RP</span>
+              <p className="text-[9px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Caisse Tickets</p>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                 <span className="text-[10px] sm:text-xs font-black text-gray-700 bg-gray-50 px-2 py-0.5 rounded-md w-fit">{stockPD} PD</span>
+                 <span className="text-[10px] sm:text-xs font-black text-gray-700 bg-gray-50 px-2 py-0.5 rounded-md w-fit">{stockRepas} RP</span>
               </div>
            </div>
 
-           <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-blue-200 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                 <Users size={20} />
+           <div className="bg-white p-4 sm:p-5 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:border-blue-200 transition-colors">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform">
+                 <Users size={18} />
               </div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Membres Actifs</p>
-              <h3 className="text-xl font-black text-gray-900">
-                {membresActifs} <span className="text-xs text-gray-400 font-medium">/ {membres.length}</span>
+              <p className="text-[9px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Membres Actifs</p>
+              <h3 className="text-lg sm:text-xl font-black text-gray-900">
+                {membresActifs} <span className="text-[10px] text-gray-400 font-medium">/ {membres.length}</span>
               </h3>
               {membresEnRetard > 0 && (
-                 <div className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 px-2 py-1 rounded-full">
-                   <AlertCircle size={10} /> {membresEnRetard} en retard
+                 <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1 text-[8px] font-bold bg-red-50 text-red-600 px-1.5 py-0.5 rounded-full">
+                   <AlertCircle size={8} /> {membresEnRetard}
                  </div>
               )}
            </div>
@@ -247,12 +247,12 @@ export function PremiumDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* LIGNE EVOLUTION */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-           <h3 className="text-base font-bold text-gray-900 mb-6 flex items-center gap-2">
+        <div className="lg:col-span-2 bg-white p-4 sm:p-6 rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+           <h3 className="text-sm sm:text-base font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
              <TrendingUp size={18} className="text-green-500" />
-             Évolution Financière ({globalYear})
+             Évolution ({globalYear})
            </h3>
-           <div className="h-[280px] w-full">
+           <div className="h-[220px] sm:h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={evolutionSoldeData}>
                 <defs>
@@ -278,34 +278,34 @@ export function PremiumDashboard({
         </div>
 
         {/* ACTIVITE RECENTE */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col">
-           <h3 className="text-base font-bold text-gray-900 mb-6 flex items-center gap-2">
+        <div className="bg-white p-4 sm:p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col max-h-[400px] sm:max-h-none overflow-hidden">
+           <h3 className="text-sm sm:text-base font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
              <Activity size={18} className="text-gray-400" />
              Activité Récente
            </h3>
-           <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+           <div className="flex-1 overflow-y-auto pr-2 space-y-3 sm:space-y-4 no-scrollbar">
              {history.map((h, i) => (
-                <div key={i} className="flex items-center gap-4 relative">
-                   {i !== history.length - 1 && <div className="absolute left-[19px] top-10 bottom-[-16px] w-[2px] bg-gray-100"></div>}
-                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 border-4 border-white ${
+                <div key={i} className="flex items-start gap-3 sm:gap-4 relative group">
+                   {i !== history.length - 1 && <div className="absolute left-[15px] sm:left-[19px] top-8 sm:top-10 bottom-[-12px] sm:bottom-[-16px] w-[2px] bg-gray-50 group-hover:bg-gray-100 transition-colors"></div>}
+                   <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 z-10 border-2 sm:border-4 border-white shadow-sm ${
                       h.type === 'in' ? 'bg-green-100 text-green-600' :
                       h.type === 'out' ? 'bg-red-100 text-red-600' :
                       'bg-orange-100 text-orange-500'
                    }`}>
-                     <h.icon size={16} />
+                     <h.icon size={14} className="sm:size-16" />
                    </div>
-                   <div className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl p-3">
-                      <p className="text-xs font-bold text-gray-900 leading-tight mb-1">{h.label}</p>
-                      <div className="flex justify-between items-center mt-2">
-                         <span className="text-[10px] text-gray-400 font-medium">
-                           {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '---'}
+                   <div className="flex-1 bg-gray-50 group-hover:bg-gray-100/50 border border-gray-100 rounded-2xl p-2.5 sm:p-3 transition-colors">
+                      <p className="text-[10px] sm:text-xs font-bold text-gray-900 leading-tight mb-1 line-clamp-1">{h.label}</p>
+                      <div className="flex justify-between items-center mt-1.5">
+                         <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium">
+                           {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '---'}
                          </span>
-                         <span className={`text-xs font-black ${
+                         <span className={`text-[10px] sm:text-xs font-black ${
                             h.type === 'in' ? 'text-green-600' :
                             h.type === 'out' ? 'text-red-600' :
                             'text-orange-500'
                          }`}>
-                            {h.type === 'in' ? '+' : '-'}{formatPrice(h.amount)} {h.type === 'ticket' ? 'F (Val.)' : 'F'}
+                            {h.type === 'in' ? '+' : '-'}{formatPrice(h.amount)} F
                          </span>
                       </div>
                    </div>

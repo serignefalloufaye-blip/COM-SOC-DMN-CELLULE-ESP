@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
-  CheckCircle2, XCircle, Clock, ChevronRight, History,
+  CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield,
   Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3
 } from 'lucide-react';
 import {
@@ -1325,7 +1325,7 @@ export default function App() {
         </div>
 
         {/* Mobile Card View */}
-        <div className="md:hidden divide-y divide-gray-100">
+        <div className="md:hidden divide-y divide-gray-50 flex flex-col bg-white">
           {filteredMembres.map(m => {
             const currentAmount = quickAmounts[m.id] || '';
             const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
@@ -1334,24 +1334,30 @@ export default function App() {
               : (!cotisations.some(c => c.mId === m.id && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
 
             return (
-              <div key={m.id} className="p-4 space-y-4">
+              <div key={m.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50 transition-colors">
                 <div className="flex justify-between items-center">
-                  <button 
-                    onClick={() => setSelectedMemberHistory(m)}
-                    className="font-bold text-dmn-green-900 flex items-center gap-2"
-                  >
-                    {nomComplet(m)} <History size={14} className="text-gray-400" />
-                  </button>
-                  <input 
-                    type="number"
-                    placeholder="500"
-                    value={currentAmount}
-                    onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
-                    className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:border-dmn-green-500 bg-white shadow-sm w-20 text-center"
-                  />
+                   <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-700 font-black text-sm">
+                      {m.prenom[0]}{m.nom[0]}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-dmn-green-900 text-sm leading-tight">{m.prenom} {m.nom}</h4>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Saisie directe</p>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="number"
+                      placeholder="500"
+                      value={currentAmount}
+                      onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
+                      className="border border-gray-200 rounded-2xl pl-3 pr-8 py-2.5 text-sm font-black focus:outline-none focus:border-dmn-green-500 bg-gray-50/50 shadow-inner w-24 text-right"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-400">F</span>
+                  </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-1.5">
+                <div className="bg-gray-50/50 rounded-2xl p-2.5 flex flex-wrap gap-1.5 border border-gray-100">
                   {MOIS.map(mois => {
                     const existingCot = cotisations.find(c => c.mId === m.id && c.mois === mois && c.annee === globalYear);
                     const isPaid = existingCot && existingCot.montant > 0;
@@ -1375,10 +1381,10 @@ export default function App() {
                             return { ...prev, [m.id]: [...current, mois] };
                           });
                         }}
-                        className={`text-[10px] px-2 py-1 rounded-lg border transition-all ${
+                        className={`text-[9px] px-2.5 py-1.5 rounded-xl border transition-all flex items-center justify-center min-w-[42px] uppercase font-black tracking-tighter ${
                           isPaid ? 'bg-dmn-green-50 text-dmn-green-700 border-dmn-green-200' :
-                          isSelected ? 'bg-dmn-gold text-white border-dmn-gold font-bold' :
-                          'bg-white text-gray-500 border-gray-200'
+                          isSelected ? 'bg-dmn-gold text-white border-dmn-gold shadow-md shadow-dmn-gold/20' :
+                          'bg-white text-gray-400 border-gray-100'
                         }`}
                       >
                         {mois.substring(0, 4)} {isPaid ? '✓' : ''}
@@ -1387,20 +1393,20 @@ export default function App() {
                   })}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button 
                     onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'WAVE')}
                     disabled={selectedMonths.length === 0 || currentAmount === ''}
-                    className="flex-1 bg-[#00a1ff] text-white py-2.5 rounded-xl text-xs font-bold shadow-sm active:scale-95 disabled:opacity-50"
+                    className="bg-[#00a1ff] flex items-center justify-center gap-2 text-white py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-30 transition-all"
                   >
                     WAVE
                   </button>
                   <button 
                     onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'OM')}
                     disabled={selectedMonths.length === 0 || currentAmount === ''}
-                    className="flex-1 bg-[#ff6600] text-white py-2.5 rounded-xl text-xs font-bold shadow-sm active:scale-95 disabled:opacity-50"
+                    className="bg-[#ff6600] flex items-center justify-center gap-2 text-white py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 disabled:opacity-30 transition-all"
                   >
-                    ORANGE MONEY
+                    ORANGE
                   </button>
                 </div>
               </div>
@@ -1479,39 +1485,57 @@ export default function App() {
         </div>
 
         {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-100">
+        <div className="md:hidden divide-y divide-gray-50 bg-white">
           {filtered.map((m, i) => {
             const cots = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0);
             const tot = cots.reduce((s, c) => s + c.montant, 0);
             return (
-              <div key={m.id} className="p-4 flex justify-between items-center bg-white hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-gray-400 w-5">{i + 1}</span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setSelectedMemberProfile(m)} className="font-bold text-dmn-green-900">
-                        {m.prenom} {m.nom}
-                      </button>
-                      <button onClick={() => setSelectedMemberHistory(m)} className="p-1 text-gray-400">
-                        <History size={12} />
-                      </button>
+              <div key={m.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50/50 transition-colors">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-700 font-black text-sm">
+                      {m.prenom[0]}{m.nom[0]}
                     </div>
-                    <p className="text-xs font-bold text-dmn-green-600 mt-0.5">{formatPrice(tot)} F payés</p>
+                    <div>
+                      <h4 className="font-bold text-dmn-green-900 text-sm leading-tight">{m.prenom} {m.nom}</h4>
+                      <p className="text-[10px] font-black text-dmn-green-500 uppercase tracking-widest mt-0.5">{formatPrice(tot)} F de cotisations</p>
+                    </div>
                   </div>
+                  <button onClick={() => setSelectedMemberProfile(m)} className="p-2 text-gray-400 hover:text-dmn-green-600">
+                    <Info size={20} />
+                  </button>
                 </div>
-                {userRole === 'admin' && (
-                  <div className="flex gap-2">
-                    <button onClick={() => setSelectedMemberProfile(m)} className="p-2 bg-dmn-green-50 text-dmn-green-600 rounded-lg">
-                      <Users size={16} />
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button 
+                    onClick={() => { openAddCot(m.id, undefined, globalYear); setActiveTab('cotisations'); }}
+                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-dmn-green-50 hover:bg-dmn-green-100 rounded-2xl text-dmn-green-700 transition-all border border-dmn-green-100/50"
+                  >
+                    <CreditCard size={18} />
+                    <span className="text-[9px] font-black uppercase tracking-wider">Cotiser</span>
+                  </button>
+                  <button 
+                    onClick={() => setSelectedMemberHistory(m)}
+                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-blue-50 hover:bg-blue-100 rounded-2xl text-blue-700 transition-all border border-blue-100/50"
+                  >
+                    <History size={18} />
+                    <span className="text-[9px] font-black uppercase tracking-wider">Historique</span>
+                  </button>
+                  {userRole === 'admin' ? (
+                    <button 
+                      onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }}
+                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-amber-50 hover:bg-amber-100 rounded-2xl text-amber-700 transition-all border border-amber-100/50"
+                    >
+                      <Edit2 size={18} />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Modifier</span>
                     </button>
-                    <button onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                      <Edit2 size={16} />
-                    </button>
-                    <button onClick={() => handleDeleteMembre(m.id)} className="p-2 bg-red-50 text-red-600 rounded-lg">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-1.5 py-3 bg-gray-50 rounded-2xl text-gray-400 border border-gray-100/50 opacity-40">
+                      <Shield size={18} />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Lecteur</span>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1669,27 +1693,33 @@ export default function App() {
         </div>
 
         {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-100">
+        <div className="md:hidden divide-y divide-gray-50 bg-white">
           {filtered.map(c => {
             const m = getMembre(c.mId);
             return (
-              <div key={c.id} className="p-4 space-y-3 bg-white hover:bg-gray-50 transition-colors">
+              <div key={c.id} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-gray-50/50 transition-colors">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-bold text-dmn-green-900">{nomComplet(m)}</p>
-                    <p className="text-xs text-gray-500">{c.mois} {c.annee}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400">
+                      <CreditCard size={20} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-dmn-green-900 text-sm leading-tight">{nomComplet(m)}</p>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{c.mois} {c.annee}</p>
+                    </div>
                   </div>
                   <Badge mode={c.mode} date={c.createdAt || c.updatedAt} />
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-gray-50">
-                  <p className="font-bold text-dmn-green-600">{formatPrice(c.montant)} F</p>
+                
+                <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
+                  <p className="text-lg font-black text-dmn-green-600">{formatPrice(c.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
                   {userRole === 'admin' && (
                     <div className="flex gap-2">
-                      <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
-                        <Edit2 size={14} />
+                       <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                        <Edit2 size={16} />
                       </button>
-                      <button onClick={() => handleDeleteCotisation(c.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg">
-                        <Trash2 size={14} />
+                      <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   )}
@@ -1698,7 +1728,12 @@ export default function App() {
             );
           })}
           {filtered.length === 0 && (
-            <div className="p-8 text-center text-gray-400">Aucune cotisation</div>
+            <div className="p-12 text-center">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 opacity-50">
+                <Search size={32} className="text-gray-300" />
+              </div>
+              <p className="text-gray-400 font-medium">Aucune cotisation</p>
+            </div>
           )}
         </div>
       </div>
@@ -1779,44 +1814,55 @@ export default function App() {
         </div>
 
         {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-100">
+        <div className="md:hidden divide-y divide-gray-50 bg-white">
           {filteredDettes.map(d => (
-            <div key={d.id} className="p-4 space-y-3 bg-white hover:bg-gray-50 transition-colors">
+            <div key={d.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50/50 transition-colors">
               <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-bold text-dmn-green-900">{d.motif}</p>
-                  <p className="text-xs text-gray-500">{d.mois} {d.annee}</p>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 ${d.estPayee ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'} rounded-2xl flex items-center justify-center`}>
+                    <Banknote size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-dmn-green-900 text-sm leading-tight">{d.motif}</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{d.mois} {d.annee}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-red-600 mb-2">{formatPrice(d.montant)} F</p>
-                  {userRole === 'admin' ? (
+                <div className="flex flex-col items-end gap-1.5">
+                   {userRole === 'admin' ? (
                       <button 
                         onClick={() => handleToggleDetteStatus(d)}
-                        className={`inline-block px-3 py-1 text-[10px] font-bold rounded-full transition-colors ${d.estPayee ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'} whitespace-nowrap`}
+                        className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full transition-all border ${d.estPayee ? 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-sm shadow-emerald-600/5' : 'bg-red-50 text-red-700 border-red-100 animate-pulse-slow shadow-sm shadow-red-600/5'} whitespace-nowrap`}
                       >
-                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non payée le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                        {d.estPayee ? 'SOLDEE' : 'EN ATTENTE'}
                       </button>
                     ) : (
-                      <span className={`inline-block px-3 py-1 text-[10px] font-bold rounded-full ${d.estPayee ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} whitespace-nowrap`}>
-                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non payée le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${d.estPayee ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'} whitespace-nowrap`}>
+                        {d.estPayee ? 'SOLDEE' : 'EN ATTENTE'}
                       </span>
                     )}
                 </div>
               </div>
-              {userRole === 'admin' && (
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-50 mt-2">
-                  <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
-                    <Edit2 size={14} />
-                  </button>
-                  <button onClick={() => handleDeleteDette(d.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+              
+              <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
+                <p className={`text-lg font-black ${d.estPayee ? 'text-emerald-600' : 'text-red-600'}`}>{formatPrice(d.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
+                {userRole === 'admin' && (
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {!d.estPayee && (
+                <p className="text-[9px] font-bold text-gray-400">Dette contractée le {new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}</p>
               )}
             </div>
           ))}
           {filteredDettes.length === 0 && (
-            <div className="p-8 text-center text-gray-400">Aucune dette</div>
+            <div className="p-12 text-center text-gray-400 font-medium">Aucune dette trouvée</div>
           )}
         </div>
       </div>
@@ -1877,25 +1923,31 @@ export default function App() {
         </div>
 
         {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-100">
+        <div className="md:hidden divide-y divide-gray-50 bg-white">
           {filteredRecettes.map(r => (
-            <div key={r.id} className="p-4 space-y-3 bg-white hover:bg-gray-50 transition-colors">
+            <div key={r.id} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-gray-50/50 transition-colors">
               <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-bold text-dmn-green-900">{r.motif}</p>
-                  <p className="text-xs text-gray-500">{r.mois} {r.annee}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                    <Plus size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-dmn-green-900 text-sm leading-tight">{r.motif}</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{r.mois} {r.annee}</p>
+                  </div>
                 </div>
                 <Badge mode={r.mode} date={r.createdAt || r.updatedAt} />
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-gray-50">
-                <p className="font-bold text-dmn-green-600">{formatPrice(r.montant)} F</p>
+              
+              <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
+                <p className="text-lg font-black text-emerald-600">{formatPrice(r.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
                 {userRole === 'admin' && (
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
-                      <Edit2 size={14} />
+                    <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                      <Edit2 size={16} />
                     </button>
-                    <button onClick={() => handleDeleteRecette(r.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg">
-                      <Trash2 size={14} />
+                    <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 )}
@@ -1903,7 +1955,7 @@ export default function App() {
             </div>
           ))}
           {filteredRecettes.length === 0 && (
-            <div className="p-8 text-center text-gray-400">Aucune autre entrée</div>
+            <div className="p-12 text-center text-gray-400 font-medium">Aucune entrée trouvée</div>
           )}
         </div>
       </div>
@@ -2238,31 +2290,41 @@ export default function App() {
         </div>
 
         {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-100">
+        <div className="md:hidden divide-y divide-gray-50 bg-white">
           {filteredDepenses.map(d => (
-            <div key={d.id} className="p-4 space-y-3 bg-white hover:bg-gray-50 transition-colors">
+            <div key={d.id} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-gray-50/50 transition-colors">
               <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-bold text-dmn-green-900">{d.evenement}</p>
-                  <p className="text-xs text-gray-500 mb-1">{d.mois} {d.annee}</p>
-                  <DateBadge date={d.createdAt || d.updatedAt} />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-50 rounded-2xl flex items-center justify-center text-red-600">
+                    <TrendingDown size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-dmn-green-900 text-sm leading-tight">{d.evenement}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{d.mois} {d.annee}</p>
+                      <DateBadge date={d.createdAt || d.updatedAt} />
+                    </div>
+                  </div>
                 </div>
-                <p className="font-bold text-red-600">{formatPrice(d.montant)} F</p>
               </div>
-              {userRole === 'admin' && (
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-50">
-                  <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
-                    <Edit2 size={14} />
-                  </button>
-                  <button onClick={() => handleDeleteDepense(d.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )}
+              
+              <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
+                <p className="text-lg font-black text-red-600">{formatPrice(d.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
+                {userRole === 'admin' && (
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => handleDeleteDepense(d.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
           {filteredDepenses.length === 0 && (
-            <div className="p-8 text-center text-gray-400">Aucune dépense</div>
+            <div className="p-12 text-center text-gray-400 font-medium">Aucune dépense trouvée</div>
           )}
         </div>
       </div>
@@ -2507,11 +2569,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-dmn-bg text-gray-800 font-sans pb-10">
+    <div className="min-h-screen bg-dmn-bg text-gray-800 font-sans pb-24 sm:pb-10">
       {/* Header */}
-      <header className="bg-dmn-green-900 text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-0 z-40 shadow-lg border-b border-dmn-green-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-inner border-2 border-dmn-green-700">
+      <header className="bg-dmn-green-900 text-white px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center sticky top-0 z-40 shadow-lg border-b border-dmn-green-800">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-inner border-2 border-dmn-green-700">
             <img 
               src={appSettings.logoUrl || "logo.png"} 
               alt="Logo DMN" 
@@ -2526,62 +2588,76 @@ export default function App() {
                 }
               }} 
             />
-            <span className="hidden text-dmn-green-900 font-bold text-xs">DMN</span>
+            <span className="hidden text-dmn-green-900 font-bold text-xs uppercase">DMN</span>
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-heading font-bold tracking-tight">Commission Sociale DMN</h1>
-            <p className="text-[10px] sm:text-xs text-dmn-green-300 font-medium uppercase tracking-widest">Cellule ESP – UCAD</p>
+            <h1 className="text-base sm:text-xl font-heading font-bold tracking-tight leading-tight">CS DMN</h1>
+            <p className="text-[8px] sm:text-xs text-dmn-green-300 font-medium uppercase tracking-[0.2em]">UCAD ESP</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
-
+        
+        <div className="flex items-center gap-2 sm:gap-3">
           {userRole !== 'admin' && (
-            <button onClick={() => setIsAdminModalOpen(true)} className="flex items-center gap-2 bg-dmn-gold-light hover:bg-dmn-gold text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95">
-              <Zap size={14} /> Admin
+            <button onClick={() => setIsAdminModalOpen(true)} className="flex items-center gap-1.5 bg-dmn-gold-light hover:bg-dmn-gold text-white px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all shadow-sm active:scale-95">
+              <Zap size={12} /> <span className="hidden sm:inline">Admin</span>
             </button>
           )}
-          <div className="flex items-center gap-2">
-            <button onClick={exportToCSV} className="hidden sm:flex items-center gap-2 bg-dmn-green-800 hover:bg-dmn-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
-              <Printer size={16} /> Export
-            </button>
-            <button onClick={logOut} className="flex items-center gap-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" title="Se déconnecter">
-              <LogOut size={16} />
-            </button>
-          </div>
+          <button onClick={logOut} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors border border-white/10" title="Se déconnecter">
+            <LogOut size={16} />
+          </button>
         </div>
       </header>
 
+      {/* Mobile Quick Filters Toggle */}
+      <div className="sm:hidden bg-white border-b border-gray-100 flex items-center justify-between px-4 py-2 sticky top-[57px] z-30 shadow-sm">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <span className="text-[10px] font-bold text-dmn-green-600 bg-dmn-green-50 px-2 py-0.5 rounded-md whitespace-nowrap">{globalYear}</span>
+          {globalMonth && <span className="text-[10px] font-bold text-dmn-green-600 bg-dmn-green-50 px-2 py-0.5 rounded-md whitespace-nowrap">{globalMonth}</span>}
+        </div>
+        <button 
+          onClick={() => {
+            const el = document.getElementById('global-filters');
+            el?.classList.toggle('hidden');
+          }}
+          className="flex items-center gap-1 bg-gray-50 text-gray-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-gray-200"
+        >
+          <Search size={12} /> Filtres
+        </button>
+      </div>
+
       {/* Global Filters Bar */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm sticky top-[110px] sm:top-[72px] z-30 px-4 sm:px-6 py-3 sm:py-4">
-        <div className="max-w-7xl mx-auto flex flex-wrap gap-2 sm:gap-3 items-center">
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-gray-200 shadow-sm flex-1 sm:flex-none">
-            <span className="text-[10px] sm:text-sm font-semibold text-gray-500">Année:</span>
-            <select value={globalYear} onChange={e => setGlobalYear(Number(e.target.value))} className="bg-transparent font-bold text-dmn-green-700 focus:outline-none cursor-pointer text-xs sm:text-sm">
-              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+      <div id="global-filters" className="hidden sm:block bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm sticky top-[100px] sm:top-[80px] z-30 px-4 sm:px-6 py-3 sm:py-4 transition-all animate-in slide-in-from-top-4 duration-300">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="flex gap-2">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm flex-1">
+              <span className="text-[10px] sm:text-sm font-semibold text-gray-400">Année:</span>
+              <select value={globalYear} onChange={e => setGlobalYear(Number(e.target.value))} className="bg-transparent font-bold text-dmn-green-700 focus:outline-none cursor-pointer text-xs sm:text-sm w-full">
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm flex-1">
+              <span className="text-[10px] sm:text-sm font-semibold text-gray-400">Mois:</span>
+              <select value={globalMonth} onChange={e => setGlobalMonth(e.target.value)} className="bg-transparent font-bold text-dmn-green-700 focus:outline-none cursor-pointer text-xs sm:text-sm w-full">
+                <option value="">Tous</option>
+                {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-gray-200 shadow-sm flex-1 sm:flex-none">
-            <span className="text-[10px] sm:text-sm font-semibold text-gray-500">Mois:</span>
-            <select value={globalMonth} onChange={e => setGlobalMonth(e.target.value)} className="bg-transparent font-bold text-dmn-green-700 focus:outline-none cursor-pointer text-xs sm:text-sm">
-              <option value="">Tous</option>
-              {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-          <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
             <input 
               type="text" 
-              placeholder="Rechercher..." 
+              placeholder="Rechercher un membre ou transaction..." 
               value={globalSearch}
               onChange={e => setGlobalSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm"
+              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm"
             />
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="max-w-7xl mx-auto px-4 py-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden sticky top-0 z-40 bg-gray-50/80 backdrop-blur-md">
+      {/* Desktop Navigation */}
+      <nav className="hidden sm:flex max-w-7xl mx-auto px-4 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-0 z-40 bg-gray-50/80 backdrop-blur-md">
         {[
           { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
           { id: 'finance', label: 'Caisse & Rapports', icon: Wallet },
@@ -2590,10 +2666,8 @@ export default function App() {
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id as Tab);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm whitespace-nowrap ${
+            onClick={() => setActiveTab(tab.id as Tab)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${
               activeTab === tab.id 
                 ? 'bg-dmn-green-600 text-white shadow-dmn-green-600/20 scale-105' 
                 : 'bg-white text-gray-600 hover:bg-dmn-green-50 hover:text-dmn-green-700 border border-gray-100 hover:scale-105'
@@ -2604,33 +2678,75 @@ export default function App() {
         ))}
       </nav>
 
+      {/* Bottom Navigation for Mobile */}
+      <div className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 w-full">
+        <nav className="bg-white/90 backdrop-blur-xl border border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-3xl h-16 flex items-center justify-around px-2 relative">
+          {[
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+            { id: 'finance', label: 'Caisse', icon: Wallet },
+            { id: 'tickets', label: 'Tickets', icon: Ticket },
+            { id: 'membres', label: 'Membres', icon: Users },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className={`flex flex-col items-center justify-center flex-1 h-full rounded-2xl transition-all relative ${
+                activeTab === tab.id ? 'text-dmn-green-600' : 'text-gray-400'
+              }`}
+            >
+              <tab.icon size={activeTab === tab.id ? 22 : 20} className={activeTab === tab.id ? 'animate-bounce-slow' : ''} />
+              <span className={`text-[10px] font-black uppercase tracking-tighter mt-1 transition-opacity ${activeTab === tab.id ? 'opacity-100' : 'opacity-60'}`}>{tab.label}</span>
+              {activeTab === tab.id && (
+                <div className="absolute -bottom-1 w-1 h-1 bg-dmn-green-600 rounded-full"></div>
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
+
       {/* Sub-Navigation */}
       {activeTab === 'finance' && (
-        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
+        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden mb-2">
           {[
             ...(userRole === 'admin' ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
-            { id: 'cotisations', label: 'Cotisations', icon: CreditCard },
+            { id: 'cotisations', label: 'Cotis.', icon: CreditCard },
             { id: 'recettes', label: 'Recettes', icon: Plus },
             { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
             { id: 'dettes', label: 'Dettes', icon: Banknote },
-            { id: 'rapports', label: 'Analyse & Rapports', icon: TrendingUp },
+            { id: 'rapports', label: 'Rapports', icon: TrendingUp },
           ].map(sub => (
-            <button key={sub.id} onClick={() => setFinanceSubTab(sub.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${financeSubTab === sub.id ? 'bg-dmn-green-100 text-dmn-green-800' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'}`}>
-               <sub.icon size={14} /> {sub.label}
+            <button 
+              key={sub.id} 
+              onClick={() => setFinanceSubTab(sub.id as any)} 
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-sm ${
+                financeSubTab === sub.id 
+                  ? 'bg-dmn-green-600 text-white border-dmn-green-600 shadow-dmn-green-600/20' 
+                  : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
+              }`}
+            >
+               <sub.icon size={12} /> {sub.label}
             </button>
           ))}
         </div>
       )}
 
       {activeTab === 'membres' && (
-        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
+        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden mb-2">
           {[
             { id: 'liste', label: 'Annuaire', icon: Users },
-            { id: 'annuel', label: 'Vue Annuelle', icon: CalendarRange },
+            { id: 'annuel', label: 'Annuel', icon: CalendarRange },
             { id: 'retards', label: 'Retards', icon: AlertTriangle },
           ].map(sub => (
-            <button key={sub.id} onClick={() => setMembreSubTab(sub.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${membreSubTab === sub.id ? 'bg-dmn-green-100 text-dmn-green-800' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'}`}>
-               <sub.icon size={14} /> {sub.label}
+            <button 
+              key={sub.id} 
+              onClick={() => setMembreSubTab(sub.id as any)} 
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-sm ${
+                membreSubTab === sub.id 
+                  ? 'bg-dmn-green-600 text-white border-dmn-green-600 shadow-dmn-green-600/20' 
+                  : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
+              }`}
+            >
+               <sub.icon size={12} /> {sub.label}
             </button>
           ))}
         </div>

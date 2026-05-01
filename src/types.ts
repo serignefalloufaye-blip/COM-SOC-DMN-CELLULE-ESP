@@ -92,7 +92,7 @@ export interface TicketConversion {
 
 export interface TicketDistribution {
   id: string;
-  mId: string;
+  mId?: string;
   petitDej: number;
   repas: number;
   mois: string;

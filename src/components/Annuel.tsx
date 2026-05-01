@@ -339,40 +339,42 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
       {/* Tableau Matrice Annuel des Membres */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mt-8">
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex flex-col sm:flex-row justify-between items-center gap-4">
-          <span className="flex items-center gap-2"><Users size={18} className="text-dmn-gold-light" /> Détail des Cotisations par Membre</span>
-          <div className="hidden sm:flex text-sm text-dmn-green-100 gap-4 font-normal">
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-dmn-green-400 shadow-sm"></span> Payé</span>
-            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-400 shadow-sm"></span> Non payé</span>
+          <span className="flex items-center gap-2"><Users size={18} className="text-dmn-gold-light" /> Cotisations par Membre</span>
+          <div className="flex text-[10px] text-dmn-green-100 gap-4 font-normal">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-dmn-green-400"></span> Payé</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400"></span> Dû</span>
           </div>
         </div>
-        <div className="overflow-x-auto max-h-[700px]">
-          <table className="w-full text-[10px] sm:text-xs text-center border-collapse">
+        <div className="overflow-x-auto max-h-[700px] no-scrollbar">
+          <table className="w-full text-center border-collapse">
             <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-20 shadow-sm border-b border-gray-200">
               <tr>
-                <th className="px-2 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">N°</th>
-                <th className="px-4 py-4 font-semibold text-xs uppercase tracking-wider text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50/95 backdrop-blur-sm z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Membre</th>
-                {MOIS.map(m => <th key={m} className="px-1 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">{m.substring(0, 4)}</th>)}
-                <th className="px-2 py-4 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">TOTAL</th>
+                <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50/95 backdrop-blur-sm z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Membre</th>
+                {MOIS.map(m => <th key={m} className="px-1 py-4 font-black text-[9px] uppercase tracking-tighter border-b border-gray-200">{m.substring(0, 4)}</th>)}
+                <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter border-b border-gray-200">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {membres.filter(m => nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase())).map((m, i) => {
                 const tot = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0).reduce((s, c) => s + c.montant, 0);
                 return (
-                  <tr key={m.id} className="hover:bg-dmn-green-50/30 group transition-colors">
-                    <td className="px-2 py-3 border-r border-gray-100 text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-3 text-left whitespace-nowrap border-r border-gray-100 sticky left-0 bg-white z-10 group-hover:bg-dmn-green-50/30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)] transition-colors font-medium">
+                  <tr key={m.id} className="hover:bg-dmn-green-50/20 group transition-colors">
+                    <td className="px-4 py-3 text-left whitespace-nowrap border-r border-gray-100 sticky left-0 bg-white z-10 group-hover:bg-dmn-green-50/20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)] transition-colors font-bold text-xs">
                       <button onClick={() => setSelectedMemberHistory(m)} className="hover:text-dmn-green-600 text-gray-900 text-left transition-colors">
                         {nomComplet(m)}
                       </button>
                     </td>
                     {MOIS.map(mo => {
                       const c = cotisations.find(x => x.mId === m.id && x.mois === mo && x.annee === globalYear);
-                      if (!c) return <td key={mo} className="px-1 py-3 bg-gray-50/30 text-gray-300 border-r border-gray-100">—</td>;
-                      if (c.montant > 0) return <td key={mo} className="px-1 py-3 bg-dmn-green-50 text-dmn-green-700 font-bold border-r border-dmn-green-100/50" title={c.mode}>{c.montant}</td>;
-                      return <td key={mo} className="px-1 py-3 bg-red-50 text-red-600 font-medium border-r border-red-100/50">✗</td>;
+                      if (!c) return <td key={mo} className="px-1 py-3 text-gray-300 border-r border-gray-50 text-[10px]">—</td>;
+                      if (c.montant > 0) return (
+                        <td key={mo} className="px-1 py-3 bg-dmn-green-50/50 text-dmn-green-700 font-black border-r border-dmn-green-100/30 text-[9px]">
+                          {c.montant / 100}..
+                        </td>
+                      );
+                      return <td key={mo} className="px-1 py-3 bg-red-50/50 text-red-600 font-black border-r border-red-100/30 text-[10px]">✗</td>;
                     })}
-                    <td className="px-2 py-3 font-bold text-dmn-green-700 bg-dmn-green-50/30">{tot > 0 ? tot.toLocaleString() : ''}</td>
+                    <td className="px-4 py-3 font-black text-dmn-green-800 bg-dmn-green-50/30 text-[10px] whitespace-nowrap">{tot > 0 ? tot.toLocaleString() : '-'}</td>
                   </tr>
                 );
               })}
