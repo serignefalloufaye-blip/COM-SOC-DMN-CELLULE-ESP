@@ -25,7 +25,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-type Tab = 'dashboard' | 'saisie' | 'membres' | 'annuel' | 'cotisations' | 'depenses' | 'recettes' | 'dettes' | 'recap' | 'nonpayeurs' | 'stats' | 'rapports' | 'notifications' | 'ticketsresto';
+type Tab = 'dashboard' | 'membres' | 'finances' | 'tickets' | 'rapports';
 
 const ADMIN_CODE = (import.meta as any).env.VITE_ADMIN_CODE || 'DMN-ADMIN-ESP';
 
@@ -39,8 +39,6 @@ export default function App() {
   
   // Advanced Features State
   const [selectedMemberProfile, setSelectedMemberProfile] = useState<Membre | null>(null);
-  const [notifications, setNotifications] = useState<{id: string; message: string; type: 'info' | 'success' | 'warning'; date: number; read: boolean}[]>([]);
-  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -51,6 +49,9 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [financeSubTab, setFinanceSubTab] = useState<'saisie' | 'cotisations' | 'depenses' | 'recettes' | 'dettes'>('cotisations');
+  const [membreSubTab, setMembreSubTab] = useState<'liste' | 'annuel' | 'retards'>('liste');
+  const [rapportSubTab, setRapportSubTab] = useState<'recap' | 'impression'>('recap');
   const [membres, setMembres] = useState<Membre[]>([]);
   const [cotisations, setCotisations] = useState<Cotisation[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
@@ -386,11 +387,6 @@ export default function App() {
     setIsCotModalOpen(true);
   };
 
-  const addNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
-    const newNotif = { id: Date.now().toString(), message, type, date: Date.now(), read: false };
-    setNotifications(prev => [newNotif, ...prev].slice(0, 50));
-  };
-
   const handleSaveCotisation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -404,7 +400,6 @@ export default function App() {
       if (editingCot?.id) {
         await updateDoc(doc(db, 'cotisations', editingCot.id), { mId, mois, annee, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Cotisation modifiée avec succès');
-        addNotification(`Cotisation modifiée pour ${nomComplet(membres.find(m => m.id === mId)!)} (${mois} ${annee})`, 'info');
       } else {
         const existing = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === annee);
         if (existing && existing.montant > 0) {
@@ -413,11 +408,9 @@ export default function App() {
         } else if (existing) {
           await updateDoc(doc(db, 'cotisations', existing.id), { montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
           showToast('Cotisation enregistrée avec succès');
-          addNotification(`Paiement de ${montant}F reçu de ${nomComplet(membres.find(m => m.id === mId)!)} (${mois})`, 'success');
         } else {
           await addDoc(collection(db, 'cotisations'), { mId, mois, annee, montant, mode, createdAt: Date.now(), createdBy: user?.uid });
           showToast('Cotisation ajoutée avec succès');
-          addNotification(`Nouveau paiement de ${montant}F de ${nomComplet(membres.find(m => m.id === mId)!)}`, 'success');
         }
       }
       setIsCotModalOpen(false);
@@ -439,11 +432,9 @@ export default function App() {
       if (editingDepense?.id) {
         await updateDoc(doc(db, 'depenses', editingDepense.id), { evenement, mois, annee, montant, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Dépense modifiée avec succès');
-        addNotification(`Dépense modifiée : ${evenement} (${montant}F)`, 'info');
       } else {
         await addDoc(collection(db, 'depenses'), { evenement, mois, annee, montant, date, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Dépense ajoutée avec succès');
-        addNotification(`Nouvelle dépense enregistrée : ${evenement} (${montant}F)`, 'warning');
       }
       setIsDepenseModalOpen(false);
     } catch (error) {
@@ -481,11 +472,9 @@ export default function App() {
       if (editingRecette?.id) {
         await updateDoc(doc(db, 'recettes', editingRecette.id), { motif, mois, annee, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Entrée modifiée avec succès');
-        addNotification(`Recette modifiée : ${motif} (${montant}F)`, 'info');
       } else {
         await addDoc(collection(db, 'recettes'), { motif, mois, annee, montant, mode, date, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Entrée ajoutée avec succès');
-        addNotification(`Nouvelle recette enregistrée : ${motif} (${montant}F)`, 'success');
       }
       setIsRecetteModalOpen(false);
     } catch (error) {
@@ -719,112 +708,6 @@ export default function App() {
     );
   };
 
-  const renderStats = () => {
-    const annualDettes = dettes.filter(d => d.annee === globalYear);
-    const monthlyData = MOIS.map(mois => {
-      const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
-      const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
-      const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      return { 
-        name: mois.substring(0, 4), 
-        Cotisations: cot,
-        Recettes: rec,
-        Dépenses: dep,
-        Solde: (cot + rec) - dep + dnp
-      };
-    });
-
-    return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="font-heading font-bold text-dmn-green-900 text-xl flex items-center gap-3">
-              <div className="w-10 h-10 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center">
-                <TrendingDown size={20} />
-              </div>
-              Évolution des Flux Financiers {globalYear}
-            </h3>
-            <div className="flex gap-2">
-              <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                <div className="w-2 h-2 bg-dmn-green-500 rounded-full"></div> Cotisations
-              </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div> Dépenses
-              </span>
-            </div>
-          </div>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyData}>
-                <defs>
-                  <linearGradient id="colorCot" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorDep" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
-                <RechartsTooltip 
-                  contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}}
-                  itemStyle={{fontWeight: 700}}
-                />
-                <Area type="monotone" dataKey="Cotisations" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorCot)" />
-                <Area type="monotone" dataKey="Dépenses" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorDep)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
-            <h3 className="font-heading font-bold text-dmn-green-900 mb-8 text-lg">Répartition des Entrées</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie 
-                    data={[
-                      { name: 'Cotisations', value: annualCotisations.reduce((s, c) => s + c.montant, 0) },
-                      { name: 'Autres Recettes', value: annualRecettes.reduce((s, r) => s + r.montant, 0) }
-                    ]} 
-                    cx="50%" cy="50%" innerRadius={70} outerRadius={90} paddingAngle={8} dataKey="value"
-                  >
-                    <Cell fill="#10b981" />
-                    <Cell fill="#f59e0b" />
-                  </Pie>
-                  <RechartsTooltip />
-                  <Legend verticalAlign="bottom" height={36}/>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
-            <h3 className="font-heading font-bold text-dmn-green-900 mb-8 text-lg">Solde Mensuel Net</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
-                  <RechartsTooltip />
-                  <Bar dataKey="Solde" radius={[6, 6, 0, 0]}>
-                    {monthlyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.Solde >= 0 ? '#3b82f6' : '#ef4444'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const formatPrice = (amount: number) => amount.toLocaleString('fr-FR');
 
@@ -1072,241 +955,9 @@ export default function App() {
     );
   };
 
-  const renderNotifications = () => {
-    return (
-      <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-300">
-        <div className="bg-dmn-green-900 text-white px-8 py-6 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <Zap size={24} className="text-dmn-gold-light" />
-            <h3 className="font-heading font-bold text-lg">Centre de Notifications</h3>
-          </div>
-          <button 
-            onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
-            className="text-xs font-bold text-dmn-green-300 hover:text-white transition-colors uppercase tracking-widest"
-          >
-            Tout marquer comme lu
-          </button>
-        </div>
-        <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
-          {notifications.length > 0 ? (
-            notifications.sort((a, b) => b.date - a.date).map((n, idx) => (
-              <div key={n.id} className={`p-6 flex items-start gap-4 hover:bg-gray-50 transition-colors animate-in slide-in-from-right-4 duration-300 ${!n.read ? 'bg-dmn-green-50/30' : ''}`} style={{ animationDelay: `${idx * 50}ms` }}>
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
-                  n.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 
-                  n.type === 'warning' ? 'bg-amber-100 text-amber-600' : 
-                  'bg-blue-100 text-blue-600'
-                }`}>
-                  {n.type === 'success' ? <CheckCircle2 size={24} /> : n.type === 'warning' ? <AlertTriangle size={24} /> : <Zap size={24} />}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start mb-1">
-                    <p className={`text-sm font-bold ${!n.read ? 'text-dmn-green-900' : 'text-gray-700'}`}>{n.message}</p>
-                    {!n.read && <span className="w-2 h-2 bg-dmn-gold rounded-full shadow-sm shadow-dmn-gold/50"></span>}
-                  </div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{new Date(n.date).toLocaleString()}</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="p-20 text-center">
-              <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Zap size={40} />
-              </div>
-              <p className="text-gray-400 font-medium italic">Aucune notification pour le moment</p>
-            </div>
-          )}
-        </div>
-        <div className="p-4 bg-gray-50 border-t border-gray-100 text-center">
-          <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.3em]">Système de Monitoring DMN v2.0</p>
-        </div>
-      </div>
-    );
-  };
 
-  const renderDashboard = () => {
-    // Dashboard should show annual totals for the selected year
-    
-    const totCotisations = annualCotisations.reduce((s, c) => s + c.montant, 0);
-    const totAutresRecettes = annualRecettes.reduce((s, r) => s + r.montant, 0);
-    const totEntrees = totCotisations + totAutresRecettes;
-    
-    const totWave = annualCotisations.filter(c => c.mode === 'WAVE').reduce((s, c) => s + c.montant, 0) + annualRecettes.filter(r => r.mode === 'WAVE').reduce((s, r) => s + r.montant, 0);
-    const totOM = annualCotisations.filter(c => c.mode === 'OM').reduce((s, c) => s + c.montant, 0) + annualRecettes.filter(r => r.mode === 'OM').reduce((s, r) => s + r.montant, 0);
-    const totDepenses = annualDepenses.reduce((s, d) => s + d.montant, 0);
-    
-    const annualDettes = dettes.filter(d => d.annee === globalYear);
-    const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
-    const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
-    
-    const solde = totEntrees - totDepenses + totDettesNonPayees;
-    
-    const monthlyData = MOIS.map(mois => {
-      const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
-      const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
-      const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      return { name: mois.substring(0, 4), Entrées: cot + rec + dnp, Dépenses: dep };
-    });
 
-    const modes = ['WAVE', 'OM', 'ESPÈCES'];
-    const COLORS = ['#3b82f6', '#f97316', '#10b981'];
-    const pieData = modes.map(mode => ({
-      name: mode,
-      value: annualCotisations.filter(c => c.mode === mode).reduce((sum, c) => sum + c.montant, 0) + annualRecettes.filter(r => r.mode === mode).reduce((sum, r) => sum + r.montant, 0)
-    })).filter(d => d.value > 0);
 
-    return (
-      <div className="space-y-4 animate-in fade-in duration-300">
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6 sm:p-8 mb-6 text-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-dmn-green-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-dmn-gold-light/10 rounded-full -ml-24 -mb-24 opacity-50"></div>
-          <div className="relative z-10">
-            <div className="relative w-16 h-16 sm:w-24 sm:h-24 mx-auto group">
-              <div className="w-full h-full bg-white rounded-full flex items-center justify-center overflow-hidden shadow-md mb-4 sm:mb-6 border-4 border-dmn-green-50">
-                <img 
-                  src={appSettings.logoUrl || "logo.png"} 
-                  alt="Logo DMN" 
-                  className="w-full h-full object-cover" 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => { 
-                    if (appSettings.logoUrl) {
-                      // If dynamic logo fails, try static
-                      e.currentTarget.src = "logo.png";
-                    } else {
-                      e.currentTarget.style.display = 'none'; 
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
-                    }
-                  }} 
-                />
-                <span className="hidden text-dmn-green-900 font-bold text-2xl sm:text-4xl">🕌</span>
-              </div>
-              {userRole === 'admin' && (
-                <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  <Edit2 size={24} className="text-white" />
-                  <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                </label>
-              )}
-            </div>
-            <h2 className="text-xl sm:text-3xl md:text-4xl font-heading font-bold text-dmn-green-900 mb-2 sm:mb-4">Daara Madjmahoune Noreyni</h2>
-            <p className="text-xs sm:text-lg text-gray-600 max-w-2xl mx-auto font-medium">Commission Sociale – Cellule ESP UCAD. Transparence et Solidarité.</p>
-            <div className="mt-4 inline-flex items-center gap-2 bg-dmn-green-50 px-4 py-2 rounded-full border border-dmn-green-100">
-              <Calendar size={16} className="text-dmn-green-600" />
-              <span className="text-sm font-bold text-dmn-green-900">Récapitulatif Annuel {globalYear}</span>
-            </div>
-          </div>
-        </div>
-
-        <RotatingMessages />
-        
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-          <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 left-0 w-full h-1 bg-dmn-green-600"></div>
-            <div className="w-10 h-10 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Wallet size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totCotisations)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Cotisations {globalYear}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 left-0 w-full h-1 bg-dmn-gold"></div>
-            <div className="w-10 h-10 bg-dmn-gold-light/20 text-dmn-gold rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Plus size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totAutresRecettes)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Autres Entrées {globalYear}</p>
-            {userRole === 'admin' && (
-              <button 
-                onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
-                className="mt-3 text-[10px] font-bold text-dmn-gold hover:text-dmn-gold-dark flex items-center gap-1 mx-auto transition-colors"
-              >
-                <Plus size={12} /> Ajouter une recette
-              </button>
-            )}
-          </div>
-          <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
-            <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Smartphone size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totWave)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Wave {globalYear}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 left-0 w-full h-1 bg-orange-500"></div>
-            <div className="w-10 h-10 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Smartphone size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totOM)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">OM {globalYear}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-            <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><TrendingDown size={20} /></div>
-            <h2 className="text-2xl font-heading font-bold text-gray-900">{formatPrice(totDepenses)} <span className="text-sm text-gray-400 font-medium">F</span></h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Dépenses {globalYear}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-5 text-center shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-            <div className={`absolute top-0 left-0 w-full h-1 ${solde >= 0 ? 'bg-dmn-green-500' : 'bg-red-500'}`}></div>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform ${solde >= 0 ? 'bg-dmn-green-50 text-dmn-green-600' : 'bg-red-50 text-red-500'}`}><Landmark size={20} /></div>
-            <h2 className={`text-2xl font-heading font-bold ${solde >= 0 ? 'text-dmn-green-600' : 'text-red-600'}`}>
-              {formatPrice(solde)} <span className="text-sm opacity-70 font-medium">F</span>
-            </h2>
-            <p className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wider">Solde {globalYear}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 flex items-center gap-6 group hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('stats')}>
-            <div className="w-14 h-14 bg-dmn-green-50 text-dmn-green-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <TrendingDown size={28} />
-            </div>
-            <div>
-              <h3 className="text-lg font-heading font-bold text-gray-900">Statistiques Avancées</h3>
-              <p className="text-sm text-gray-500">Analyses graphiques et évolution des flux</p>
-            </div>
-            <ChevronRight className="ml-auto text-gray-300 group-hover:text-dmn-green-600 transition-colors" />
-          </div>
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 flex items-center gap-6 group hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('rapports')}>
-            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Printer size={28} />
-            </div>
-            <div>
-              <h3 className="text-lg font-heading font-bold text-gray-900">Rapports & Exports</h3>
-              <p className="text-sm text-gray-500">Générer PDF et Excel pour la commission</p>
-            </div>
-            <ChevronRight className="ml-auto text-gray-300 group-hover:text-red-600 transition-colors" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 print:hidden">
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md border border-gray-100 p-4 sm:p-6">
-            <h3 className="font-heading font-bold text-dmn-green-900 mb-6 text-xs sm:text-sm uppercase tracking-wider">Évolution Mensuelle {globalYear}</h3>
-            <div className="h-48 sm:h-64 w-full relative min-w-0">
-              <ResponsiveContainer width="100%" height="100%" debounce={100}>
-                <BarChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#6b7280'}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#6b7280'}} width={30} />
-                  <RechartsTooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                  <Legend wrapperStyle={{fontSize: '10px'}} />
-                  <Bar dataKey="Entrées" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Dépenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-4 sm:p-6">
-            <h3 className="font-heading font-bold text-dmn-green-900 mb-6 text-xs sm:text-sm uppercase tracking-wider">Répartition par Mode</h3>
-            <div className="h-48 sm:h-64 w-full relative min-w-0">
-              <ResponsiveContainer width="100%" height="100%" debounce={100}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value">
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[modes.indexOf(entry.name)]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{fontSize: '10px'}} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const renderSaisieRapide = () => {
     const filteredMembres = membres.filter(m => {
@@ -2674,16 +2325,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          <button 
-            onClick={() => setActiveTab('notifications')}
-            className="relative p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
-            title="Notifications"
-          >
-            <Zap size={18} className="text-dmn-gold-light" />
-            {notifications.some(n => !n.read) && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border border-dmn-green-900 rounded-full"></span>
-            )}
-          </button>
+
           {userRole !== 'admin' && (
             <button onClick={() => setIsAdminModalOpen(true)} className="flex items-center gap-2 bg-dmn-gold-light hover:bg-dmn-gold text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95">
               <Zap size={14} /> Admin
@@ -2730,26 +2372,19 @@ export default function App() {
       </div>
 
       {/* Navigation */}
-      <nav className="max-w-7xl mx-auto px-4 py-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
+      <nav className="max-w-7xl mx-auto px-4 py-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden sticky top-0 z-40 bg-gray-50/80 backdrop-blur-md">
         {[
           { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          ...(userRole === 'admin' ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
-          { id: 'annuel', label: 'Annuel', icon: CalendarRange },
           { id: 'membres', label: 'Membres', icon: Users },
-          { id: 'cotisations', label: 'Cotisations', icon: CreditCard },
-          { id: 'recettes', label: 'Recettes', icon: Plus },
-          { id: 'depenses', label: 'Dépenses', icon: Wallet },
-          { id: 'dettes', label: 'Dettes', icon: Banknote },
-          { id: 'ticketsresto', label: 'Tickets Resto', icon: Ticket },
-          { id: 'recap', label: 'Récap', icon: CalendarDays },
-          { id: 'nonpayeurs', label: 'Retards', icon: AlertTriangle },
-          { id: 'stats', label: 'Stats', icon: TrendingDown },
+          { id: 'finances', label: 'Caisse & Finances', icon: Wallet },
+          { id: 'tickets', label: 'Tickets Resto', icon: Ticket },
           { id: 'rapports', label: 'Rapports', icon: Printer },
-          { id: 'notifications', label: 'Alertes', icon: Zap },
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as Tab)}
+            onClick={() => {
+              setActiveTab(tab.id as Tab);
+            }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm whitespace-nowrap ${
               activeTab === tab.id 
                 ? 'bg-dmn-green-600 text-white shadow-dmn-green-600/20 scale-105' 
@@ -2762,6 +2397,50 @@ export default function App() {
         ))}
       </nav>
 
+      {/* Sub-Navigation */}
+      {activeTab === 'finances' && (
+        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
+          {[
+            ...(userRole === 'admin' ? [{ id: 'saisie', label: 'Saisie Rapide', icon: Zap }] : []),
+            { id: 'cotisations', label: 'Cotisations', icon: CreditCard },
+            { id: 'recettes', label: 'Autres Entrées', icon: Plus },
+            { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
+            { id: 'dettes', label: 'Dettes', icon: Banknote },
+          ].map(sub => (
+            <button key={sub.id} onClick={() => setFinanceSubTab(sub.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${financeSubTab === sub.id ? 'bg-dmn-green-100 text-dmn-green-800' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'}`}>
+               <sub.icon size={14} /> {sub.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'membres' && (
+        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
+          {[
+            { id: 'liste', label: 'Annuaire', icon: Users },
+            { id: 'annuel', label: 'Vue Annuelle', icon: CalendarRange },
+            { id: 'retards', label: 'Retards', icon: AlertTriangle },
+          ].map(sub => (
+            <button key={sub.id} onClick={() => setMembreSubTab(sub.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${membreSubTab === sub.id ? 'bg-dmn-green-100 text-dmn-green-800' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'}`}>
+               <sub.icon size={14} /> {sub.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'rapports' && (
+        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
+          {[
+            { id: 'recap', label: 'Récap Mensuel', icon: CalendarDays },
+            { id: 'impression', label: 'Impression & PDF', icon: Printer },
+          ].map(sub => (
+            <button key={sub.id} onClick={() => setRapportSubTab(sub.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${rapportSubTab === sub.id ? 'bg-dmn-green-100 text-dmn-green-800' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'}`}>
+               <sub.icon size={14} /> {sub.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="px-4 max-w-7xl mx-auto flex-1">
         {activeTab === 'dashboard' && <PremiumDashboard 
@@ -2770,19 +2449,21 @@ export default function App() {
           ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
           globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
         />}
-        {activeTab === 'saisie' && renderSaisieRapide()}
-        {activeTab === 'membres' && renderMembres()}
-        {activeTab === 'annuel' && renderAnnuel()}
-        {activeTab === 'cotisations' && renderCotisations()}
-        {activeTab === 'recettes' && renderRecettes()}
-        {activeTab === 'depenses' && renderDepenses()}
-        {activeTab === 'dettes' && renderDettes()}
-        {activeTab === 'recap' && renderRecap()}
-        {activeTab === 'nonpayeurs' && renderNonPayeurs()}
-        {activeTab === 'stats' && renderStats()}
-        {activeTab === 'rapports' && renderRapports()}
-        {activeTab === 'notifications' && renderNotifications()}
-        {activeTab === 'ticketsresto' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} />}
+
+        {activeTab === 'finances' && financeSubTab === 'saisie' && renderSaisieRapide()}
+        {activeTab === 'finances' && financeSubTab === 'cotisations' && renderCotisations()}
+        {activeTab === 'finances' && financeSubTab === 'recettes' && renderRecettes()}
+        {activeTab === 'finances' && financeSubTab === 'depenses' && renderDepenses()}
+        {activeTab === 'finances' && financeSubTab === 'dettes' && renderDettes()}
+
+        {activeTab === 'membres' && membreSubTab === 'liste' && renderMembres()}
+        {activeTab === 'membres' && membreSubTab === 'annuel' && renderAnnuel()}
+        {activeTab === 'membres' && membreSubTab === 'retards' && renderNonPayeurs()}
+
+        {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} />}
+
+        {activeTab === 'rapports' && rapportSubTab === 'recap' && renderRecap()}
+        {activeTab === 'rapports' && rapportSubTab === 'impression' && renderRapports()}
       </main>
 
       {/* Footer */}
