@@ -3,7 +3,7 @@ import { Membre, Cotisation, Depense, Recette, Dette, TicketCollecte, TicketConv
 import { MOIS } from '../data';
 import { 
   Building2, TrendingUp, TrendingDown, Users, AlertCircle, 
-  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity
+  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -22,25 +22,36 @@ interface PremiumDashboardProps {
   globalYear: number;
   globalMonth: string;
   globalMode: string;
+  logoUrl?: string;
+  userRole?: 'admin' | 'visitor' | null;
+  onLogoUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export function PremiumDashboard({
   membres, cotisations, depenses, recettes, dettes,
   ticketCollectes, ticketConversions, ticketDistributions,
-  globalYear, globalMonth
+  globalYear, globalMonth, logoUrl, userRole, onLogoUpload
 }: PremiumDashboardProps) {
 
-  // --- FILTRES ACTIFS ---
+  // Totaux Filtrés (Pour les flux du mois/année sélectionné)
   const filteredCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear && (!globalMonth || c.mois === globalMonth)), [cotisations, globalYear, globalMonth]);
   const filteredDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear && (!globalMonth || d.mois === globalMonth)), [depenses, globalYear, globalMonth]);
   const filteredRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear && (!globalMonth || r.mois === globalMonth)), [recettes, globalYear, globalMonth]);
+  const filteredDettes = useMemo(() => dettes.filter(d => d.annee === globalYear && (!globalMonth || d.mois === globalMonth)), [dettes, globalYear, globalMonth]);
   
-  // Totaux
   const totCotisations = filteredCotisations.reduce((s, c) => s + c.montant, 0);
   const totRecettes = filteredRecettes.reduce((s, r) => s + r.montant, 0);
-  const totEntrees = totCotisations + totRecettes;
+  const totDettes = filteredDettes.reduce((s, d) => s + d.montant, 0);
+  const totEntrees = totCotisations + totRecettes + totDettes;
   const totDepenses = filteredDepenses.reduce((s, d) => s + d.montant, 0);
-  const solde = totEntrees - totDepenses;
+
+  // --- CALCUL DU SOLDE RÉEL (GLOBAL) ---
+  const globalTotCotisations = useMemo(() => cotisations.reduce((s, c) => s + c.montant, 0), [cotisations]);
+  const globalTotRecettes = useMemo(() => recettes.reduce((s, r) => s + r.montant, 0), [recettes]);
+  const globalTotDettes = useMemo(() => dettes.reduce((s, d) => s + d.montant, 0), [dettes]);
+  const globalTotIncome = globalTotCotisations + globalTotRecettes + globalTotDettes;
+  const globalTotExpenses = useMemo(() => depenses.reduce((s, d) => s + d.montant, 0), [depenses]);
+  const soldeGlobal = globalTotIncome - globalTotExpenses;
 
   // --- ANNUEL (Pour certains graphiques, indépendant de globalMonth) ---
   const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
@@ -119,8 +130,18 @@ export function PremiumDashboard({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl border border-gray-100 shadow-sm gap-4 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-green-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
         <div className="relative z-10 flex items-center gap-4">
-          <div className="w-16 h-16 bg-green-50 text-green-700 rounded-2xl flex items-center justify-center font-black text-3xl shadow-inner uppercase">
-             🕌
+          <div className="w-16 h-16 bg-white overflow-hidden text-green-700 rounded-2xl flex items-center justify-center font-black text-3xl shadow-inner uppercase relative group">
+             {logoUrl ? (
+               <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+             ) : (
+               "🕌"
+             )}
+             {userRole === 'admin' && onLogoUpload && (
+               <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                 <Edit2 size={20} className="text-white" />
+                 <input type="file" className="hidden" accept="image/*" onChange={onLogoUpload} />
+               </label>
+             )}
           </div>
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">Daara Madjmahoune Noreyni</h1>
@@ -146,21 +167,21 @@ export function PremiumDashboard({
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-green-500/20 rounded-full blur-xl -ml-8 -mb-8"></div>
           
           <div className="relative z-10 flex justify-between items-center mb-6">
-            <span className="uppercase tracking-[0.2em] text-[10px] font-bold text-green-200/80">Solde de la caisse</span>
+            <span className="uppercase tracking-[0.2em] text-[10px] font-bold text-green-200/80">Solde Réel de la Caisse</span>
             <Building2 size={24} className="text-green-300 opacity-80" />
           </div>
           
           <div className="relative z-10">
             <h2 className="text-4xl lg:text-5xl font-black tracking-tight drop-shadow-md">
-              {formatPrice(solde)} <span className="text-2xl text-green-300">FCFA</span>
+              {formatPrice(soldeGlobal)} <span className="text-2xl text-green-300">FCFA</span>
             </h2>
             <div className="mt-4 flex items-center gap-6">
                <div className="flex flex-col">
-                  <span className="text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Entrées Mensuelles</span>
+                  <span className="text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Entrées ({globalMonth || globalYear})</span>
                   <span className="font-bold text-sm mt-1">+{formatPrice(totEntrees)} F</span>
                </div>
                <div className="flex flex-col">
-                  <span className="text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Dépenses Mensuelles</span>
+                  <span className="text-[10px] text-green-300/80 uppercase font-bold tracking-wider">Dépenses ({globalMonth || globalYear})</span>
                   <span className="font-bold text-sm mt-1">-{formatPrice(totDepenses)} F</span>
                </div>
             </div>

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History,
-  Smartphone, TrendingDown, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket
+  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -25,7 +25,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-type Tab = 'dashboard' | 'membres' | 'finances' | 'tickets' | 'rapports';
+type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres';
 
 const ADMIN_CODE = (import.meta as any).env.VITE_ADMIN_CODE || 'DMN-ADMIN-ESP';
 
@@ -49,9 +49,9 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const [financeSubTab, setFinanceSubTab] = useState<'saisie' | 'cotisations' | 'depenses' | 'recettes' | 'dettes'>('cotisations');
+  const [financeSubTab, setFinanceSubTab] = useState<'saisie' | 'cotisations' | 'recettes' | 'depenses' | 'dettes' | 'rapports'>('cotisations');
   const [membreSubTab, setMembreSubTab] = useState<'liste' | 'annuel' | 'retards'>('liste');
-  const [rapportSubTab, setRapportSubTab] = useState<'recap' | 'impression'>('recap');
+  const [rapportSubTab, setRapportSubTab] = useState<'recap' | 'stats' | 'pdf'>('stats');
   const [membres, setMembres] = useState<Membre[]>([]);
   const [cotisations, setCotisations] = useState<Cotisation[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
@@ -861,6 +861,210 @@ export default function App() {
     XLSX.utils.book_append_sheet(wb, ws, "Membres");
     XLSX.writeFile(wb, `Liste_Membres_DMN_Cellule_ESP_${globalYear}.xlsx`);
     showToast('Liste des membres exportée (Excel) !', 'success');
+  };
+
+  const renderStats = () => {
+    const annualDettes = dettes.filter(d => d.annee === globalYear);
+    const annualCotisationsFiltered = cotisations.filter(c => c.annee === globalYear);
+    const annualRecettesFiltered = recettes.filter(r => r.annee === globalYear);
+    const annualDepensesFiltered = depenses.filter(d => d.annee === globalYear);
+
+    const monthlyData = MOIS.map(mois => {
+      const cot = annualCotisationsFiltered.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
+      const rec = annualRecettesFiltered.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
+      const dep = annualDepensesFiltered.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      
+      // Calculate participation
+      const uniquePayers = new Set(annualCotisationsFiltered.filter(c => c.mois === mois).map(c => c.mId)).size;
+      
+      return { 
+        name: mois.substring(0, 4), 
+        Cotisations: cot,
+        Recettes: rec,
+        Dépenses: dep,
+        Participations: uniquePayers,
+        Solde: (cot + rec) - dep + dnp
+      };
+    });
+
+    const totalIncome = annualCotisationsFiltered.reduce((s, c) => s + c.montant, 0) + annualRecettesFiltered.reduce((s, r) => s + r.montant, 0);
+    const totalExpense = annualDepensesFiltered.reduce((s, d) => s + d.montant, 0);
+    const totalUnpaidDebts = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const globalPaymentRate = membres.length > 0 ? (new Set(annualCotisationsFiltered.filter(c => c.mois === globalMonth).map(c => c.mId)).size / membres.length) * 100 : 0;
+
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        {/* KPI Dashboard */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Taux participation', value: `${globalPaymentRate.toFixed(1)}%`, sub: `Mois: ${globalMonth}`, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Revenu Total', value: `${totalIncome.toLocaleString()} FCFA`, sub: `Année ${globalYear}`, icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50' },
+            { label: 'Dépenses Totales', value: `${totalExpense.toLocaleString()} FCFA`, sub: `Retrait caisse`, icon: TrendingDown, color: 'text-red-600', bg: 'bg-red-50' },
+            { label: 'Dettes à recouvrir', value: `${totalUnpaidDebts.toLocaleString()} FCFA`, sub: 'Non soldées', icon: AlertTriangle, color: 'text-dmn-gold', bg: 'bg-amber-50' },
+          ].map((kpi, i) => (
+            <div key={i} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className={`w-12 h-12 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center`}>
+                <kpi.icon size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{kpi.label}</p>
+                <h4 className="text-xl font-black text-gray-900">{kpi.value}</h4>
+                <p className="text-[10px] text-gray-500 font-medium">{kpi.sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart Sections */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Evolution Chart */}
+          <div className="lg:col-span-2 bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="font-heading font-bold text-dmn-green-900 text-xl flex items-center gap-3">
+                <div className="w-10 h-10 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center">
+                  <TrendingUp size={20} />
+                </div>
+                Performance Financière {globalYear}
+              </h3>
+              <div className="flex gap-4">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <div className="w-2 h-2 bg-dmn-green-500 rounded-full"></div> Flux Entrant
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div> Dépenses
+                </span>
+              </div>
+            </div>
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyData}>
+                  <defs>
+                    <linearGradient id="colorEnt" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorSort" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#64748b'}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#64748b'}} />
+                  <RechartsTooltip 
+                    contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'}}
+                    itemStyle={{fontWeight: 800, fontSize: '13px'}}
+                  />
+                  <Area type="monotone" dataKey="Cotisations" name="Cotisations" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorEnt)" />
+                  <Area type="monotone" dataKey="Dépenses" name="Dépenses" stroke="#ef4444" strokeWidth={4} fillOpacity={1} fill="url(#colorSort)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Right Column: Mini Charts */}
+          <div className="space-y-8">
+            {/* Participation Chart */}
+            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
+              <h3 className="font-heading font-bold text-dmn-green-900 mb-6 text-sm uppercase tracking-widest">Taux de Participation</h3>
+              <div className="h-48 w-full flex items-center justify-center relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={[
+                        { name: 'Payé', value: globalPaymentRate },
+                        { name: 'En attente', value: 100 - globalPaymentRate }
+                      ]} 
+                      cx="50%" cy="50%" innerRadius={55} outerRadius={75} startAngle={90} endAngle={450} paddingAngle={0} dataKey="value"
+                    >
+                      <Cell fill="#10b981" />
+                      <Cell fill="#f1f5f9" />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-black text-dmn-green-900">{globalPaymentRate.toFixed(0)}%</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{globalMonth}</span>
+                </div>
+              </div>
+              <p className="text-center text-xs font-semibold text-gray-500 mt-4">
+                {new Set(annualCotisationsFiltered.filter(c => c.mois === globalMonth).map(c => c.mId)).size} membres sur {membres.length}
+              </p>
+            </div>
+
+            {/* Income mix */}
+            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
+              <h3 className="font-heading font-bold text-dmn-green-900 mb-6 text-sm uppercase tracking-widest">Mix des Revenus</h3>
+              <div className="space-y-4">
+                {[
+                  { label: 'Cotisations', amount: annualCotisationsFiltered.reduce((s, c) => s + c.montant, 0), color: 'bg-dmn-green-500' },
+                  { label: 'Recettes Diverses', amount: annualRecettesFiltered.reduce((s, r) => s + r.montant, 0), color: 'bg-dmn-gold' },
+                  { label: 'Dettes Recouvrées', amount: annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0), color: 'bg-blue-500' }
+                ].map((item, id) => {
+                  const total = annualCotisationsFiltered.reduce((s, c) => s + c.montant, 0) + 
+                                annualRecettesFiltered.reduce((s, r) => s + r.montant, 0) + 
+                                annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
+                  const pct = total > 0 ? (item.amount / total) * 100 : 0;
+                  return (
+                    <div key={id}>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-gray-600">{item.label}</span>
+                        <span className="text-gray-900">{pct.toFixed(1)}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${item.color} transition-all duration-1000`} style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lower Row: Bar Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+            <h3 className="font-heading font-bold text-dmn-green-900 mb-8 text-lg flex items-center gap-2">
+              <BarChart size={18} className="text-blue-500" /> Solde Mensuel Net
+            </h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyData}>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
+                  <YAxis hide />
+                  <RechartsTooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none'}} />
+                  <Bar dataKey="Solde" radius={[8, 8, 0, 0]}>
+                    {monthlyData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.Solde >= 0 ? '#3b82f6' : '#ef4444'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-4 text-xs text-gray-500 font-medium">Les barres rouges indiquent un déficit mensuel (dépenses &gt; entrées).</p>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+            <h3 className="font-heading font-bold text-dmn-green-900 mb-8 text-lg flex items-center gap-2">
+              <Users size={18} className="text-dmn-green-600" /> Évolution des Adhésions
+            </h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyData}>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
+                  <RechartsTooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none'}} />
+                  <Bar dataKey="Participations" fill="#10b981" radius={[4, 4, 4, 4]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-4 text-xs text-gray-500 font-medium tracking-tight">Nombre de membres uniques ayant cotisé au moins une fois dans le mois.</p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderRapports = () => {
@@ -2229,7 +2433,7 @@ export default function App() {
                 e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
               }} 
             />
-            <span className="hidden text-dmn-green-600 font-bold text-3xl">🕌</span>
+            <span className="hidden text-dmn-green-600 font-bold text-lg uppercase tracking-tighter">DMN</span>
           </div>
           <h2 className="text-2xl font-heading font-black text-dmn-green-900 mb-2 tracking-tight">Commission Sociale DMN</h2>
           <p className="text-dmn-green-600 font-bold text-sm uppercase tracking-widest mb-6">Chargement sécurisé...</p>
@@ -2266,7 +2470,7 @@ export default function App() {
                   }
                 }} 
               />
-              <span className="hidden text-dmn-green-600 font-bold text-5xl">🕌</span>
+              <span className="hidden text-dmn-green-600 font-bold text-2xl uppercase tracking-tighter">DMN</span>
             </div>
             <h1 className="text-3xl font-heading font-black text-dmn-green-900 mb-2 tracking-tight">Commission Sociale</h1>
             <p className="text-sm font-bold text-dmn-green-600 uppercase tracking-widest mb-6">Daara Madjmahoune Noreyni</p>
@@ -2317,7 +2521,7 @@ export default function App() {
                 }
               }} 
             />
-            <span className="hidden text-dmn-green-900 font-bold text-xl">🕌</span>
+            <span className="hidden text-dmn-green-900 font-bold text-xs">DMN</span>
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-heading font-bold tracking-tight">Commission Sociale DMN</h1>
@@ -2375,10 +2579,9 @@ export default function App() {
       <nav className="max-w-7xl mx-auto px-4 py-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden sticky top-0 z-40 bg-gray-50/80 backdrop-blur-md">
         {[
           { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'membres', label: 'Membres', icon: Users },
-          { id: 'finances', label: 'Caisse & Finances', icon: Wallet },
+          { id: 'finance', label: 'Caisse & Rapports', icon: Wallet },
           { id: 'tickets', label: 'Tickets Resto', icon: Ticket },
-          { id: 'rapports', label: 'Rapports', icon: Printer },
+          { id: 'membres', label: 'Membres', icon: Users },
         ].map(tab => (
           <button
             key={tab.id}
@@ -2388,24 +2591,24 @@ export default function App() {
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm whitespace-nowrap ${
               activeTab === tab.id 
                 ? 'bg-dmn-green-600 text-white shadow-dmn-green-600/20 scale-105' 
-                : 'bg-white text-gray-600 hover:bg-dmn-green-50 hover:text-dmn-green-700 border border-gray-100'
+                : 'bg-white text-gray-600 hover:bg-dmn-green-50 hover:text-dmn-green-700 border border-gray-100 hover:scale-105'
             }`}
           >
-            <tab.icon size={16} />
-            {tab.label}
+            <tab.icon size={18} /> {tab.label}
           </button>
         ))}
       </nav>
 
       {/* Sub-Navigation */}
-      {activeTab === 'finances' && (
+      {activeTab === 'finance' && (
         <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
           {[
-            ...(userRole === 'admin' ? [{ id: 'saisie', label: 'Saisie Rapide', icon: Zap }] : []),
+            ...(userRole === 'admin' ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
             { id: 'cotisations', label: 'Cotisations', icon: CreditCard },
-            { id: 'recettes', label: 'Autres Entrées', icon: Plus },
+            { id: 'recettes', label: 'Recettes', icon: Plus },
             { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
             { id: 'dettes', label: 'Dettes', icon: Banknote },
+            { id: 'rapports', label: 'Analyse & Rapports', icon: TrendingUp },
           ].map(sub => (
             <button key={sub.id} onClick={() => setFinanceSubTab(sub.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${financeSubTab === sub.id ? 'bg-dmn-green-100 text-dmn-green-800' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'}`}>
                <sub.icon size={14} /> {sub.label}
@@ -2428,19 +2631,6 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'rapports' && (
-        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden">
-          {[
-            { id: 'recap', label: 'Récap Mensuel', icon: CalendarDays },
-            { id: 'impression', label: 'Impression & PDF', icon: Printer },
-          ].map(sub => (
-            <button key={sub.id} onClick={() => setRapportSubTab(sub.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${rapportSubTab === sub.id ? 'bg-dmn-green-100 text-dmn-green-800' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'}`}>
-               <sub.icon size={14} /> {sub.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Main Content */}
       <main className="px-4 max-w-7xl mx-auto flex-1">
         {activeTab === 'dashboard' && <PremiumDashboard 
@@ -2448,29 +2638,44 @@ export default function App() {
           recettes={recettes} dettes={dettes} 
           ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
           globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
+          logoUrl={appSettings.logoUrl} userRole={userRole} onLogoUpload={handleLogoUpload}
         />}
 
-        {activeTab === 'finances' && financeSubTab === 'saisie' && renderSaisieRapide()}
-        {activeTab === 'finances' && financeSubTab === 'cotisations' && renderCotisations()}
-        {activeTab === 'finances' && financeSubTab === 'recettes' && renderRecettes()}
-        {activeTab === 'finances' && financeSubTab === 'depenses' && renderDepenses()}
-        {activeTab === 'finances' && financeSubTab === 'dettes' && renderDettes()}
+        {activeTab === 'finance' && financeSubTab === 'saisie' && renderSaisieRapide()}
+        {activeTab === 'finance' && financeSubTab === 'cotisations' && renderCotisations()}
+        {activeTab === 'finance' && financeSubTab === 'recettes' && renderRecettes()}
+        {activeTab === 'finance' && financeSubTab === 'depenses' && renderDepenses()}
+        {activeTab === 'finance' && financeSubTab === 'dettes' && renderDettes()}
+        {activeTab === 'finance' && financeSubTab === 'rapports' && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar border-b border-gray-100 pb-2">
+               <button onClick={() => setRapportSubTab('recap')} className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${rapportSubTab === 'recap' ? 'bg-dmn-green-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Tableau Récap</button>
+               <button onClick={() => setRapportSubTab('stats')} className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${rapportSubTab === 'stats' ? 'bg-dmn-green-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Graphiques Analystiques</button>
+               <button onClick={() => setRapportSubTab('pdf')} className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${rapportSubTab === 'pdf' ? 'bg-dmn-green-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Génération Rapports PDF</button>
+            </div>
+            {/* Conditional Sub-Rendering for Reports */}
+            {rapportSubTab === 'recap' && renderRecap()}
+            {rapportSubTab === 'stats' && renderStats()}
+            {rapportSubTab === 'pdf' && renderRapports()}
+          </div>
+        )}
 
         {activeTab === 'membres' && membreSubTab === 'liste' && renderMembres()}
         {activeTab === 'membres' && membreSubTab === 'annuel' && renderAnnuel()}
         {activeTab === 'membres' && membreSubTab === 'retards' && renderNonPayeurs()}
 
         {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} />}
-
-        {activeTab === 'rapports' && rapportSubTab === 'recap' && renderRecap()}
-        {activeTab === 'rapports' && rapportSubTab === 'impression' && renderRapports()}
       </main>
 
       {/* Footer */}
       <footer className="mt-16 py-8 border-t border-gray-200 bg-white text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-center items-center gap-2 mb-3">
-            <span className="text-dmn-green-600 font-bold text-2xl">🕌</span>
+            {appSettings.logoUrl ? (
+              <img src={appSettings.logoUrl} alt="Logo DMN" className="w-10 h-10 object-contain" />
+            ) : (
+              <span className="text-dmn-green-600 font-bold text-xl px-2 py-1 bg-dmn-green-50 rounded-lg">DMN</span>
+            )}
             <p className="text-dmn-green-900 font-heading font-black text-xl tracking-tight">Daara Madjmahoune Noreyni</p>
           </div>
           <p className="text-dmn-green-700 font-bold text-sm uppercase tracking-widest mb-4">Commission Sociale – UCAD ESP</p>
