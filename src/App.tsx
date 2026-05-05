@@ -647,6 +647,24 @@ export default function App() {
                 </div>
               </div>
             </div>
+            {userRole === 'admin' && (
+              <div className="absolute top-6 left-6 flex gap-2">
+                <button 
+                  onClick={() => { setEditingMembre(membre); setIsMembreModalOpen(true); setSelectedMemberProfile(null); }}
+                  className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all border border-white/10 flex items-center gap-2 text-xs font-bold"
+                  title="Modifier"
+                >
+                  <Edit2 size={16} /> <span className="hidden sm:inline">Modifier</span>
+                </button>
+                <button 
+                  onClick={() => { handleDeleteMembre(membre.id); setSelectedMemberProfile(null); }}
+                  className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-white rounded-xl transition-all border border-red-500/20 flex items-center gap-2 text-xs font-bold"
+                  title="Supprimer"
+                >
+                  <Trash2 size={16} /> <span className="hidden sm:inline">Supprimer</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 bg-gray-50/30">
@@ -1534,6 +1552,15 @@ export default function App() {
                       <Shield size={18} />
                       <span className="text-[9px] font-black uppercase tracking-wider">Lecteur</span>
                     </div>
+                  )}
+                  {userRole === 'admin' && (
+                    <button 
+                      onClick={() => handleDeleteMembre(m.id)}
+                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-700 transition-all border border-red-100/50"
+                    >
+                      <Trash2 size={18} />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Supprimer</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -2785,7 +2812,7 @@ export default function App() {
         {activeTab === 'membres' && membreSubTab === 'annuel' && renderAnnuel()}
         {activeTab === 'membres' && membreSubTab === 'retards' && renderNonPayeurs()}
 
-        {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} />}
+        {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} userRole={userRole} />}
       </main>
 
       {/* Footer */}

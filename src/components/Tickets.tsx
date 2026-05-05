@@ -14,9 +14,10 @@ interface TicketsProps {
   collectes: TicketCollecte[];
   conversions: TicketConversion[];
   distributions: TicketDistribution[];
+  userRole: string;
 }
 
-export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions }: TicketsProps) {
+export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions, userRole }: TicketsProps) {
   const [activeTab, setActiveTab] = useState<'collecte' | 'conversion' | 'distribution' | 'historique' | 'statistiques'>('statistiques');
 
   const currentMonthIndex = new Date().getMonth();
@@ -69,10 +70,34 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   };
 
   const handleAnnulerCollecte = async (mId: string) => {
+    if (userRole !== 'admin') {
+      showToast("Accès refusé", 'error');
+      return;
+    }
+    if (!window.confirm("Voulez-vous vraiment annuler cette collecte ?")) return;
     try {
       const colId = `${mId}_${globalYear}_${effectiveMonth}`;
       await deleteDoc(doc(db, 'tickets_collectes', colId));
       showToast('Collecte annulée !');
+    } catch (e) {
+      showToast('Erreur lors de l\'annulation', 'error');
+    }
+  };
+
+  const handleAnnulerOperation = async (id: string, type: 'Collecte' | 'Conversion' | 'Distribution') => {
+    if (userRole !== 'admin') {
+      showToast("Accès refusé", 'error');
+      return;
+    }
+    if (!window.confirm(`Voulez-vous vraiment supprimer cette ${type.toLowerCase()} ?`)) return;
+    try {
+      const collectionName = 
+        type === 'Collecte' ? 'tickets_collectes' : 
+        type === 'Conversion' ? 'tickets_conversions' : 
+        'tickets_distributions';
+      
+      await deleteDoc(doc(db, collectionName, id));
+      showToast(`${type} annulée !`);
     } catch (e) {
       showToast('Erreur lors de l\'annulation', 'error');
     }
@@ -299,12 +324,13 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   };
 
   const renderHistorique = () => {
-    type Operation = { date: number, type: 'Collecte' | 'Conversion' | 'Distribution', desc: string, detail: string };
+    type Operation = { id: string, date: number, type: 'Collecte' | 'Conversion' | 'Distribution', desc: string, detail: string };
     const history: Operation[] = [];
     
     collectes.forEach(c => {
       const membre = membres.find(m => m.id === c.mId);
       history.push({
+        id: c.id || `${c.mId}_${c.annee}_${c.mois}`,
         date: c.createdAt || 0,
         type: 'Collecte',
         desc: `de ${membre?.prenom} ${membre?.nom}`,
@@ -314,6 +340,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
 
     conversions.forEach(c => {
       history.push({
+        id: c.id || '',
         date: c.createdAt || 0,
         type: 'Conversion',
         desc: 'Argent vers Tickets',
@@ -324,6 +351,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
     distributions.forEach(d => {
       const membre = d.mId ? membres.find(m => m.id === d.mId) : null;
       history.push({
+        id: d.id || '',
         date: d.createdAt || 0,
         type: 'Distribution',
         desc: membre ? `Sortie pour ${membre.prenom}` : 'Sortie Stock',
@@ -338,8 +366,16 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
         {/* Mobile View: Cards */}
         <div className="sm:hidden space-y-3">
            {sortedHistory.map((h, i) => (
-             <div key={i} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex flex-col gap-2">
-                <div className="flex justify-between items-center">
+             <div key={h.id || i} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex flex-col gap-2 relative">
+                {userRole === 'admin' && (
+                  <button 
+                    onClick={() => handleAnnulerOperation(h.id, h.type)}
+                    className="absolute top-4 right-4 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                  >
+                    <Minus size={16} />
+                  </button>
+                )}
+                <div className="flex justify-between items-center pr-8">
                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
                      h.type === 'Collecte' ? 'bg-dmn-green-100 text-dmn-green-700' :
                      h.type === 'Conversion' ? 'bg-purple-100 text-purple-700' :
@@ -365,11 +401,12 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
                 <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4">Opération</th>
                 <th className="px-6 py-4">Détail</th>
+                {userRole === 'admin' && <th className="px-6 py-4 text-center">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {sortedHistory.map((h, i) => (
-                <tr key={i} className="hover:bg-gray-50/50">
+                <tr key={h.id || i} className="hover:bg-gray-50/50">
                   <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
                     {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---'}
                   </td>
@@ -384,6 +421,17 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
                     <span className="font-medium text-gray-900">{h.desc}</span>
                   </td>
                   <td className="px-6 py-4 font-mono text-xs text-gray-600 bg-gray-50/50">{h.detail}</td>
+                  {userRole === 'admin' && (
+                    <td className="px-6 py-4 text-center">
+                      <button 
+                        onClick={() => handleAnnulerOperation(h.id, h.type)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        title="Supprimer"
+                      >
+                        <Minus size={18} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {sortedHistory.length === 0 && (
