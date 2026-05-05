@@ -1,44 +1,98 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
-  CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield,
-  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3
+  CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key,
+  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { MOIS } from './data';
-import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution } from './types';
+import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, AppUser, UserRole, AccessCode } from './types';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { User } from 'firebase/auth';
 
 import { useDebounce } from './utils/useDebounce';
+import { hasPermission, logAudit } from './utils/permissions';
 import { RotatingMessages } from './components/RotatingMessages';
 import { Annuel } from './components/Annuel';
 import { Tickets } from './components/Tickets';
+import { CafeModule } from './components/cafe/CafeModule';
 import { PremiumDashboard } from './components/PremiumDashboard';
+import { UserRoles } from './components/UserRoles';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { 
+  CafeProduction, CafeVente, CafeDepense, CafeTransfert 
+} from './types';
 
-type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres';
-
-const ADMIN_CODE = (import.meta as any).env.VITE_ADMIN_CODE || 'DMN-ADMIN-ESP';
+type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres' | 'cafe' | 'roles';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'admin' | 'visitor' | null>(null);
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [adminCodeInput, setAdminCodeInput] = useState('');
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   
   // Advanced Features State
   const [selectedMemberProfile, setSelectedMemberProfile] = useState<Membre | null>(null);
+  
+  // Access Code State
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [isUsingCode, setIsUsingCode] = useState(false);
+
+  const handleUseAccessCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || userRole === 'admin') return;
+
+    setIsUsingCode(true);
+    try {
+      const q = query(collection(db, 'access_codes'), where('code', '==', accessCodeInput.toUpperCase()));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        showToast('Code invalide', 'error');
+        return;
+      }
+
+      const codeDoc = snap.docs[0];
+      const codeData = codeDoc.data() as AccessCode;
+
+      if (codeData.used) {
+        showToast('Ce code a déjà été utilisé', 'error');
+        return;
+      }
+
+      // 1. Mark code as used
+      await updateDoc(codeDoc.ref, {
+        used: true,
+        usedBy: user.uid,
+        usedByName: user.displayName || 'Utilisateur',
+      });
+
+      // 2. Update user role
+      await updateDoc(doc(db, 'users', user.uid), {
+        role: codeData.role
+      });
+
+      setUserRole(codeData.role);
+      setAccessCodeInput('');
+      showToast(`Félicitations ! Votre rôle est maintenant : ${codeData.role}`, 'success');
+      
+    } catch (error) {
+      console.error(error);
+      showToast('Une erreur est survenue lors de la validation du code', 'error');
+    } finally {
+      setIsUsingCode(false);
+    }
+  };
   
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -50,6 +104,12 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [financeSubTab, setFinanceSubTab] = useState<'saisie' | 'cotisations' | 'recettes' | 'depenses' | 'dettes' | 'rapports'>('cotisations');
+  
+  const isCaisse = hasPermission(userRole, 'caisse.read');
+  const isTickets = hasPermission(userRole, 'tickets.read');
+  const isCafe = hasPermission(userRole, 'cafe.production.read');
+  const isAdmin = userRole === 'admin';
+
   const [membreSubTab, setMembreSubTab] = useState<'liste' | 'annuel' | 'retards'>('liste');
   const [rapportSubTab, setRapportSubTab] = useState<'recap' | 'stats' | 'pdf'>('stats');
   const [membres, setMembres] = useState<Membre[]>([]);
@@ -60,6 +120,10 @@ export default function App() {
   const [ticketCollectes, setTicketCollectes] = useState<TicketCollecte[]>([]);
   const [ticketConversions, setTicketConversions] = useState<TicketConversion[]>([]);
   const [ticketDistributions, setTicketDistributions] = useState<TicketDistribution[]>([]);
+  const [cafeProductions, setCafeProductions] = useState<CafeProduction[]>([]);
+  const [cafeVentes, setCafeVentes] = useState<CafeVente[]>([]);
+  const [cafeDepenses, setCafeDepenses] = useState<CafeDepense[]>([]);
+  const [cafeTransferts, setCafeTransferts] = useState<CafeTransfert[]>([]);
   const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
@@ -165,28 +229,35 @@ export default function App() {
             setUserRole(userDoc.data().role);
           } else {
             const isDefaultAdmin = currentUser.email === 'serignefalloufaye@esp.sn';
-            const initialRole = isDefaultAdmin ? 'admin' : 'visitor';
-            await setDoc(doc(db, 'users', currentUser.uid), {
-              email: currentUser.email,
-              role: initialRole
-            });
+            const initialRole: UserRole = isDefaultAdmin ? 'admin' : 'lecteur';
+            const newUser: AppUser = {
+              uid: currentUser.uid,
+              email: currentUser.email || '',
+              nom: currentUser.displayName || currentUser.email?.split('@')[0] || 'Utilisateur',
+              role: initialRole,
+              createdAt: Date.now()
+            };
+            await setDoc(doc(db, 'users', currentUser.uid), newUser);
             setUserRole(initialRole);
           }
         } catch (error: any) {
           console.error("Firestore initialization error:", error);
           showToast(`Erreur d'accès aux données : ${error.message}`, 'error');
-          setUserRole('visitor');
+          setUserRole('lecteur');
         }
       } else {
         setUserRole(null);
       }
+      setIsLoading(false);
       setIsAuthReady(true);
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!isAuthReady || !user) return;
+    if (!isAuthReady || !user || !userRole) return;
+    
+    // Member data
     const unsubMembres = onSnapshot(collection(db, 'membres'), (snapshot) => {
       setMembres(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Membre)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'membres'));
@@ -198,7 +269,6 @@ export default function App() {
       setIsLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'depenses');
-      setIsLoading(false);
     });
     const unsubRecettes = onSnapshot(collection(db, 'recettes'), (snapshot) => {
       setRecettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recette)));
@@ -219,8 +289,35 @@ export default function App() {
       setTicketDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketDistribution)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_distributions'));
 
-    return () => { unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); unsubTicketCollectes(); unsubTicketConversions(); unsubTicketDistributions(); };
-  }, [isAuthReady, user]);
+    const unsubCafeProductions = onSnapshot(collection(db, 'cafe_productions'), (snapshot) => {
+      setCafeProductions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeProduction)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_productions'));
+
+    const unsubCafeVentes = onSnapshot(collection(db, 'cafe_ventes'), (snapshot) => {
+      setCafeVentes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeVente)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_ventes'));
+
+    const unsubCafeDepenses = onSnapshot(collection(db, 'cafe_depenses'), (snapshot) => {
+      setCafeDepenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeDepense)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_depenses'));
+
+    const unsubCafeTransferts = onSnapshot(collection(db, 'cafe_transferts'), (snapshot) => {
+      setCafeTransferts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeTransfert)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_transferts'));
+
+    const unsubUsers = userRole === 'admin' 
+      ? onSnapshot(collection(db, 'users'), (snapshot) => {
+          setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as AppUser)));
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'users'))
+      : () => {};
+
+    return () => { 
+      unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); 
+      unsubTicketCollectes(); unsubTicketConversions(); unsubTicketDistributions();
+      unsubCafeProductions(); unsubCafeVentes(); unsubCafeDepenses(); unsubCafeTransferts();
+      unsubUsers();
+    };
+  }, [isAuthReady, user, userRole]);
 
   useEffect(() => {
     const unsubSettings = onSnapshot(doc(db, 'settings', 'app'), (snapshot) => {
@@ -249,23 +346,6 @@ export default function App() {
       }
     } finally {
       setIsLoggingIn(false);
-    }
-  };
-
-  const handleAdminCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminCodeInput === ADMIN_CODE && user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid), { role: 'admin', email: user.email }, { merge: true });
-        setUserRole('admin');
-        setIsAdminModalOpen(false);
-        showToast('Vous êtes maintenant administrateur', 'success');
-      } catch (error) {
-        console.error(error);
-        showToast('Erreur lors de la mise à jour du rôle', 'error');
-      }
-    } else {
-      showToast('Code incorrect', 'error');
     }
   };
 
@@ -546,6 +626,42 @@ export default function App() {
       handleFirestoreError(error, OperationType.WRITE, 'dettes');
       showToast('Erreur lors de la modification', 'error');
     }
+  };
+
+  const handleCafeTransferToCaisse = async (montant: number) => {
+    if (montant <= 0 || userRole !== 'admin') return;
+    confirmAction(
+      'Transférer Bénéfices Café',
+      `Voulez-vous transférer ${montant}F des bénéfices du café vers la caisse sociale ?`,
+      async () => {
+        try {
+          // 1. Record transfer in coffee module
+          await addDoc(collection(db, 'cafe_transferts'), {
+            date: Date.now(),
+            montant: montant,
+            message: "Transfert annuel/mensuel vers caisse sociale",
+            createdAt: serverTimestamp()
+          });
+
+          // 2. Add as a receipt (Recette) in global fund
+          await addDoc(collection(db, 'recettes'), {
+            motif: "Transfert Bénéfices Café ☕",
+            mois: MOIS[new Date().getMonth()],
+            annee: new Date().getFullYear(),
+            montant: montant,
+            mode: 'ESPÈCES',
+            date: new Date().toISOString(),
+            createdAt: Date.now(),
+            createdBy: user?.uid
+          });
+
+          showToast('Transfert réussi ! Les fonds sont maintenant dans la caisse sociale.');
+        } catch (error) {
+          console.error("Transfer error:", error);
+          showToast('Erreur lors du transfert', 'error');
+        }
+      }
+    );
   };
 
   const Badge = ({ mode, date }: { mode: ModePaiement, date?: number | string }) => {
@@ -1270,32 +1386,40 @@ export default function App() {
                               
                               {activeActionMenu?.mId === m.id && activeActionMenu?.mois === mois && isPaid && (
                                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-1 min-w-[120px] animate-in zoom-in-95 duration-200">
-                                  <button 
-                                    onClick={() => {
-                                      setEditingCot(existingCot);
-                                      setIsCotModalOpen(true);
-                                      setActiveActionMenu(null);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs hover:bg-dmn-green-50 rounded-lg flex items-center gap-2 text-gray-700 font-medium"
-                                  >
-                                    <Edit3 size={12} className="text-dmn-green-600" /> Modifier
-                                  </button>
-                                  <button 
-                                    onClick={() => {
-                                      handleDeleteCotisation(existingCot.id);
-                                      setActiveActionMenu(null);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 rounded-lg flex items-center gap-2 text-red-600 font-medium"
-                                  >
-                                    <Trash2 size={12} /> Supprimer
-                                  </button>
-                                  <div className="h-px bg-gray-100 my-1"></div>
-                                  <button 
-                                    onClick={() => setActiveActionMenu(null)}
-                                    className="w-full text-left px-3 py-1.5 text-[10px] text-gray-400 hover:text-gray-600"
-                                  >
-                                    Fermer
-                                  </button>
+                                  {userRole === 'admin' ? (
+                                    <>
+                                      <button 
+                                        onClick={() => {
+                                          setEditingCot(existingCot);
+                                          setIsCotModalOpen(true);
+                                          setActiveActionMenu(null);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-dmn-green-50 rounded-lg flex items-center gap-2 text-gray-700 font-medium"
+                                      >
+                                        <Edit3 size={12} className="text-dmn-green-600" /> Modifier
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          handleDeleteCotisation(existingCot.id);
+                                          setActiveActionMenu(null);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 rounded-lg flex items-center gap-2 text-red-600 font-medium"
+                                      >
+                                        <Trash2 size={12} /> Supprimer
+                                      </button>
+                                      <div className="h-px bg-gray-100 my-1"></div>
+                                      <button 
+                                        onClick={() => setActiveActionMenu(null)}
+                                        className="w-full text-left px-3 py-1.5 text-[10px] text-gray-400 hover:text-gray-600"
+                                      >
+                                        Fermer
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <div className="px-3 py-2 text-[10px] text-gray-400 font-medium italic">
+                                      Lecture seule
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1386,11 +1510,11 @@ export default function App() {
                         key={mois}
                         onClick={() => {
                           if (isPaid) {
-                            confirmAction(
-                              'Supprimer Cotisation',
-                              `Supprimer la cotisation de ${existingCot.montant}F pour ${mois} ?`,
-                              () => handleDeleteCotisation(existingCot.id)
-                            );
+                            if (userRole === 'admin') {
+                              handleDeleteCotisation(existingCot.id);
+                            } else {
+                              showToast("Accès admin requis pour supprimer", 'error');
+                            }
                             return;
                           }
                           setQuickMonths(prev => {
@@ -1442,7 +1566,7 @@ export default function App() {
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
           <span className="flex items-center gap-2"><Users size={18} className="text-dmn-gold-light" /> Membres ({membres.length})</span>
           <div className="flex items-center gap-2">
-            {userRole === 'admin' && (
+            {isCaisse && (
               <button 
                 onClick={() => { setEditingMembre(null); setIsMembreModalOpen(true); }}
                 className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
@@ -1482,7 +1606,7 @@ export default function App() {
                       </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(tot)} F</td>
-                    {userRole === 'admin' && (
+                    {isCaisse && (
                       <td className="px-6 py-4 flex justify-center gap-2">
                         <button onClick={() => setSelectedMemberProfile(m)} className="p-2 bg-dmn-green-50 text-dmn-green-600 rounded-lg hover:bg-dmn-green-100 transition-colors" title="Profil">
                           <Users size={16} />
@@ -1490,9 +1614,11 @@ export default function App() {
                         <button onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
                           <Edit2 size={16} />
                         </button>
-                        <button onClick={() => handleDeleteMembre(m.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                          <Trash2 size={16} />
-                        </button>
+                        {isAdmin && (
+                          <button onClick={() => handleDeleteMembre(m.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -1526,7 +1652,7 @@ export default function App() {
 
                 <div className="grid grid-cols-3 gap-2">
                   <button 
-                    onClick={() => { openAddCot(m.id, undefined, globalYear); setActiveTab('cotisations'); }}
+                    onClick={() => { openAddCot(m.id, undefined, globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
                     className="flex flex-col items-center justify-center gap-1.5 py-3 bg-dmn-green-50 hover:bg-dmn-green-100 rounded-2xl text-dmn-green-700 transition-all border border-dmn-green-100/50"
                   >
                     <CreditCard size={18} />
@@ -1855,7 +1981,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
-                   {userRole === 'admin' ? (
+                   {isCaisse ? (
                       <button 
                         onClick={() => handleToggleDetteStatus(d)}
                         className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full transition-all border ${d.estPayee ? 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-sm shadow-emerald-600/5' : 'bg-red-50 text-red-700 border-red-100 animate-pulse-slow shadow-sm shadow-red-600/5'} whitespace-nowrap`}
@@ -1872,14 +1998,16 @@ export default function App() {
               
               <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
                 <p className={`text-lg font-black ${d.estPayee ? 'text-emerald-600' : 'text-red-600'}`}>{formatPrice(d.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
-                {userRole === 'admin' && (
+                {isCaisse && (
                   <div className="flex gap-2">
                     <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
-                      <Trash2 size={16} />
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1901,7 +2029,7 @@ export default function App() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
           <span className="flex items-center gap-2"><Plus size={18} className="text-dmn-gold-light" /> Autres Entrées ({globalYear})</span>
-          {userRole === 'admin' && (
+          {isCaisse && (
             <button 
               onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
               className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
@@ -1930,14 +2058,16 @@ export default function App() {
                   <td className="px-6 py-4 text-gray-600">{r.mois}</td>
                   <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(r.montant)} F</td>
                   <td className="px-6 py-4"><Badge mode={r.mode} date={r.createdAt || r.updatedAt} /></td>
-                  {userRole === 'admin' && (
+                  {isCaisse && (
                     <td className="px-6 py-4 flex justify-center gap-2">
                       <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
                         <Edit2 size={16} />
                       </button>
-                      <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                      {isAdmin && (
+                        <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -1968,14 +2098,16 @@ export default function App() {
               
               <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
                 <p className="text-lg font-black text-emerald-600">{formatPrice(r.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
-                {userRole === 'admin' && (
+                {isCaisse && (
                   <div className="flex gap-2">
                     <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
-                      <Trash2 size={16} />
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2166,7 +2298,7 @@ export default function App() {
                         {userRole === 'admin' && (
                           <td className="px-6 py-4 border-l border-gray-50 border-dashed">
                             <button 
-                              onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
+                              onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
                               className="px-4 py-2 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition-all shadow-md shadow-red-600/20 active:scale-95 whitespace-nowrap"
                             >
                               Régulariser {npMois ? `(${npMois.substring(0, 3)})` : ''}
@@ -2218,7 +2350,7 @@ export default function App() {
                     <div className="flex gap-3">
                       {userRole === 'admin' && (
                         <button 
-                          onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setActiveTab('cotisations'); }}
+                          onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
                           className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-red-600/20 active:scale-95 whitespace-nowrap"
                         >
                           Régulariser {npMois ? `(${npMois.substring(0, 3)})` : ''}
@@ -2596,11 +2728,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-dmn-bg text-gray-800 font-sans pb-24 sm:pb-10">
-      {/* Header */}
-      <header className="bg-dmn-green-900 text-white px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center sticky top-0 z-40 shadow-lg border-b border-dmn-green-800">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-inner border-2 border-dmn-green-700">
+    <div className="min-h-screen bg-dmn-bg text-gray-800 font-sans pb-32 sm:pb-10 relative overflow-x-hidden">
+      {/* Header Premium */}
+      <header className="bg-white/70 backdrop-blur-xl border-b border-gray-100 flex justify-between items-center px-6 py-4 sticky top-0 z-[100] shadow-soft">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-dmn-green-900 rounded-xl flex items-center justify-center overflow-hidden shadow-premium border border-white/10">
             <img 
               src={appSettings.logoUrl || "logo.png"} 
               alt="Logo DMN" 
@@ -2615,176 +2747,143 @@ export default function App() {
                 }
               }} 
             />
-            <span className="hidden text-dmn-green-900 font-bold text-xs uppercase">DMN</span>
+            <span className="hidden text-white font-black text-[10px] uppercase">M.</span>
           </div>
           <div>
-            <h1 className="text-base sm:text-xl font-heading font-bold tracking-tight leading-tight">CS DMN</h1>
-            <p className="text-[8px] sm:text-xs text-dmn-green-300 font-medium uppercase tracking-[0.2em]">UCAD ESP</p>
+            <h1 className="text-lg font-black text-dmn-green-900 tracking-tight leading-none uppercase">Daara M.</h1>
+            <p className="text-[9px] font-black text-dmn-green-600 uppercase tracking-widest mt-1">CS DMN UCAD</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-2 sm:gap-3">
-          {userRole !== 'admin' && (
-            <button onClick={() => setIsAdminModalOpen(true)} className="flex items-center gap-1.5 bg-dmn-gold-light hover:bg-dmn-gold text-white px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all shadow-sm active:scale-95">
-              <Zap size={12} /> <span className="hidden sm:inline">Admin</span>
-            </button>
+        <div className="flex items-center gap-4">
+          {userRole === 'admin' && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-dmn-green-50 rounded-full border border-dmn-green-100">
+               <Shield size={12} className="text-dmn-green-600" />
+               <span className="text-[10px] font-black text-dmn-green-600 uppercase tracking-widest">Admin</span>
+            </div>
           )}
-          <button onClick={logOut} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors border border-white/10" title="Se déconnecter">
-            <LogOut size={16} />
+          <button 
+            onClick={logOut} 
+            className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-all active:scale-95 border border-gray-100"
+          >
+            <LogOut size={18} />
           </button>
         </div>
       </header>
-
-      {/* Mobile Quick Filters Toggle */}
-      <div className="sm:hidden bg-white border-b border-gray-100 flex items-center justify-between px-4 py-2 sticky top-[57px] z-30 shadow-sm">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <span className="text-[10px] font-bold text-dmn-green-600 bg-dmn-green-50 px-2 py-0.5 rounded-md whitespace-nowrap">{globalYear}</span>
-          {globalMonth && <span className="text-[10px] font-bold text-dmn-green-600 bg-dmn-green-50 px-2 py-0.5 rounded-md whitespace-nowrap">{globalMonth}</span>}
-        </div>
-        <button 
-          onClick={() => {
-            const el = document.getElementById('global-filters');
-            el?.classList.toggle('hidden');
-          }}
-          className="flex items-center gap-1 bg-gray-50 text-gray-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-gray-200"
+      {/* Global Filters (Premium version) */}
+      <AnimatePresence>
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white/50 backdrop-blur-md border-b border-gray-100 px-6 py-3 sticky top-[72px] z-[90]"
         >
-          <Search size={12} /> Filtres
-        </button>
-      </div>
-
-      {/* Global Filters Bar */}
-      <div id="global-filters" className="hidden sm:block bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm sticky top-[100px] sm:top-[80px] z-30 px-4 sm:px-6 py-3 sm:py-4 transition-all animate-in slide-in-from-top-4 duration-300">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          <div className="flex gap-2">
-            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm flex-1">
-              <span className="text-[10px] sm:text-sm font-semibold text-gray-400">Année:</span>
-              <select value={globalYear} onChange={e => setGlobalYear(Number(e.target.value))} className="bg-transparent font-bold text-dmn-green-700 focus:outline-none cursor-pointer text-xs sm:text-sm w-full">
+          <div className="max-w-7xl mx-auto flex gap-3 overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center bg-white px-4 py-2 rounded-2xl border border-gray-100 shadow-soft">
+              <Calendar size={14} className="text-dmn-green-500 mr-2" />
+              <select 
+                value={globalYear} 
+                onChange={e => setGlobalYear(Number(e.target.value))} 
+                className="bg-transparent font-black text-dmn-green-900 focus:outline-none cursor-pointer text-xs uppercase"
+              >
                 {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
-            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm flex-1">
-              <span className="text-[10px] sm:text-sm font-semibold text-gray-400">Mois:</span>
-              <select value={globalMonth} onChange={e => setGlobalMonth(e.target.value)} className="bg-transparent font-bold text-dmn-green-700 focus:outline-none cursor-pointer text-xs sm:text-sm w-full">
-                <option value="">Tous</option>
+            
+            <div className="flex items-center bg-white px-4 py-2 rounded-2xl border border-gray-100 shadow-soft min-w-[120px]">
+              <Clock size={14} className="text-dmn-green-500 mr-2" />
+              <select 
+                value={globalMonth} 
+                onChange={e => setGlobalMonth(e.target.value)} 
+                className="bg-transparent font-black text-dmn-green-900 focus:outline-none cursor-pointer text-xs uppercase w-full"
+              >
+                <option value="">Tous les mois</option>
                 {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
-          </div>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-            <input 
-              type="text" 
-              placeholder="Rechercher un membre ou transaction..." 
-              value={globalSearch}
-              onChange={e => setGlobalSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm"
-            />
-          </div>
-        </div>
-      </div>
 
-      {/* Desktop Navigation */}
-      <nav className="hidden sm:flex max-w-7xl mx-auto px-4 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-0 z-40 bg-gray-50/80 backdrop-blur-md">
-        {[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'finance', label: 'Caisse & Rapports', icon: Wallet },
-          { id: 'tickets', label: 'Tickets Resto', icon: Ticket },
-          { id: 'membres', label: 'Membres', icon: Users },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as Tab)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${
-              activeTab === tab.id 
-                ? 'bg-dmn-green-600 text-white shadow-dmn-green-600/20 scale-105' 
-                : 'bg-white text-gray-600 hover:bg-dmn-green-50 hover:text-dmn-green-700 border border-gray-100 hover:scale-105'
-            }`}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input 
+                type="text" 
+                placeholder="Rechercher..." 
+                value={globalSearch}
+                onChange={e => setGlobalSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 shadow-soft"
+              />
+            </div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Sub-Navigation (Modernized) */}
+      <AnimatePresence>
+        {(activeTab === 'finance' || activeTab === 'membres' || activeTab === 'tickets' || activeTab === 'cafe') && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="max-w-7xl mx-auto px-6 overflow-hidden"
           >
-            <tab.icon size={18} /> {tab.label}
-          </button>
-        ))}
-      </nav>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar py-3">
+              {activeTab === 'finance' && [
+                ...((userRole === 'admin' || userRole === 'caisse') ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
+                { id: 'cotisations', label: 'Cotis.', icon: CreditCard },
+                { id: 'recettes', label: 'Recettes', icon: Plus },
+                { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
+                { id: 'dettes', label: 'Dettes', icon: Banknote },
+                { id: 'rapports', label: 'Rapports', icon: TrendingUp },
+              ].map(sub => (
+                <button 
+                  key={sub.id} 
+                  onClick={() => setFinanceSubTab(sub.id as any)} 
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-soft ${
+                    financeSubTab === sub.id 
+                      ? 'bg-dmn-green-600 text-white border-dmn-green-600' 
+                      : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
+                  }`}
+                >
+                   <sub.icon size={12} /> {sub.label}
+                </button>
+              ))}
 
-      {/* Bottom Navigation for Mobile */}
-      <div className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 w-full">
-        <nav className="bg-white/90 backdrop-blur-xl border border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-3xl h-16 flex items-center justify-around px-2 relative">
-          {[
-            { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-            { id: 'finance', label: 'Caisse', icon: Wallet },
-            { id: 'tickets', label: 'Tickets', icon: Ticket },
-            { id: 'membres', label: 'Membres', icon: Users },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as Tab)}
-              className={`flex flex-col items-center justify-center flex-1 h-full rounded-2xl transition-all relative ${
-                activeTab === tab.id ? 'text-dmn-green-600' : 'text-gray-400'
-              }`}
-            >
-              <tab.icon size={activeTab === tab.id ? 22 : 20} className={activeTab === tab.id ? 'animate-bounce-slow' : ''} />
-              <span className={`text-[10px] font-black uppercase tracking-tighter mt-1 transition-opacity ${activeTab === tab.id ? 'opacity-100' : 'opacity-60'}`}>{tab.label}</span>
-              {activeTab === tab.id && (
-                <div className="absolute -bottom-1 w-1 h-1 bg-dmn-green-600 rounded-full"></div>
-              )}
-            </button>
-          ))}
-        </nav>
-      </div>
+              {activeTab === 'membres' && [
+                { id: 'liste', label: 'Annuaire', icon: Users },
+                { id: 'annuel', label: 'Annuel', icon: CalendarRange },
+                { id: 'retards', label: 'Retards', icon: AlertTriangle },
+              ].map(sub => (
+                <button 
+                  key={sub.id} 
+                  onClick={() => setMembreSubTab(sub.id as any)} 
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-soft ${
+                    membreSubTab === sub.id 
+                      ? 'bg-dmn-green-600 text-white border-dmn-green-600' 
+                      : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
+                  }`}
+                >
+                   <sub.icon size={12} /> {sub.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Sub-Navigation */}
-      {activeTab === 'finance' && (
-        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden mb-2">
-          {[
-            ...(userRole === 'admin' ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
-            { id: 'cotisations', label: 'Cotis.', icon: CreditCard },
-            { id: 'recettes', label: 'Recettes', icon: Plus },
-            { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
-            { id: 'dettes', label: 'Dettes', icon: Banknote },
-            { id: 'rapports', label: 'Rapports', icon: TrendingUp },
-          ].map(sub => (
-            <button 
-              key={sub.id} 
-              onClick={() => setFinanceSubTab(sub.id as any)} 
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-sm ${
-                financeSubTab === sub.id 
-                  ? 'bg-dmn-green-600 text-white border-dmn-green-600 shadow-dmn-green-600/20' 
-                  : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
-              }`}
-            >
-               <sub.icon size={12} /> {sub.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'membres' && (
-        <div className="max-w-7xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2 print:hidden mb-2">
-          {[
-            { id: 'liste', label: 'Annuaire', icon: Users },
-            { id: 'annuel', label: 'Annuel', icon: CalendarRange },
-            { id: 'retards', label: 'Retards', icon: AlertTriangle },
-          ].map(sub => (
-            <button 
-              key={sub.id} 
-              onClick={() => setMembreSubTab(sub.id as any)} 
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-sm ${
-                membreSubTab === sub.id 
-                  ? 'bg-dmn-green-600 text-white border-dmn-green-600 shadow-dmn-green-600/20' 
-                  : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
-              }`}
-            >
-               <sub.icon size={12} /> {sub.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Main Content */}
-      <main className="px-4 max-w-7xl mx-auto flex-1">
+      {/* Main Content with Transition */}
+      <main className="max-w-7xl mx-auto flex-1 min-h-[60vh] relative z-0">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab + financeSubTab + membreSubTab}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="p-4"
+          >
         {activeTab === 'dashboard' && <PremiumDashboard 
           membres={membres} cotisations={cotisations} depenses={depenses} 
           recettes={recettes} dettes={dettes} 
           ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
+          cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
           globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
           logoUrl={appSettings.logoUrl} userRole={userRole} onLogoUpload={handleLogoUpload}
         />}
@@ -2813,28 +2912,104 @@ export default function App() {
         {activeTab === 'membres' && membreSubTab === 'retards' && renderNonPayeurs()}
 
         {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} userRole={userRole} />}
+        
+        {activeTab === 'cafe' && (
+          <CafeModule 
+            productions={cafeProductions}
+            ventes={cafeVentes}
+            depenses={cafeDepenses}
+            transferts={cafeTransferts}
+            userRole={userRole || 'lecteur'}
+            showToast={showToast}
+            onTransferToCaisse={handleCafeTransferToCaisse}
+          />
+        )}
+
+        {activeTab === 'roles' && (
+          <UserRoles 
+            users={allUsers}
+            currentUserEmail={user?.email || null}
+            currentUserRole={userRole}
+            showToast={showToast}
+            confirmAction={confirmAction}
+          />
+        )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
-      {/* Footer */}
-      <footer className="mt-16 py-8 border-t border-gray-200 bg-white text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-center items-center gap-2 mb-3">
-            {appSettings.logoUrl ? (
-              <img src={appSettings.logoUrl} alt="Logo DMN" className="w-10 h-10 object-contain" />
-            ) : (
-              <span className="text-dmn-green-600 font-bold text-xl px-2 py-1 bg-dmn-green-50 rounded-lg">DMN</span>
-            )}
-            <p className="text-dmn-green-900 font-heading font-black text-xl tracking-tight">Daara Madjmahoune Noreyni</p>
-          </div>
-          <p className="text-dmn-green-700 font-bold text-sm uppercase tracking-widest mb-4">Commission Sociale – UCAD ESP</p>
-          <div className="w-16 h-1 bg-dmn-gold mx-auto rounded-full mb-4"></div>
-          <p className="text-gray-500 text-sm font-medium mb-2">
-            "Le meilleur des hommes est celui qui est le plus utile aux autres."
-          </p>
-          <p className="text-gray-400 text-xs">
-            Plateforme de gestion financière sécurisée © {new Date().getFullYear()}
-          </p>
-        </div>
+      {/* Desktop Navigation */}
+      <nav className="hidden sm:flex max-w-7xl mx-auto px-6 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-[136px] z-[80] bg-white/80 backdrop-blur-md border-b border-gray-100">
+        {[
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+          { id: 'finance', label: 'Caisse & Rapports', icon: Wallet, roles: ['admin', 'caisse', 'lecteur'] },
+          { id: 'tickets', label: 'Tickets Resto', icon: Ticket, roles: ['admin', 'tickets', 'lecteur'] },
+          { id: 'cafe', label: 'Café ☕', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
+          { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+          { id: 'roles', label: 'Rôles & Équipe', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+        ].filter(tab => tab.roles.includes(userRole as any)).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as Tab)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-soft ${
+              activeTab === tab.id 
+                ? 'bg-dmn-green-600 text-white shadow-dmn-green-600/20 scale-105' 
+                : 'bg-white text-gray-400 hover:bg-dmn-green-50 hover:text-dmn-green-700 border border-gray-100 hover:scale-105'
+            }`}
+          >
+            <tab.icon size={16} /> {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Floating Bottom Navigation Apple Wallet Style (Mobile) */}
+      <div className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-full px-4 pointer-events-none">
+        <motion.nav 
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="bg-gray-900/95 backdrop-blur-xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-[2rem] h-16 flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-sm"
+        >
+          {[
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+            { id: 'finance', label: 'Caisse', icon: Wallet, roles: ['admin', 'caisse', 'lecteur'] },
+            { id: 'tickets', label: 'Tickets', icon: Ticket, roles: ['admin', 'tickets', 'lecteur'] },
+            { id: 'cafe', label: 'Café', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
+            { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+            { id: 'roles', label: 'Équipe', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+          ].filter(tab => tab.roles.includes(userRole as any)).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className="flex flex-col items-center justify-center flex-1 h-full relative group outline-none"
+            >
+              <div className={`p-2 rounded-2xl transition-all duration-300 ${
+                activeTab === tab.id 
+                  ? 'bg-dmn-green-500 text-gray-900 scale-110 shadow-lg shadow-dmn-green-500/20' 
+                  : 'text-gray-400 group-hover:text-white'
+              }`}>
+                <tab.icon size={20} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-2'} />
+              </div>
+              <span className={`text-[8px] font-black uppercase tracking-widest mt-1 hidden transition-all duration-300 ${
+                activeTab === tab.id ? 'opacity-100 text-white' : 'opacity-40 text-gray-400'
+              }`}>
+                {tab.label}
+              </span>
+              {activeTab === tab.id && (
+                <motion.div 
+                  layoutId="nav-dot"
+                  className="absolute -bottom-1 w-1 h-1 bg-dmn-green-500 rounded-full"
+                />
+              )}
+            </button>
+          ))}
+        </motion.nav>
+      </div>
+
+      {/* Footer (Simplified for mobile) */}
+      <footer className="mt-20 pb-40 px-6 text-center space-y-4">
+        <div className="w-12 h-1 bg-dmn-green-100 mx-auto rounded-full"></div>
+        <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Daara Madjmahoune Noreyni</p>
+        <p className="text-[10px] italic text-gray-400">“La transparence est une responsabilité”</p>
       </footer>
 
       {renderMemberHistoryModal()}
@@ -3055,36 +3230,6 @@ export default function App() {
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsDetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isAdminModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
-                Accès Administrateur
-              </h3>
-              <button onClick={() => { setIsAdminModalOpen(false); setAdminCodeInput(''); }} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleAdminCodeSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Code d'accès</label>
-                <input 
-                  type="password" 
-                  value={adminCodeInput}
-                  onChange={e => setAdminCodeInput(e.target.value)}
-                  required 
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" 
-                  placeholder="Entrez le code secret"
-                />
-              </div>
-              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => { setIsAdminModalOpen(false); setAdminCodeInput(''); }} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
-                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Valider</button>
               </div>
             </form>
           </div>

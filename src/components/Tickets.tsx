@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Membre, TicketCollecte, TicketConversion, TicketDistribution } from '../types';
 import { db } from '../firebase';
+import { hasPermission, logAudit } from '../utils/permissions';
 import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
 import { MOIS } from '../data';
 import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar } from 'lucide-react';
@@ -19,6 +20,8 @@ interface TicketsProps {
 
 export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions, userRole }: TicketsProps) {
   const [activeTab, setActiveTab] = useState<'collecte' | 'conversion' | 'distribution' | 'historique' | 'statistiques'>('statistiques');
+  const isTickets = hasPermission(userRole as any, 'tickets.create');
+  const canDelete = hasPermission(userRole as any, 'tickets.delete');
 
   const currentMonthIndex = new Date().getMonth();
   const currentMonthName = MOIS[currentMonthIndex];
@@ -45,6 +48,10 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   const [searchMembre, setSearchMembre] = useState('');
   
   const handleCollecte = async (mId: string, type: 'argent' | 'tickets', petitDej: number, repas: number) => {
+    if (!isTickets) {
+      showToast("Accès refusé. Vous n'avez pas le rôle Tickets.", 'error');
+      return;
+    }
     try {
       if (type === 'tickets' && petitDej === 0 && repas === 0) {
         showToast("Veuillez saisir au moins un ticket", 'error');
@@ -70,8 +77,8 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   };
 
   const handleAnnulerCollecte = async (mId: string) => {
-    if (userRole !== 'admin') {
-      showToast("Accès refusé", 'error');
+    if (!canDelete && userRole !== 'admin') {
+      showToast("Accès refusé. Vous n'avez pas le droit de supprimer.", 'error');
       return;
     }
     if (!window.confirm("Voulez-vous vraiment annuler cette collecte ?")) return;
@@ -85,7 +92,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   };
 
   const handleAnnulerOperation = async (id: string, type: 'Collecte' | 'Conversion' | 'Distribution') => {
-    if (userRole !== 'admin') {
+    if (!canDelete && userRole !== 'admin') {
       showToast("Accès refusé", 'error');
       return;
     }
@@ -150,24 +157,32 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
                         </div>
                       )}
                     </div>
-                    <button onClick={() => handleAnnulerCollecte(m.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Annuler">
-                      <Minus size={18} />
-                    </button>
+                    {isTickets && (
+                      <button onClick={() => handleAnnulerCollecte(m.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Annuler">
+                        <Minus size={18} />
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <div className="mt-4 space-y-3">
-                    <button 
-                      onClick={() => handleCollecte(m.id, 'argent', 0, 0)}
-                      className="w-full py-2.5 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-dmn-green-600/20"
-                    >
-                      <Plus size={16} /> 500 FCFA (Argent)
-                    </button>
-                    
-                    <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
-                      <p className="text-[10px] font-black text-orange-800 uppercase tracking-widest mb-3 text-center">Ajouter Tickets Resto</p>
-                      <TicketForm onSubmit={(pd, r) => handleCollecte(m.id, 'tickets', pd, r)} />
+                  isTickets ? (
+                    <div className="mt-4 space-y-3">
+                      <button 
+                        onClick={() => handleCollecte(m.id, 'argent', 0, 0)}
+                        className="w-full py-2.5 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-dmn-green-600/20"
+                      >
+                        <Plus size={16} /> 500 FCFA (Argent)
+                      </button>
+                      
+                      <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                        <p className="text-[10px] font-black text-orange-800 uppercase tracking-widest mb-3 text-center">Ajouter Tickets Resto</p>
+                        <TicketForm onSubmit={(pd, r) => handleCollecte(m.id, 'tickets', pd, r)} />
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mt-4 p-4 text-center border-2 border-dashed border-gray-100 rounded-2xl">
+                      <p className="text-xs text-gray-400 font-medium">Non payé - En attente</p>
+                    </div>
+                  )
                 )}
               </div>
             );
@@ -183,6 +198,10 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
 
   const handleConvert = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isTickets) {
+      showToast("Accès refusé", "error");
+      return;
+    }
     const montant = parseFloat(convMontant);
     const pd = convPD;
     const repas = convRepas;
@@ -267,6 +286,10 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
 
   const handleDistribute = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isTickets) {
+      showToast("Accès refusé", "error");
+      return;
+    }
     if (distPD === 0 && distRepas === 0) return showToast("Saisissez des tickets", "error");
 
     if (distPD > stockPetitDej) return showToast(`Stock Petit Dèj insuffisant (${stockPetitDej} restants)`, "error");
@@ -367,7 +390,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
         <div className="sm:hidden space-y-3">
            {sortedHistory.map((h, i) => (
              <div key={h.id || i} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex flex-col gap-2 relative">
-                {userRole === 'admin' && (
+                {isTickets && (
                   <button 
                     onClick={() => handleAnnulerOperation(h.id, h.type)}
                     className="absolute top-4 right-4 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
@@ -401,7 +424,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
                 <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4">Opération</th>
                 <th className="px-6 py-4">Détail</th>
-                {userRole === 'admin' && <th className="px-6 py-4 text-center">Action</th>}
+                {isTickets && <th className="px-6 py-4 text-center">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -421,7 +444,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
                     <span className="font-medium text-gray-900">{h.desc}</span>
                   </td>
                   <td className="px-6 py-4 font-mono text-xs text-gray-600 bg-gray-50/50">{h.detail}</td>
-                  {userRole === 'admin' && (
+                  {isTickets && (
                     <td className="px-6 py-4 text-center">
                       <button 
                         onClick={() => handleAnnulerOperation(h.id, h.type)}

@@ -52,13 +52,27 @@
     },
     "User": {
       "title": "User",
-      "description": "Utilisateur admin",
+      "description": "Utilisateur de la plateforme avec rôle spécifique",
       "type": "object",
       "properties": {
+        "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin"] }
+        "nom": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "caisse", "tickets", "cafe", "lecteur"] }
       },
-      "required": ["email", "role"]
+      "required": ["uid", "email", "nom", "role"]
+    },
+    "AccessCode": {
+      "title": "AccessCode",
+      "description": "Code permettant d'obtenir un rôle spécifique",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "role": { "type": "string" },
+        "used": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["code", "role", "used", "createdAt"]
     },
     "AppSettings": {
       "title": "AppSettings",
@@ -68,6 +82,53 @@
         "logoUrl": { "type": "string", "description": "URL ou Base64 du logo" }
       },
       "required": ["logoUrl"]
+    },
+    "CafeProduction": {
+      "title": "Production de Café",
+      "description": "Enregistrement d'une séance de production",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "quantite": { "type": "number", "description": "Nombre de paquets/unités" },
+        "coutUnitaire": { "type": "number" },
+        "total": { "type": "number" }
+      },
+      "required": ["date", "quantite", "coutUnitaire", "total"]
+    },
+    "CafeVente": {
+      "title": "Vente de Café",
+      "description": "Enregistrement d'une vente de café",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "quantite": { "type": "number" },
+        "prixUnitaire": { "type": "number" },
+        "total": { "type": "number" },
+        "mode": { "type": "string", "enum": ["ESPÈCES", "WAVE", "OM"] }
+      },
+      "required": ["date", "quantite", "prixUnitaire", "total", "mode"]
+    },
+    "CafeDepense": {
+      "title": "Dépense Café",
+      "description": "Frais de fonctionnement liés au café (sucre, gaz, etc)",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "motif": { "type": "string" },
+        "montant": { "type": "number" }
+      },
+      "required": ["date", "motif", "montant"]
+    },
+    "CafeTransfert": {
+      "title": "Transfert Café vers Caisse",
+      "description": "Versement des bénéfices du café vers la caisse sociale",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "montant": { "type": "number" },
+        "message": { "type": "string" }
+      },
+      "required": ["date", "montant"]
     }
   },
   "firestore": {
@@ -94,6 +155,22 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Liste des utilisateurs admin"
+    },
+    "/cafe_productions/{prodId}": {
+      "schema": { "$ref": "#/entities/CafeProduction" },
+      "description": "Suivi de la production de café"
+    },
+    "/cafe_ventes/{venteId}": {
+      "schema": { "$ref": "#/entities/CafeVente" },
+      "description": "Suivi des ventes de café"
+    },
+    "/cafe_depenses/{depenseId}": {
+      "schema": { "$ref": "#/entities/CafeDepense" },
+      "description": "Dépenses spécifiques au café"
+    },
+    "/cafe_transferts/{transId}": {
+      "schema": { "$ref": "#/entities/CafeTransfert" },
+      "description": "Transferts d'argent vers la caisse sociale"
     }
   }
 }

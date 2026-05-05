@@ -63,10 +63,24 @@ export interface Dette {
   createdBy?: string;
 }
 
-export interface UserRole {
+export type UserRole = 'admin' | 'caisse' | 'tickets' | 'cafe' | 'lecteur';
+
+export interface AppUser {
   uid: string;
   email: string;
-  role: 'admin' | 'user';
+  nom: string;
+  role: UserRole;
+  createdAt?: number;
+}
+
+export interface AccessCode {
+  id?: string;
+  code: string;
+  role: UserRole;
+  used: boolean;
+  usedBy?: string;
+  usedByName?: string;
+  createdAt: number;
 }
 
 export interface TicketCollecte {
@@ -98,4 +112,54 @@ export interface TicketDistribution {
   mois: string;
   annee: number;
   createdAt?: number;
+}
+
+export interface CafeProduction {
+  id: string;
+  date: number;
+  quantite: number;
+  coutUnitaire: number;
+  typeCafe?: string;
+  total: number;
+  createdAt?: number;
+}
+
+export interface CafeVente {
+  id: string;
+  date: number;
+  quantite: number;
+  prixUnitaire: number;
+  typeVente?: 'Sur place' | 'Commande';
+  total: number;
+  mode: ModePaiement;
+  createdAt?: number;
+}
+
+export interface CafeDepense {
+  id: string;
+  date: number;
+  motif: string;
+  categorie?: 'Matières premières' | 'Transport' | 'Autres';
+  montant: number;
+  createdAt?: number;
+}
+
+export interface CafeTransfert {
+  id: string;
+  date: number;
+  montant: number;
+  message?: string;
+  createdAt?: number;
+}
+
+export interface AuditLog {
+  id?: string;
+  userId: string;
+  userEmail: string;
+  role: UserRole;
+  permissionUsed: string;
+  module: string;
+  action: string;
+  details?: any;
+  createdAt: number;
 }
