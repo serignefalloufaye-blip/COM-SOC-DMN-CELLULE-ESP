@@ -195,6 +195,8 @@ export default function App() {
   // Quick Entry State
   const [quickAmounts, setQuickAmounts] = useState<Record<string, number>>({});
   const [quickMonths, setQuickMonths] = useState<Record<string, string[]>>({});
+  const [bulkAmount, setBulkAmount] = useState<number | ''>(500);
+  const [bulkMonths, setBulkMonths] = useState<string[]>([]);
   const [activeActionMenu, setActiveActionMenu] = useState<{mId: string, mois: string} | null>(null);
 
   const [isCotModalOpen, setIsCotModalOpen] = useState(false);
@@ -877,10 +879,10 @@ export default function App() {
   };
 
 
-  const formatPrice = (amount: number) => amount.toLocaleString('fr-FR');
+  const formatPrice = (amount: number) => amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
   const formatFCFA = (val: number) => {
-    return val.toLocaleString('fr-FR') + ' FCFA';
+    return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' FCFA';
   };
 
   const exportToExcel = () => {
@@ -1255,9 +1257,9 @@ export default function App() {
 
     return (
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
+        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <span className="flex items-center gap-2"><Zap size={18} className="text-dmn-gold-light" /> Saisie Rapide ({globalYear})</span>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button 
               onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
               className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
@@ -1265,6 +1267,63 @@ export default function App() {
               <Plus size={14} /> Recette
             </button>
             {globalMonth && <span className="hidden sm:inline-block bg-dmn-green-800/50 border border-dmn-green-700 px-3 py-1.5 rounded-lg text-xs font-medium">Mois : {globalMonth}</span>}
+          </div>
+        </div>
+
+        {/* Bulk Action Bar */}
+        <div className="bg-gray-50 border-b border-gray-100 p-4 sm:p-6 flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+          <div className="flex-1 w-full">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Sélection groupée (Mois & Montant)</p>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1 p-2 bg-white rounded-2xl border border-gray-200 shadow-sm flex-1">
+                {MOIS.map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setBulkMonths(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])}
+                    className={`text-[9px] font-black px-2 py-1.5 rounded-lg border transition-all ${
+                      bulkMonths.includes(m) 
+                        ? 'bg-dmn-green-600 text-white border-dmn-green-500 shadow-md shadow-dmn-green-600/10' 
+                        : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-gray-300'
+                    }`}
+                  >
+                    {m.substring(0, 3)}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative group">
+                  <input 
+                    type="number" 
+                    value={bulkAmount}
+                    onChange={(e) => setBulkAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="Montant"
+                    className="w-24 bg-white border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-dmn-green-500/20 outline-none transition-all pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300">F</span>
+                </div>
+                <button 
+                  onClick={() => {
+                    const updates: Record<string, string[]> = {};
+                    const amounts: Record<string, number> = {};
+                    filteredMembres.forEach(m => {
+                      // Filter out already paid months from selection
+                      const unpaidInBulk = bulkMonths.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
+                      if (unpaidInBulk.length > 0) {
+                        updates[m.id] = unpaidInBulk;
+                        amounts[m.id] = Number(bulkAmount) || 500;
+                      }
+                    });
+                    setQuickMonths(prev => ({ ...prev, ...updates }));
+                    setQuickAmounts(prev => ({ ...prev, ...amounts }));
+                    showToast(`${Object.keys(updates).length} membres mis à jour`);
+                  }}
+                  disabled={bulkMonths.length === 0}
+                  className="bg-dmn-green-600 hover:bg-dmn-green-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-dmn-green-600/20 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Zap size={14} /> Appliquer à tous
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1299,6 +1358,24 @@ export default function App() {
                       </button>
                     </td>
                     <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sélection :</p>
+                        <button 
+                          onClick={() => {
+                            const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
+                            setQuickMonths(prev => ({ ...prev, [m.id]: unpaid }));
+                          }}
+                          className="text-[9px] font-black text-dmn-green-600 hover:text-dmn-green-700 bg-dmn-green-50 px-2 py-1 rounded-lg uppercase tracking-widest transition-colors flex items-center gap-1"
+                        >
+                          <CheckCircle2 size={10} /> Tout impayé
+                        </button>
+                        <button 
+                          onClick={() => setQuickMonths(prev => ({ ...prev, [m.id]: [] }))}
+                          className="text-[9px] font-black text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded-lg uppercase tracking-widest transition-colors"
+                        >
+                          Vider
+                        </button>
+                      </div>
                       <div className="flex flex-wrap gap-1.5 max-w-[280px]">
                         {MOIS.map(mois => {
                           const existingCot = cotisations.find(c => c.mId === m.id && c.mois === mois && c.annee === globalYear);
@@ -1452,6 +1529,24 @@ export default function App() {
                   </div>
                 </div>
                 
+                <div className="flex items-center gap-2 px-1">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Mois à payer :</p>
+                  <button 
+                    onClick={() => {
+                      const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
+                      setQuickMonths(prev => ({ ...prev, [m.id]: unpaid }));
+                    }}
+                    className="text-[8px] font-black text-dmn-green-600 bg-dmn-green-50 px-2 py-1 rounded-lg uppercase transition-colors"
+                  >
+                    Tout
+                  </button>
+                  <button 
+                    onClick={() => setQuickMonths(prev => ({ ...prev, [m.id]: [] }))}
+                    className="text-[8px] font-black text-red-600 bg-red-50 px-2 py-1 rounded-lg uppercase transition-colors"
+                  >
+                    Vider
+                  </button>
+                </div>
                 <div className="bg-gray-50/50 rounded-2xl p-2.5 flex flex-wrap gap-1.5 border border-gray-100">
                   {MOIS.map(mois => {
                     const existingCot = cotisations.find(c => c.mId === m.id && c.mois === mois && c.annee === globalYear);

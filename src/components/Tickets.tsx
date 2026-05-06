@@ -516,7 +516,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
 
         <div className="bg-dmn-green-600 p-6 rounded-[2.5rem] shadow-lg shadow-dmn-green-600/20 border border-dmn-green-700 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
           <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <div className="text-dmn-green-100 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
              <div className="w-1 h-1 bg-dmn-green-200 rounded-full animate-pulse"></div> Petit Dèj
           </div>
           <p className="text-2xl sm:text-3xl font-black">{stockPetitDej}</p>
@@ -524,7 +524,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
 
         <div className="bg-dmn-green-900 p-6 rounded-[2.5rem] shadow-lg shadow-dmn-green-900/20 border border-dmn-green-950 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
           <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <div className="text-dmn-green-100 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
              <div className="w-1 h-1 bg-dmn-green-200 rounded-full"></div> Stock Repas
           </div>
           <p className="text-2xl sm:text-3xl font-black">{stockRepas}</p>
@@ -532,7 +532,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
 
         <div className="bg-orange-500 p-6 rounded-[2.5rem] shadow-lg shadow-orange-500/20 border border-orange-600 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
           <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <div className="text-orange-100 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
              <div className="w-1 h-1 bg-orange-200 rounded-full"></div> Total Sortis
           </div>
           <p className="text-2xl sm:text-3xl font-black">{ticketsDistribuesPetitDej + ticketsDistribuesRepas}</p>

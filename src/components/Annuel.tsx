@@ -28,7 +28,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
   const { isMobile } = useAdaptive();
   const nomComplet = (m: Membre) => `${m.prenom} ${m.nom}`;
   
-  const formatPrice = (p: number) => p.toLocaleString('fr-FR');
+  const formatPrice = (p: number) => p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
   const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
   const annualDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear), [depenses, globalYear]);
@@ -264,7 +264,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
             </div>
             <div>
               <p className="text-xs font-bold text-emerald-600 uppercase">Cotisations</p>
-              <p className="text-lg font-black text-emerald-900">{currentMonthData.Cotisations.toLocaleString('fr-FR')} F</p>
+              <p className="text-lg font-black text-emerald-900">{currentMonthData.Cotisations.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F</p>
             </div>
           </div>
 
@@ -274,7 +274,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
             </div>
             <div>
               <p className="text-xs font-bold text-red-600 uppercase">Dépenses</p>
-              <p className="text-lg font-black text-red-900">{currentMonthData.Dépenses.toLocaleString('fr-FR')} F</p>
+              <p className="text-lg font-black text-red-900">{currentMonthData.Dépenses.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F</p>
             </div>
           </div>
 
@@ -285,7 +285,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
             <div>
               <p className={`text-xs font-bold uppercase ${currentMonthData.Solde >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>Solde du mois</p>
               <p className={`text-lg font-black ${currentMonthData.Solde >= 0 ? 'text-blue-900' : 'text-orange-900'}`}>
-                {currentMonthData.Solde > 0 ? '+' : ''}{currentMonthData.Solde.toLocaleString('fr-FR')} F
+                {currentMonthData.Solde > 0 ? '+' : ''}{currentMonthData.Solde.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F
               </p>
             </div>
           </div>
@@ -320,19 +320,19 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
                 {monthlyData.map((data, idx) => (
                   <tr key={data.name} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-900">{data.fullMonth}</td>
-                    <td className="px-6 py-4 text-right font-medium text-emerald-600">{data.Cotisations > 0 ? `${data.Cotisations.toLocaleString('fr-FR')} F` : '-'}</td>
-                    <td className="px-6 py-4 text-right font-medium text-red-600">{data.Dépenses > 0 ? `${data.Dépenses.toLocaleString('fr-FR')} F` : '-'}</td>
+                    <td className="px-6 py-4 text-right font-medium text-emerald-600">{data.Cotisations > 0 ? `${data.Cotisations.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F` : '-'}</td>
+                    <td className="px-6 py-4 text-right font-medium text-red-600">{data.Dépenses > 0 ? `${data.Dépenses.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F` : '-'}</td>
                     <td className={`px-6 py-4 text-right font-bold ${data.Solde > 0 ? 'text-emerald-600' : data.Solde < 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                      {data.Solde > 0 ? '+' : ''}{data.Solde !== 0 ? `${data.Solde.toLocaleString('fr-FR')} F` : '-'}
+                      {data.Solde > 0 ? '+' : ''}{data.Solde !== 0 ? `${data.Solde.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F` : '-'}
                     </td>
                   </tr>
                 ))}
                 <tr className="bg-gray-50 font-black text-gray-900 border-t-2 border-gray-200">
                   <td className="px-6 py-4">TOTAL ANNUEL</td>
-                  <td className="px-6 py-4 text-right text-emerald-600">{(totCot + totRec).toLocaleString('fr-FR')} F</td>
-                  <td className="px-6 py-4 text-right text-red-600">{totDep.toLocaleString('fr-FR')} F</td>
+                  <td className="px-6 py-4 text-right text-emerald-600">{(totCot + totRec).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F</td>
+                  <td className="px-6 py-4 text-right text-red-600">{totDep.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F</td>
                   <td className={`px-6 py-4 text-right ${solde >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {solde > 0 ? '+' : ''}{solde.toLocaleString('fr-FR')} F
+                    {solde > 0 ? '+' : ''}{solde.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} F
                   </td>
                 </tr>
               </tbody>

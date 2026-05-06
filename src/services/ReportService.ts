@@ -6,7 +6,7 @@ import { MOIS } from '../data';
 
 export class ReportService {
   private static formatCurrency(amount: number): string {
-    return amount.toLocaleString('fr-FR') + ' FCFA';
+    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' FCFA';
   }
 
   private static getMonthName(monthIndex: number): string {

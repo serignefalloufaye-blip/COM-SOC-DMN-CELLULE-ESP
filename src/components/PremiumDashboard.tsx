@@ -34,7 +34,7 @@ interface PremiumDashboardProps {
   onQuickAction?: (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => void;
 }
 
-const formatPrice = (p: number) => p.toLocaleString('fr-FR');
+const formatPrice = (p: number) => p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
 export function PremiumDashboard({
   membres, cotisations, depenses, recettes, dettes,
@@ -184,14 +184,14 @@ export function PremiumDashboard({
             <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <p className="text-dmn-green-300 text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Solde Disponible</p>
+                  <p className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Solde Disponible</p>
                   <div className="w-1.5 h-1.5 bg-dmn-green-400 rounded-full animate-pulse"></div>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <h2 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
                     {formatPrice(soldeGlobal)}
                   </h2>
-                  <span className="text-lg font-bold text-dmn-green-400 group-hover:translate-x-1 transition-transform">FCFA</span>
+                  <span className="text-lg font-bold text-white/40 group-hover:translate-x-1 transition-transform">FCFA</span>
                 </div>
               </div>
               <div className="w-12 h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center shadow-lg">
@@ -201,7 +201,7 @@ export function PremiumDashboard({
 
             <div className="flex items-center gap-6 sm:gap-10">
               <div className="space-y-1">
-                <p className="text-dmn-green-400/60 text-[9px] font-black uppercase tracking-widest">Entrées Globales</p>
+                <p className="text-white/50 text-[9px] font-black uppercase tracking-widest">Entrées Globales</p>
                 <div className="flex items-center gap-1.5">
                    <ArrowUpRight size={12} className="text-dmn-green-400" />
                    <p className="text-white font-black text-sm">{formatPrice(totEntrees)} F</p>
@@ -209,7 +209,7 @@ export function PremiumDashboard({
               </div>
               <div className="w-px h-8 bg-white/10"></div>
               <div className="space-y-1">
-                <p className="text-red-400/60 text-[9px] font-black uppercase tracking-widest">Dépenses Globales</p>
+                <p className="text-white/50 text-[9px] font-black uppercase tracking-widest">Dépenses Globales</p>
                 <div className="flex items-center gap-1.5">
                    <ArrowDownRight size={12} className="text-red-400" />
                    <p className="text-white font-black text-sm">{formatPrice(totDepenses)} F</p>
@@ -217,7 +217,7 @@ export function PremiumDashboard({
               </div>
             </div>
 
-            <div className="flex justify-between items-center text-white/40">
+            <div className="flex justify-between items-center text-white/60">
               <div className="flex gap-4">
                  <p className="text-[10px] font-mono tracking-[0.3em] uppercase">**** {globalYear}</p>
                  <Shield size={16} className="opacity-30" />
@@ -238,7 +238,7 @@ export function PremiumDashboard({
                  <Zap size={20} />
               </div>
               <div>
-                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Aujourd'hui</p>
+                 <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Aujourd'hui</p>
                  <div className="flex items-center gap-2">
                     <span className="text-green-600 font-black">+{formatPrice(todayIn)}</span>
                     <span className="text-gray-300">/</span>
@@ -306,7 +306,7 @@ export function PremiumDashboard({
               <Wallet size={18} />
             </div>
             <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Caisse</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Caisse</p>
               <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-dmn-green-600 transition-colors uppercase">{formatPrice(totCotisations)} F</p>
             </div>
             <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-dmn-green-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
@@ -320,7 +320,7 @@ export function PremiumDashboard({
               <Ticket size={18} />
             </div>
             <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Tickets en Stock</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Tickets en Stock</p>
               <div className="flex items-baseline gap-1">
                 <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-amber-600 transition-colors uppercase">{stockPD + stockRepas}</p>
                 <span className="text-[9px] font-black text-gray-300">UTS</span>
@@ -340,7 +340,7 @@ export function PremiumDashboard({
               <Coffee size={18} />
             </div>
             <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Stock Café</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Stock Café</p>
               <div className="flex items-baseline gap-1">
                 <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-[#78350f] transition-colors uppercase">{cafeStock}</p>
                 <span className="text-[9px] font-black text-gray-300">UTS</span>
@@ -360,7 +360,7 @@ export function PremiumDashboard({
               <BarChart3 size={18} />
             </div>
             <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Membres</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Membres</p>
               <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-blue-600 transition-colors uppercase">{membresActifs} actifs</p>
             </div>
             <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-blue-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
