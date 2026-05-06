@@ -1331,7 +1331,7 @@ export default function App() {
                               
                               {activeActionMenu?.mId === m.id && activeActionMenu?.mois === mois && isPaid && (
                                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-1 min-w-[120px] animate-in zoom-in-95 duration-200">
-                                  {userRole === 'admin' ? (
+                                  {(isAdmin || isCaisse) ? (
                                     <>
                                       <button 
                                         onClick={() => {
@@ -1343,15 +1343,17 @@ export default function App() {
                                       >
                                         <Edit3 size={12} className="text-dmn-green-600" /> Modifier
                                       </button>
-                                      <button 
-                                        onClick={() => {
-                                          handleDeleteCotisation(existingCot.id);
-                                          setActiveActionMenu(null);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 rounded-lg flex items-center gap-2 text-red-600 font-medium"
-                                      >
-                                        <Trash2 size={12} /> Supprimer
-                                      </button>
+                                      {isAdmin && (
+                                        <button 
+                                          onClick={() => {
+                                            handleDeleteCotisation(existingCot.id);
+                                            setActiveActionMenu(null);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 rounded-lg flex items-center gap-2 text-red-600 font-medium"
+                                        >
+                                          <Trash2 size={12} /> Supprimer
+                                        </button>
+                                      )}
                                       <div className="h-px bg-gray-100 my-1"></div>
                                       <button 
                                         onClick={() => setActiveActionMenu(null)}
@@ -1461,10 +1463,10 @@ export default function App() {
                         key={mois}
                         onClick={() => {
                           if (isPaid) {
-                            if (userRole === 'admin') {
+                            if (isAdmin || isCaisse) {
                               handleDeleteCotisation(existingCot.id);
                             } else {
-                              showToast("Accès admin requis pour supprimer", 'error');
+                              showToast("Accès manager requis pour supprimer", 'error');
                             }
                             return;
                           }
@@ -1536,7 +1538,7 @@ export default function App() {
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">N°</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Prénom & Nom</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Total payé ({globalYear})</th>
-                {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
+                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1616,7 +1618,7 @@ export default function App() {
                     <History size={18} />
                     <span className="text-[9px] font-black uppercase tracking-wider">Historique</span>
                   </button>
-                  {userRole === 'admin' ? (
+                  {(isAdmin || isCaisse) ? (
                     <button 
                       onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }}
                       className="flex flex-col items-center justify-center gap-1.5 py-3 bg-amber-50 hover:bg-amber-100 rounded-2xl text-amber-700 transition-all border border-amber-100/50"
@@ -1630,7 +1632,7 @@ export default function App() {
                       <span className="text-[9px] font-black uppercase tracking-wider">Lecteur</span>
                     </div>
                   )}
-                  {userRole === 'admin' && (
+                  {isAdmin && (
                     <button 
                       onClick={() => handleDeleteMembre(m.id)}
                       className="flex flex-col items-center justify-center gap-1.5 py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-700 transition-all border border-red-100/50"
@@ -1725,7 +1727,7 @@ export default function App() {
             >
               <MessageCircle size={16} /> <span className="hidden sm:inline">WhatsApp</span>
             </button>
-            {userRole === 'admin' && (
+            {(isAdmin || isCaisse) && (
               <button 
                 onClick={() => openAddCot(undefined, undefined, globalYear)}
                 className="flex-1 sm:flex-none bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
@@ -1767,7 +1769,7 @@ export default function App() {
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mois</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Montant</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mode</th>
-                {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
+                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1777,14 +1779,16 @@ export default function App() {
                   <td className="px-6 py-4 text-gray-600">{c.mois}</td>
                   <td className="px-6 py-4 font-bold text-dmn-green-700">{c.montant > 0 ? `${formatPrice(c.montant)} F` : <span className="text-gray-400">—</span>}</td>
                   <td className="px-6 py-4"><Badge mode={c.mode} date={c.createdAt || c.updatedAt} /></td>
-                  {userRole === 'admin' && (
+                  {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 flex justify-center gap-2">
                       <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
                         <Edit2 size={16} />
                       </button>
-                      <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                      {isAdmin && (
+                        <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -1817,14 +1821,16 @@ export default function App() {
                 
                 <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
                   <p className="text-lg font-black text-dmn-green-600">{formatPrice(c.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
-                  {userRole === 'admin' && (
+                  {(isAdmin || isCaisse) && (
                     <div className="flex gap-2">
                        <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
                         <Edit2 size={16} />
                       </button>
-                      <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                      {isAdmin && (
+                        <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1854,7 +1860,7 @@ export default function App() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
           <span className="flex items-center gap-2"><Banknote size={18} className="text-dmn-gold-light" /> Dettes ({globalYear})</span>
-          {userRole === 'admin' && (
+          {(isAdmin || isCaisse) && (
             <button 
               onClick={() => { setEditingDette({ annee: globalYear, montant: 0, mois: globalMonth || MOIS[currentMonthIndex] }); setIsDetteModalOpen(true); }}
               className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
@@ -1873,7 +1879,7 @@ export default function App() {
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Période</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-right">Montant</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Statut</th>
-                {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>}
+                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1883,7 +1889,7 @@ export default function App() {
                   <td className="px-6 py-4 text-gray-600">{d.mois} {d.annee}</td>
                   <td className="px-6 py-4 text-right font-bold text-red-600">{formatPrice(d.montant)} F</td>
                   <td className="px-6 py-4 text-center">
-                    {userRole === 'admin' ? (
+                    {(isAdmin || isCaisse) ? (
                       <button 
                         onClick={() => handleToggleDetteStatus(d)}
                         className={`px-3 py-1 text-xs font-bold rounded-full transition-colors ${d.estPayee ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'} whitespace-nowrap`}
@@ -1896,15 +1902,17 @@ export default function App() {
                       </span>
                     )}
                   </td>
-                  {userRole === 'admin' && (
+                  {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
                           <Edit2 size={16} />
                         </button>
-                        <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                          <Trash2 size={16} />
-                        </button>
+                        {isAdmin && (
+                          <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}
@@ -1999,7 +2007,7 @@ export default function App() {
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mois</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Montant</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mode</th>
-                {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
+                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -2009,7 +2017,7 @@ export default function App() {
                   <td className="px-6 py-4 text-gray-600">{r.mois}</td>
                   <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(r.montant)} F</td>
                   <td className="px-6 py-4"><Badge mode={r.mode} date={r.createdAt || r.updatedAt} /></td>
-                  {isCaisse && (
+                  {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 flex justify-center gap-2">
                       <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
                         <Edit2 size={16} />
@@ -2190,7 +2198,7 @@ export default function App() {
                     <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Plus ancien retard</th>
                     <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-x border-gray-100">Mois dus</th>
                     <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Rappels</th>
-                    {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-l border-gray-100">Action</th>}
+                    {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-l border-gray-100">Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -2246,7 +2254,7 @@ export default function App() {
                             </a>
                           </div>
                         </td>
-                        {userRole === 'admin' && (
+                        {(isAdmin || isCaisse) && (
                           <td className="px-6 py-4 border-l border-gray-50 border-dashed">
                             <button 
                               onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
@@ -2299,7 +2307,7 @@ export default function App() {
                     </div>
 
                     <div className="flex gap-3">
-                      {userRole === 'admin' && (
+                      {(isAdmin || isCaisse) && (
                         <button 
                           onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
                           className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-red-600/20 active:scale-95 whitespace-nowrap"
@@ -2349,7 +2357,7 @@ export default function App() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
           <span className="flex items-center gap-2"><TrendingDown size={18} className="text-dmn-gold-light" /> Dépenses ({globalYear})</span>
-          {userRole === 'admin' && (
+          {(isAdmin || isCaisse) && (
             <button 
               onClick={() => { setEditingDepense({ annee: globalYear, montant: 0 }); setIsDepenseModalOpen(true); }}
               className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
@@ -2366,7 +2374,7 @@ export default function App() {
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Événement</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Mois</th>
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-right">Montant</th>
-                {userRole === 'admin' && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>}
+                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -2378,15 +2386,17 @@ export default function App() {
                     <div className="mt-1"><DateBadge date={d.createdAt || d.updatedAt} /></div>
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-red-600">{formatPrice(d.montant)} F</td>
-                  {userRole === 'admin' && (
+                  {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
                           <Edit2 size={16} />
                         </button>
-                        <button onClick={() => handleDeleteDepense(d.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                          <Trash2 size={16} />
-                        </button>
+                        {isAdmin && (
+                          <button onClick={() => handleDeleteDepense(d.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}
