@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { MOIS } from '../data';
 import { Membre, Cotisation, Depense, Recette, Dette } from '../types';
+import { useAdaptive } from '../hooks/useAdaptive';
 
 interface AnnuelProps {
   globalYear: number;
@@ -24,8 +25,11 @@ interface AnnuelProps {
 }
 
 export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depenses, recettes, dettes, appSettings, globalSearch, setSelectedMemberHistory }: AnnuelProps) => {
+  const { isMobile } = useAdaptive();
   const nomComplet = (m: Membre) => `${m.prenom} ${m.nom}`;
   
+  const formatPrice = (p: number) => p.toLocaleString('fr-FR');
+
   const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
   const annualDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear), [depenses, globalYear]);
   const annualRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear), [recettes, globalYear]);
@@ -120,22 +124,23 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
       </div>
 
       {/* Tableau de Bord Annuel (Cartes) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-6">
         {[
-          { title: "Total Cotisations", value: totCot + totRec, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
-          { title: "Total Dépenses", value: totDep, icon: TrendingDown, color: "text-red-600", bg: "bg-red-50", border: "border-red-100" },
-          { title: "Solde Annuel", value: solde, icon: Wallet, color: solde >= 0 ? "text-dmn-green-600" : "text-red-600", bg: solde >= 0 ? "bg-dmn-green-50" : "bg-red-50", border: solde >= 0 ? "border-dmn-green-100" : "border-red-100" },
-          { title: "Total Membres", value: membres.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", isNumber: true },
-          { title: "Moyenne Mensuelle", value: moyenneMensuelle, icon: Activity, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100" }
+          { title: "Cotisations", value: totCot + totRec, icon: TrendingUp, color: "text-dmn-green-600", bg: "bg-dmn-green-50", border: "border-dmn-green-100" },
+          { title: "Dépenses", value: totDep, icon: TrendingDown, color: "text-red-500", bg: "bg-red-50", border: "border-red-100" },
+          { title: "Solde", value: solde, icon: Wallet, color: solde >= 0 ? "text-blue-600" : "text-orange-600", bg: solde >= 0 ? "bg-blue-50" : "bg-orange-50", border: solde >= 0 ? "border-blue-100" : "border-orange-100" },
+          { title: "Membres", value: membres.length, icon: Users, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100", isNumber: true },
+          { title: "Moyenne", value: moyenneMensuelle, icon: Activity, color: "text-gray-600", bg: "bg-gray-100", border: "border-gray-200" }
         ].map((stat, i) => (
-          <div key={i} className={`bg-white rounded-3xl p-6 border ${stat.border} shadow-sm hover:shadow-md transition-all group hover:-translate-y-1`}>
-            <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-              <stat.icon size={24} />
+          <div key={i} className={`bg-white rounded-[2rem] p-5 sm:p-6 border ${stat.border} shadow-sm hover:shadow-xl transition-all group overflow-hidden relative`}>
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm`}>
+              <stat.icon size={stat.isNumber ? 20 : 22} />
             </div>
-            <p className="text-sm font-bold text-gray-500 mb-1">{stat.title}</p>
-            <h3 className={`text-2xl font-black ${stat.color}`}>
-              {stat.isNumber ? stat.value : `${stat.value.toLocaleString('fr-FR')} F`}
+            <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest mb-1">{stat.title}</p>
+            <h3 className={`text-sm sm:text-xl font-black ${stat.color} truncate`}>
+              {stat.isNumber ? stat.value : `${formatPrice(stat.value)} F`}
             </h3>
+            <div className={`absolute -bottom-2 -right-2 w-12 h-12 ${stat.bg} rounded-full opacity-0 group-hover:opacity-40 transition-opacity`}></div>
           </div>
         ))}
       </div>
@@ -336,7 +341,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
         </div>
       </div>
 
-      {/* Tableau Matrice Annuel des Membres */}
+      {/* Tableau Matrice Annuel des Membres (Adaptive) */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mt-8">
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex flex-col sm:flex-row justify-between items-center gap-4">
           <span className="flex items-center gap-2"><Users size={18} className="text-dmn-gold-light" /> Cotisations par Membre</span>
@@ -345,42 +350,73 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400"></span> Dû</span>
           </div>
         </div>
-        <div className="overflow-x-auto max-h-[700px] no-scrollbar">
-          <table className="w-full text-center border-collapse">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-20 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50/95 backdrop-blur-sm z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Membre</th>
-                {MOIS.map(m => <th key={m} className="px-1 py-4 font-black text-[9px] uppercase tracking-tighter border-b border-gray-200">{m.substring(0, 4)}</th>)}
-                <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter border-b border-gray-200">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {membres.filter(m => nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase())).map((m, i) => {
-                const tot = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0).reduce((s, c) => s + c.montant, 0);
-                return (
-                  <tr key={m.id} className="hover:bg-dmn-green-50/20 group transition-colors">
-                    <td className="px-4 py-3 text-left whitespace-nowrap border-r border-gray-100 sticky left-0 bg-white z-10 group-hover:bg-dmn-green-50/20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)] transition-colors font-bold text-xs">
-                      <button onClick={() => setSelectedMemberHistory(m)} className="hover:text-dmn-green-600 text-gray-900 text-left transition-colors">
-                        {nomComplet(m)}
-                      </button>
-                    </td>
-                    {MOIS.map(mo => {
-                      const c = cotisations.find(x => x.mId === m.id && x.mois === mo && x.annee === globalYear);
-                      if (!c) return <td key={mo} className="px-1 py-3 text-gray-300 border-r border-gray-50 text-[10px]">—</td>;
-                      if (c.montant > 0) return (
-                        <td key={mo} className="px-1 py-3 bg-dmn-green-50/50 text-dmn-green-700 font-black border-r border-dmn-green-100/30 text-[9px]">
-                          {c.montant / 100}..
-                        </td>
-                      );
-                      return <td key={mo} className="px-1 py-3 bg-red-50/50 text-red-600 font-black border-r border-red-100/30 text-[10px]">✗</td>;
-                    })}
-                    <td className="px-4 py-3 font-black text-dmn-green-800 bg-dmn-green-50/30 text-[10px] whitespace-nowrap">{tot > 0 ? tot.toLocaleString() : '-'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+
+        {isMobile ? (
+          <div className="p-4 space-y-3">
+            {membres.filter(m => nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 15).map(m => {
+              const tot = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0).reduce((s, c) => s + c.montant, 0);
+              const paidMonthsCount = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0).length;
+              
+              return (
+                <div key={m.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex justify-between items-center group active:scale-[0.98] transition-transform" onClick={() => setSelectedMemberHistory(m)}>
+                  <div>
+                    <h4 className="text-sm font-black text-gray-900">{nomComplet(m)}</h4>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">
+                      {paidMonthsCount} / 12 mois payés
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-dmn-green-600">{tot.toLocaleString()} F</p>
+                    <div className="flex gap-0.5 mt-1.5 justify-end">
+                      {MOIS.map(mo => {
+                        const c = cotisations.find(x => x.mId === m.id && x.mois === mo && x.annee === globalYear);
+                        const isPaid = (c && c.montant > 0);
+                        return <div key={mo} className={`w-1.5 h-1.5 rounded-full ${isPaid ? 'bg-dmn-green-500' : 'bg-gray-200'}`}></div>
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="overflow-x-auto max-h-[700px] no-scrollbar">
+            <table className="w-full text-center border-collapse">
+              <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-20 shadow-sm border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50/95 backdrop-blur-sm z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Membre</th>
+                  {MOIS.map(m => <th key={m} className="px-1 py-4 font-black text-[9px] uppercase tracking-tighter border-b border-gray-200">{m.substring(0, 4)}</th>)}
+                  <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter border-b border-gray-200">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {membres.filter(m => nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase())).map((m, i) => {
+                  const tot = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0).reduce((s, c) => s + c.montant, 0);
+                  return (
+                    <tr key={m.id} className="hover:bg-dmn-green-50/20 group transition-colors">
+                      <td className="px-4 py-3 text-left whitespace-nowrap border-r border-gray-100 sticky left-0 bg-white z-10 group-hover:bg-dmn-green-50/20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)] transition-colors font-bold text-xs">
+                        <button onClick={() => setSelectedMemberHistory(m)} className="hover:text-dmn-green-600 text-gray-900 text-left transition-colors">
+                          {nomComplet(m)}
+                        </button>
+                      </td>
+                      {MOIS.map(mo => {
+                        const c = cotisations.find(x => x.mId === m.id && x.mois === mo && x.annee === globalYear);
+                        if (!c) return <td key={mo} className="px-1 py-3 text-gray-300 border-r border-gray-50 text-[10px]">—</td>;
+                        if (c.montant > 0) return (
+                          <td key={mo} className="px-1 py-3 bg-dmn-green-50/50 text-dmn-green-700 font-black border-r border-dmn-green-100/30 text-[9px]">
+                            {c.montant / 100}..
+                          </td>
+                        );
+                        return <td key={mo} className="px-1 py-3 bg-red-50/50 text-red-600 font-black border-r border-red-100/30 text-[10px]">✗</td>;
+                      })}
+                      <td className="px-4 py-3 font-black text-dmn-green-800 bg-dmn-green-50/30 text-[10px] whitespace-nowrap">{tot > 0 ? tot.toLocaleString() : '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

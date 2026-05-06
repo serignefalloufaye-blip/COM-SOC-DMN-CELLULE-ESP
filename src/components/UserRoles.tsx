@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AppUser, UserRole, AccessCode } from '../types';
 import { Shield, Mail, User as UserIcon, Trash2, CheckCircle2, Key, Plus, Copy, Check, Clock } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, updateDoc, deleteDoc, collection, onSnapshot, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
 interface UserRolesProps {
@@ -11,6 +11,10 @@ interface UserRolesProps {
   currentUserRole: UserRole | null;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   confirmAction: (title: string, msg: string, onConfirm: () => void) => void;
+  accessCodeInput?: string;
+  setAccessCodeInput?: (val: string) => void;
+  isUsingCode?: boolean;
+  handleUseAccessCode?: (e: React.FormEvent) => void;
 }
 
 const ROLES: { value: UserRole; label: string; color: string; desc: string }[] = [
@@ -21,7 +25,17 @@ const ROLES: { value: UserRole; label: string; color: string; desc: string }[] =
   { value: 'lecteur', label: 'Lecteur', color: 'bg-gray-100 text-gray-700', desc: 'Consultation uniquement' },
 ];
 
-export function UserRoles({ users, currentUserEmail, currentUserRole, showToast, confirmAction }: UserRolesProps) {
+export function UserRoles({ 
+  users, 
+  currentUserEmail, 
+  currentUserRole, 
+  showToast, 
+  confirmAction,
+  accessCodeInput = '',
+  setAccessCodeInput = () => {},
+  isUsingCode = false,
+  handleUseAccessCode = () => {}
+}: UserRolesProps) {
   const isAdmin = currentUserRole === 'admin';
   const visibleRoles = isAdmin ? ROLES : ROLES.filter(r => r.value === currentUserRole || r.value === 'lecteur');
 
@@ -74,12 +88,19 @@ export function UserRoles({ users, currentUserEmail, currentUserRole, showToast,
     });
   };
 
-  const handleRoleChange = async (userId: string, newRole: UserRole) => {
+  const handleRoleChange = async (user: AppUser, newRole: UserRole) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { role: newRole });
+      // Use setDoc with merge to ensure all required fields are present and satisfy Firestore rules
+      await setDoc(doc(db, 'users', user.uid), {
+         uid: user.uid,
+         email: user.email || '',
+         nom: user.nom || 'Utilisateur',
+         role: newRole
+      }, { merge: true });
       showToast('Rôle mis à jour avec succès');
-    } catch (error) {
-      showToast('Erreur lors de la mise à jour du rôle', 'error');
+    } catch (error: any) {
+      console.error(error);
+      showToast('Erreur lors de la mise à jour du rôle: ' + error.message, 'error');
     }
   };
 
@@ -112,6 +133,35 @@ export function UserRoles({ users, currentUserEmail, currentUserRole, showToast,
           <p className="text-gray-500 font-medium">Contrôlez qui accède à quoi dans l'organisation</p>
         </div>
       </div>
+
+      {!isAdmin && (
+        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-8">
+          <div className="max-w-md">
+            <h3 className="text-xl font-black text-gray-900 flex items-center gap-2 mb-2">
+              <Key className="text-dmn-gold" size={24} /> Entrer un Code d'Accès
+            </h3>
+            <p className="text-sm text-gray-500 mb-6 font-medium">Si l'administrateur vous a fourni un code d'accès pour modifier votre rôle, veuillez le saisir ci-dessous.</p>
+            
+            <form onSubmit={handleUseAccessCode} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                placeholder="Ex: XYZ-123"
+                value={accessCodeInput}
+                onChange={(e) => setAccessCodeInput(e.target.value)}
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-center font-mono font-black text-xl text-gray-900 uppercase tracking-widest focus:ring-2 focus:ring-dmn-gold/20 outline-none transition-all placeholder:text-gray-300 placeholder:font-sans placeholder:font-medium placeholder:normal-case placeholder:tracking-normal"
+                required
+              />
+              <button 
+                type="submit"
+                disabled={isUsingCode || !accessCodeInput}
+                className="bg-dmn-gold hover:bg-dmn-gold-dark text-white px-8 py-4 rounded-2xl shadow-lg shadow-dmn-gold/20 font-black uppercase text-xs tracking-widest transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[140px]"
+              >
+                {isUsingCode ? 'Vérification...' : 'Valider'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Access Codes Section */}
       {isAdmin && (
@@ -260,7 +310,7 @@ export function UserRoles({ users, currentUserEmail, currentUserRole, showToast,
                               <button
                                  key={role.value}
                                  disabled={!isAdmin || user.email === 'serignefalloufaye@esp.sn'}
-                                 onClick={() => handleRoleChange(user.uid, role.value)}
+                                 onClick={() => handleRoleChange(user, role.value)}
                                  className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left ${
                                     user.role === role.value 
                                     ? `${role.color} border-transparent ring-2 ring-offset-1 ring-current font-black`

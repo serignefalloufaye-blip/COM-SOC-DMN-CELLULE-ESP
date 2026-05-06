@@ -6,6 +6,7 @@ import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
 import { MOIS } from '../data';
 import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar } from 'lucide-react';
 import { TicketsStats } from './TicketsStats';
+import { useAdaptive } from '../hooks/useAdaptive';
 
 interface TicketsProps {
   membres: Membre[];
@@ -19,6 +20,7 @@ interface TicketsProps {
 }
 
 export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions, userRole }: TicketsProps) {
+  const { isMobile, isLowEndDevice } = useAdaptive();
   const [activeTab, setActiveTab] = useState<'collecte' | 'conversion' | 'distribution' | 'historique' | 'statistiques'>('statistiques');
   const isTickets = hasPermission(userRole as any, 'tickets.create');
   const canDelete = hasPermission(userRole as any, 'tickets.delete');
@@ -346,6 +348,8 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
     );
   };
 
+  const [searchHistory, setSearchHistory] = useState('');
+
   const renderHistorique = () => {
     type Operation = { id: string, date: number, type: 'Collecte' | 'Conversion' | 'Distribution', desc: string, detail: string };
     const history: Operation[] = [];
@@ -382,10 +386,29 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       });
     });
 
-    const sortedHistory = history.sort((a, b) => b.date - a.date);
+    const filteredHistory = history.filter(h => 
+      h.desc.toLowerCase().includes(searchHistory.toLowerCase()) || 
+      h.type.toLowerCase().includes(searchHistory.toLowerCase()) ||
+      h.detail.toLowerCase().includes(searchHistory.toLowerCase())
+    );
+
+    const sortedHistory = filteredHistory.sort((a, b) => b.date - a.date);
 
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
+        <div className="flex gap-3 mb-2 px-1">
+           <div className="relative flex-1">
+             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+             <input 
+               type="text" 
+               placeholder="Filtrer l'historique..." 
+               value={searchHistory}
+               onChange={(e) => setSearchHistory(e.target.value)}
+               className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 text-sm font-medium"
+             />
+           </div>
+        </div>
+        
         {/* Mobile View: Cards */}
         <div className="sm:hidden space-y-3">
            {sortedHistory.map((h, i) => (
@@ -479,43 +502,58 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
     <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500 pb-12">
       
       {/* Dashboard Section */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white p-4 sm:p-6 rounded-[2rem] shadow-sm border border-gray-100 relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-12 h-12 sm:w-16 sm:h-16 bg-gray-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-500"></div>
-          <p className="text-gray-400 text-[8px] sm:text-[10px] font-black uppercase tracking-widest mb-1">Argent Dispo</p>
-          <p className="text-xl sm:text-3xl font-black text-gray-900">{argentDisponible}F</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-1 sm:px-0">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-xl transition-all">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-gray-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+             <div className="w-1 h-1 bg-gray-300 rounded-full"></div> Argent Dispo
+          </div>
+          <div className="flex items-baseline gap-1">
+             <p className="text-2xl sm:text-3xl font-black text-gray-900">{argentDisponible}</p>
+             <span className="text-[10px] font-bold text-gray-400">FCFA</span>
+          </div>
         </div>
-        <div className="bg-dmn-green-600 p-4 sm:p-6 rounded-[2rem] shadow-sm border border-dmn-green-700 text-white relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <p className="text-dmn-green-100 text-[8px] sm:text-[10px] font-black uppercase tracking-widest mb-1">Petit Dèj</p>
-          <p className="text-xl sm:text-3xl font-black">{stockPetitDej}</p>
+
+        <div className="bg-dmn-green-600 p-6 rounded-[2.5rem] shadow-lg shadow-dmn-green-600/20 border border-dmn-green-700 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="text-dmn-green-100 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+             <div className="w-1 h-1 bg-dmn-green-200 rounded-full animate-pulse"></div> Petit Dèj
+          </div>
+          <p className="text-2xl sm:text-3xl font-black">{stockPetitDej}</p>
         </div>
-        <div className="bg-dmn-green-800 p-4 sm:p-6 rounded-[2rem] shadow-sm border border-dmn-green-900 text-white relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <p className="text-dmn-green-100 text-[8px] sm:text-[10px] font-black uppercase tracking-widest mb-1">Stock Repas</p>
-          <p className="text-xl sm:text-3xl font-black">{stockRepas}</p>
+
+        <div className="bg-dmn-green-900 p-6 rounded-[2.5rem] shadow-lg shadow-dmn-green-900/20 border border-dmn-green-950 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="text-dmn-green-100 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+             <div className="w-1 h-1 bg-dmn-green-200 rounded-full"></div> Stock Repas
+          </div>
+          <p className="text-2xl sm:text-3xl font-black">{stockRepas}</p>
         </div>
-        <div className="bg-orange-500 p-4 sm:p-6 rounded-[2rem] shadow-sm border border-orange-600 text-white relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <p className="text-orange-100 text-[8px] sm:text-[10px] font-black uppercase tracking-widest mb-1">Total Sortis</p>
-          <p className="text-xl sm:text-3xl font-black">{ticketsDistribuesPetitDej + ticketsDistribuesRepas}</p>
+
+        <div className="bg-orange-500 p-6 rounded-[2.5rem] shadow-lg shadow-orange-500/20 border border-orange-600 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="text-orange-100 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+             <div className="w-1 h-1 bg-orange-200 rounded-full"></div> Total Sortis
+          </div>
+          <p className="text-2xl sm:text-3xl font-black">{ticketsDistribuesPetitDej + ticketsDistribuesRepas}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         
-        <div className="flex overflow-x-auto border-b border-gray-100 no-scrollbar px-2 pt-2 scroll-smooth">
+        <div className="flex overflow-x-auto border-b border-gray-100 no-scrollbar p-3 gap-3">
           {tabs.map(t => (
              <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-2 px-4 sm:px-6 py-4 font-bold text-xs sm:text-sm whitespace-nowrap transition-all rounded-t-2xl min-w-fit ${
+              className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group whitespace-nowrap min-w-fit ${
                 activeTab === t.id 
-                  ? 'text-dmn-green-700 bg-dmn-green-50 shadow-sm border-b-2 border-dmn-green-500' 
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 border-b-2 border-transparent opacity-60'
+                  ? 'bg-dmn-green-600 text-white shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10' 
+                  : 'bg-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-transparent hover:border-gray-200'
               }`}
              >
-               <t.icon size={16} className="sm:size-18" /> {t.label}
+                <t.icon size={20} className={activeTab === t.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} />
+                <span>{t.label}</span>
              </button>
           ))}
         </div>

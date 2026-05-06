@@ -25,16 +25,17 @@ import { Tickets } from './components/Tickets';
 import { CafeModule } from './components/cafe/CafeModule';
 import { PremiumDashboard } from './components/PremiumDashboard';
 import { UserRoles } from './components/UserRoles';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { ReportService } from './services/ReportService';
 import * as XLSX from 'xlsx';
 import { 
   CafeProduction, CafeVente, CafeDepense, CafeTransfert 
 } from './types';
+import { useAdaptive } from './hooks/useAdaptive';
 
 type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres' | 'cafe' | 'roles';
 
 export default function App() {
+  const { screenSize, isMobile, isLowEndDevice, shouldReduceMotion } = useAdaptive();
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -153,6 +154,28 @@ export default function App() {
 
   const confirmAction = (title: string, message: string, onConfirm: () => void) => {
     setConfirmModal({ isOpen: true, title, message, onConfirm });
+  };
+
+  const handleQuickAction = (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => {
+    switch (action) {
+      case 'membre':
+        setActiveTab('membres');
+        setMembreSubTab('liste');
+        setEditingMembre(null);
+        setIsMembreModalOpen(true);
+        break;
+      case 'ticket':
+        setActiveTab('tickets');
+        break;
+      case 'cafe':
+        setActiveTab('cafe');
+        break;
+      case 'rapport':
+        setActiveTab('finance');
+        setFinanceSubTab('rapports');
+        setRapportSubTab('pdf');
+        break;
+    }
   };
 
   // Global Filters
@@ -849,131 +872,6 @@ export default function App() {
     return val.toLocaleString('fr-FR') + ' FCFA';
   };
 
-  const exportToPDF = async () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-
-    // Load logo if exists
-    let logoData: HTMLImageElement | null = null;
-    let logoHeight = 0;
-    const logoWidth = 35;
-
-    if (appSettings?.logoUrl) {
-      try {
-        logoData = await new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error('Logo load failed'));
-          img.src = appSettings.logoUrl!;
-        });
-        logoHeight = (logoData!.height * logoWidth) / logoData!.width;
-      } catch (err) {
-        console.warn("Logo non chargé pour le PDF:", err);
-      }
-    }
-
-    const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
-    const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
-    const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
-    
-    const annualDettes = dettes.filter(d => d.annee === globalYear);
-    const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
-    const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
-    const solde = totCot + totRec - totDep + totDettesNonPayees;
-    const headerHeight = logoData ? logoHeight + 50 : 40;
-    const logoY = 10;
-    const titleY = logoData ? logoY + logoHeight + 15 : 20;
-
-    // Header Background
-    doc.setFillColor(6, 78, 59); // dmn-green-900
-    doc.rect(0, 0, pageWidth, headerHeight, 'F');
-
-    // Add Logo
-    if (logoData) {
-      doc.addImage(logoData, 'PNG', (pageWidth - logoWidth) / 2, logoY, logoWidth, logoHeight);
-    }
-
-    // Header Text
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Rapport Financier Annuel - ${globalYear}`, logoData ? pageWidth / 2 : 14, titleY, { align: logoData ? 'center' : 'left' });
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.text('Daara Madjmahoune Noreyni – UCAD ESP', logoData ? pageWidth / 2 : 14, titleY + 10, { align: logoData ? 'center' : 'left' });
-
-    // Summary Section
-    const summaryY = headerHeight + 15;
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text('Résumé Financier', 14, summaryY);
-
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Total Cotisations : ${formatFCFA(totCot)}`, 14, summaryY + 10);
-    doc.text(`Autres Recettes : ${formatFCFA(totRec)}`, 14, summaryY + 17);
-    doc.text(`Total Dépenses : ${formatFCFA(totDep)}`, 14, summaryY + 24);
-    if (totDettesNonPayees > 0) {
-      doc.text(`Dettes (Non Payées) : +${formatFCFA(totDettesNonPayees)}`, 14, summaryY + 31);
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(solde >= 0 ? 5 : 220, solde >= 0 ? 150 : 38, solde >= 0 ? 105 : 38); // Green or Red
-    doc.text(`Solde Final : ${solde > 0 ? '+' : ''}${formatFCFA(solde)}`, 14, summaryY + (totDettesNonPayees > 0 ? 40 : 33));
-
-    const tableData = membres.map(m => {
-      const status = getMemberStatus(m.id);
-      const totalCotise = cotisations.filter(c => c.mId === m.id && c.annee === globalYear).reduce((s, c) => s + c.montant, 0);
-      return [
-        nomComplet(m), 
-        m.telephone || '-', 
-        m.statut || '-', 
-        status.isLate ? 'En Retard' : 'Régulier', 
-        status.unpaidCount,
-        totalCotise > 0 ? totalCotise.toLocaleString('fr-FR') : '0'
-      ];
-    });
-
-    autoTable(doc, {
-      head: [['Membre', 'Téléphone', 'Statut', 'État', 'Impayés', 'Total (F)']],
-      body: tableData,
-      startY: summaryY + 45,
-      theme: 'grid',
-      headStyles: { fillColor: [6, 78, 59], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      styles: { font: 'helvetica', fontSize: 9, cellPadding: 4 },
-      columnStyles: {
-        4: { halign: 'center' },
-        5: { halign: 'right', fontStyle: 'bold' }
-      }
-    });
-
-    const finalY = (doc as any).lastAutoTable.finalY;
-    
-    // Footer / Signature
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text('Le Trésorier', pageWidth - 50, finalY + 20);
-    doc.line(pageWidth - 60, finalY + 35, pageWidth - 14, finalY + 35);
-    
-    // Page numbers & generation date
-    const pageCount = (doc as any).internal.getNumberOfPages();
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Page ${i} sur ${pageCount}`, 14, doc.internal.pageSize.height - 10);
-    }
-
-    doc.save(`Rapport_DMN_Cellule_ESP_${globalYear}.pdf`);
-    showToast('Rapport PDF généré avec succès', 'success');
-  };
-
   const exportToExcel = () => {
     const data = membres.map(m => ({
       'Prénom': m.prenom,
@@ -1210,88 +1108,123 @@ export default function App() {
     const totCot = annualCotisations.reduce((s, c) => s + c.montant, 0);
     const totRec = annualRecettes.reduce((s, r) => s + r.montant, 0);
     const totDep = annualDepenses.reduce((s, d) => s + d.montant, 0);
-    const annualDettes = dettes.filter(d => d.annee === globalYear);
-    const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
-    const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
-    const solde = totCot + totRec - totDep + totDettesNonPayees;
+    const annualDettesItems = dettes.filter(d => d.annee === globalYear);
+    const totDettesNonPayees = annualDettesItems.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const solde = totCot + totRec - totDep;
+
+    const generatePDF = (periodType: 'annual' | 'quarterly' | 'monthly', pValue?: string | number) => {
+      ReportService.generateFinancialReport({
+        type: periodType,
+        year: globalYear,
+        month: periodType === 'monthly' ? pValue as string : undefined,
+        quarter: periodType === 'quarterly' ? pValue as number : undefined,
+        membres,
+        cotisations,
+        depenses,
+        recettes,
+        dettes,
+        ticketsCollectes: ticketCollectes,
+        ticketsDistributions: ticketDistributions,
+        cafeProductions,
+        cafeVentes,
+        cafeDepenses
+      });
+      showToast(`Rapport ${periodType} généré`, 'success');
+    };
 
     return (
-      <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="space-y-8 animate-in fade-in duration-500 pb-20">
         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-dmn-green-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
           
-          <h2 className="text-3xl font-heading font-black text-dmn-green-900 mb-2 relative z-10">Centre de Rapports</h2>
-          <p className="text-gray-500 mb-8 relative z-10 font-medium">Générez et téléchargez les documents officiels et exports de données.</p>
+          <h2 className="text-3xl font-heading font-black text-dmn-green-900 mb-2 relative z-10">Centre de Rapports Sophistiqué</h2>
+          <p className="text-gray-500 mb-8 relative z-10 font-medium">Documents certifiés incluant Finances, Tickets et Café.</p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-            {/* PDF Card */}
-            <div className="bg-gradient-to-br from-white to-red-50/30 rounded-3xl shadow-sm border border-red-100 p-8 hover:shadow-md transition-all group">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-inner">
-                <Printer size={32} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
+            {/* Annual Card */}
+            <div className="bg-white rounded-3xl border border-dmn-green-100 p-6 hover:shadow-lg transition-all group overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-2 bg-dmn-green-100 text-dmn-green-600 rounded-bl-2xl font-black text-[9px] uppercase tracking-widest">Premium</div>
+              <div className="w-12 h-12 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center mb-4">
+                <CalendarRange size={24} />
               </div>
-              <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Bilan Financier PDF</h3>
-              <p className="text-gray-500 mb-8 text-sm leading-relaxed">Document officiel formaté pour l'impression, incluant le résumé financier et l'état des membres.</p>
+              <h4 className="text-lg font-black text-gray-900 mb-2">Bilan Annuel {globalYear}</h4>
+              <p className="text-xs text-gray-400 mb-6 font-bold leading-relaxed">Rapport exhaustif regroupant tous les modules de l'année.</p>
               <button 
-                onClick={exportToPDF}
-                className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-600/20 active:scale-95 flex items-center justify-center gap-3"
+                onClick={() => generatePDF('annual')}
+                className="w-full bg-dmn-green-950 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
               >
-                <Printer size={20} /> Générer le Rapport PDF
+                <Printer size={14} /> Générer PDF Annuel
               </button>
             </div>
-            
-            {/* Excel Card */}
-            <div className="bg-gradient-to-br from-white to-emerald-50/30 rounded-3xl shadow-sm border border-emerald-100 p-8 hover:shadow-md transition-all group">
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-inner">
-                <CreditCard size={32} />
+
+            {/* Quarterly Card */}
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 hover:shadow-lg transition-all group">
+              <div className="w-12 h-12 bg-ambe-50 text-amber-600 rounded-xl flex items-center justify-center mb-4">
+                <BarChart3 size={24} />
               </div>
-              <h3 className="text-2xl font-heading font-bold text-gray-900 mb-3">Liste des Membres en Excel</h3>
-              <p className="text-gray-500 mb-8 text-sm leading-relaxed">Export Excel contenant uniquement : Prénom, Nom, Téléphone et Statut.</p>
-              <button 
-                onClick={exportToExcel}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-600/20 active:scale-95 flex items-center justify-center gap-3"
-              >
-                <CreditCard size={20} /> Télécharger l'Export Excel
-              </button>
+              <h4 className="text-lg font-black text-gray-900 mb-2">Bilans Trimestriels</h4>
+              <p className="text-xs text-gray-400 mb-6 font-bold leading-relaxed">Divisez l'année en 4 périodes pour un suivi agile.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[1, 2, 3, 4].map(q => (
+                  <button 
+                    key={q}
+                    onClick={() => generatePDF('quarterly', q)}
+                    className="py-2.5 bg-gray-50 hover:bg-dmn-green-50 text-gray-600 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-tighter rounded-xl transition-all"
+                  >
+                    T{q} PDF
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Monthly Card */}
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 hover:shadow-lg transition-all group overflow-y-auto max-h-[300px] no-scrollbar">
+              <div className="sticky top-0 bg-white pb-4 z-10 border-b border-gray-50 mb-4">
+                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+                   <Calendar size={24} />
+                 </div>
+                 <h4 className="text-lg font-black text-gray-900">Rapports Mensuels</h4>
+              </div>
+              <div className="space-y-2">
+                {MOIS.map(m => (
+                  <button 
+                    key={m}
+                    onClick={() => generatePDF('monthly', m)}
+                    className="w-full py-2.5 px-4 flex justify-between items-center group/btn hover:bg-dmn-green-50 text-gray-500 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-gray-50 hover:border-dmn-green-100"
+                  >
+                    <span>{m}</span>
+                    <ChevronRight size={12} className="opacity-0 group-hover/btn:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden max-w-4xl mx-auto">
-          <div className="bg-dmn-green-900 p-8 text-white text-center">
-            <h3 className="text-xl font-heading font-bold uppercase tracking-widest">Aperçu du Rapport Financier {globalYear}</h3>
-            <p className="text-dmn-green-300 text-xs mt-2">Daara Madjmahoune Noreyni – Commission Sociale</p>
+        <div className="bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden max-w-4xl mx-auto shadow-dmn-green-900/5">
+          <div className="bg-dmn-green-950 p-10 text-white text-center relative">
+            <div className="absolute top-1/2 left-10 -translate-y-1/2 opacity-10"><Activity size={80} /></div>
+            <h3 className="text-2xl font-heading font-black uppercase tracking-widest mb-1 italic">Vérification de Transparence</h3>
+            <p className="text-dmn-green-300 text-[10px] font-bold uppercase tracking-[0.4em]">Daara Madjmahoune Noreyni – {globalYear}</p>
           </div>
-          <div className="p-10 space-y-12">
+          <div className="p-10 sm:p-14 space-y-12">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-              <div className="text-center">
-                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Entrées</p>
-                <p className="text-3xl font-heading font-black text-dmn-green-600">{formatPrice(totCot + totRec)} F</p>
+              <div className="text-center p-6 bg-gray-50 rounded-3xl">
+                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Flux de Trésorerie</p>
+                <p className="text-3xl font-heading font-black text-dmn-green-600">{formatPrice(totCot + totRec)} <span className="text-xs text-gray-400">FCFA</span></p>
               </div>
-              <div className="text-center">
-                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Dépenses</p>
-                <p className="text-3xl font-heading font-black text-red-600">{formatPrice(totDep)} F</p>
+              <div className="text-center p-6 bg-red-50/50 rounded-3xl">
+                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Engagements</p>
+                <p className="text-3xl font-heading font-black text-red-600">{formatPrice(totDep)} <span className="text-xs text-gray-400">FCFA</span></p>
               </div>
-              <div className="text-center">
-                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Solde Net</p>
-                <p className="text-3xl font-heading font-black text-blue-600">{formatPrice(solde)} F</p>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-100 pt-12 flex flex-col sm:flex-row justify-between gap-12">
-              <div className="flex-1 text-center sm:text-left">
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-16">Le Président</p>
-                <div className="w-48 h-0.5 bg-gray-200 mx-auto sm:mx-0"></div>
-                <p className="text-[10px] text-gray-400 mt-2 italic">Signature & Cachet</p>
-              </div>
-              <div className="flex-1 text-center sm:text-right">
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-16">Le Trésorier</p>
-                <div className="w-48 h-0.5 bg-gray-200 mx-auto sm:ml-auto"></div>
-                <p className="text-[10px] text-gray-400 mt-2 italic">Signature & Cachet</p>
+              <div className="text-center p-6 bg-blue-50/50 rounded-3xl border border-blue-100 shadow-sm">
+                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Position Actuelle</p>
+                <p className="text-3xl font-heading font-black text-blue-700">{formatPrice(solde)} <span className="text-xs text-gray-400">FCFA</span></p>
               </div>
             </div>
           </div>
-          <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">Document généré le {new Date().toLocaleDateString()} à {new Date().toLocaleTimeString()}</p>
+          <div className="bg-gray-900 p-6 text-center border-t border-white/5">
+            <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.3em]">Certifié Conforme par le bureau CS DMN UCAD</p>
           </div>
         </div>
       </div>
@@ -2728,11 +2661,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-dmn-bg text-gray-800 font-sans pb-32 sm:pb-10 relative overflow-x-hidden">
+    <div className={`min-h-screen bg-dmn-bg text-gray-800 font-sans ${isMobile ? 'pb-32' : 'pb-10'} relative overflow-x-hidden`}>
       {/* Header Premium */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-gray-100 flex justify-between items-center px-6 py-4 sticky top-0 z-[100] shadow-soft">
+      <header className="bg-white/80 backdrop-blur-2xl border-b border-gray-100 flex justify-between items-center px-5 py-3.5 sticky top-0 z-[100] shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-dmn-green-900 rounded-xl flex items-center justify-center overflow-hidden shadow-premium border border-white/10">
+          <div className="w-11 h-11 bg-dmn-green-900 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg border border-white/10 transition-transform active:scale-95">
             <img 
               src={appSettings.logoUrl || "logo.png"} 
               alt="Logo DMN" 
@@ -2747,24 +2680,31 @@ export default function App() {
                 }
               }} 
             />
-            <span className="hidden text-white font-black text-[10px] uppercase">M.</span>
+            <span className="hidden text-white font-black text-[12px] uppercase">DMN</span>
           </div>
           <div>
-            <h1 className="text-lg font-black text-dmn-green-900 tracking-tight leading-none uppercase">Daara M.</h1>
-            <p className="text-[9px] font-black text-dmn-green-600 uppercase tracking-widest mt-1">CS DMN UCAD</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[17px] font-black text-dmn-green-950 tracking-tight leading-none uppercase">Daara M.</h1>
+              {!isMobile && (
+                <span className="text-[10px] font-bold text-gray-400 border-l border-gray-200 pl-2 uppercase tracking-widest hidden lg:inline">Système de Gestion</span>
+              )}
+            </div>
+            <div className="text-[8px] font-black text-dmn-green-600 uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5">
+               <div className="w-1 h-1 bg-dmn-green-400 rounded-full animate-pulse"></div> CS DMN UCAD
+            </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
-          {userRole === 'admin' && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-dmn-green-50 rounded-full border border-dmn-green-100">
+        <div className="flex items-center gap-3">
+          {userRole && userRole !== 'visitor' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-dmn-green-50 rounded-full border border-dmn-green-100">
                <Shield size={12} className="text-dmn-green-600" />
-               <span className="text-[10px] font-black text-dmn-green-600 uppercase tracking-widest">Admin</span>
+               <span className="text-[9px] font-black text-dmn-green-600 uppercase tracking-widest">{userRole}</span>
             </div>
           )}
           <button 
             onClick={logOut} 
-            className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-all active:scale-95 border border-gray-100"
+            className="w-10 h-10 flex items-center justify-center bg-white hover:bg-gray-50 text-gray-400 hover:text-red-500 rounded-xl transition-all active:scale-90 border border-gray-100 shadow-sm"
           >
             <LogOut size={18} />
           </button>
@@ -2836,13 +2776,14 @@ export default function App() {
                 <button 
                   key={sub.id} 
                   onClick={() => setFinanceSubTab(sub.id as any)} 
-                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-soft ${
+                  className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all shadow-sm group whitespace-nowrap border ${
                     financeSubTab === sub.id 
-                      ? 'bg-dmn-green-600 text-white border-dmn-green-600' 
-                      : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
+                      ? 'bg-dmn-green-600 text-white border-transparent shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10 scale-105' 
+                      : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
-                   <sub.icon size={12} /> {sub.label}
+                   <sub.icon size={14} className={financeSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
+                   <span>{sub.label}</span>
                 </button>
               ))}
 
@@ -2854,13 +2795,14 @@ export default function App() {
                 <button 
                   key={sub.id} 
                   onClick={() => setMembreSubTab(sub.id as any)} 
-                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shadow-soft ${
+                  className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all shadow-sm group whitespace-nowrap border ${
                     membreSubTab === sub.id 
-                      ? 'bg-dmn-green-600 text-white border-dmn-green-600' 
-                      : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100'
+                      ? 'bg-dmn-green-600 text-white border-transparent shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10 scale-105' 
+                      : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
-                   <sub.icon size={12} /> {sub.label}
+                   <sub.icon size={14} className={membreSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
+                   <span>{sub.label}</span>
                 </button>
               ))}
             </div>
@@ -2877,7 +2819,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="p-4"
+            className="p-3 sm:p-6 lg:p-8"
           >
         {activeTab === 'dashboard' && <PremiumDashboard 
           membres={membres} cotisations={cotisations} depenses={depenses} 
@@ -2886,6 +2828,7 @@ export default function App() {
           cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
           globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
           logoUrl={appSettings.logoUrl} userRole={userRole} onLogoUpload={handleLogoUpload}
+          onQuickAction={handleQuickAction}
         />}
 
         {activeTab === 'finance' && financeSubTab === 'saisie' && renderSaisieRapide()}
@@ -2932,6 +2875,10 @@ export default function App() {
             currentUserRole={userRole}
             showToast={showToast}
             confirmAction={confirmAction}
+            accessCodeInput={accessCodeInput}
+            setAccessCodeInput={setAccessCodeInput}
+            isUsingCode={isUsingCode}
+            handleUseAccessCode={handleUseAccessCode}
           />
         )}
           </motion.div>
@@ -2951,32 +2898,32 @@ export default function App() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as Tab)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-soft ${
+            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group ${
               activeTab === tab.id 
-                ? 'bg-dmn-green-600 text-white shadow-dmn-green-600/20 scale-105' 
-                : 'bg-white text-gray-400 hover:bg-dmn-green-50 hover:text-dmn-green-700 border border-gray-100 hover:scale-105'
+                ? 'bg-dmn-green-600 text-white shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10 scale-105' 
+                : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200 hover:border-gray-300 hover:scale-105'
             }`}
           >
-            <tab.icon size={16} /> {tab.label}
+            <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-[2px] group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
+            <span>{tab.label}</span>
           </button>
         ))}
       </nav>
 
       {/* Floating Bottom Navigation Apple Wallet Style (Mobile) */}
-      <div className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-full px-4 pointer-events-none">
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-[150] pb-[env(safe-area-inset-bottom,20px)] pt-10 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
         <motion.nav 
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="bg-gray-900/95 backdrop-blur-xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-[2rem] h-16 flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-sm"
+          className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2.5rem] h-[72px] flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-[92%]"
         >
           {[
-            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur', 'visitor'] },
             { id: 'finance', label: 'Caisse', icon: Wallet, roles: ['admin', 'caisse', 'lecteur'] },
             { id: 'tickets', label: 'Tickets', icon: Ticket, roles: ['admin', 'tickets', 'lecteur'] },
             { id: 'cafe', label: 'Café', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
             { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
-            { id: 'roles', label: 'Équipe', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
-          ].filter(tab => tab.roles.includes(userRole as any)).map(tab => (
+          ].filter(tab => tab.roles.includes(userRole as any || 'visitor')).map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as Tab)}
@@ -2985,18 +2932,18 @@ export default function App() {
               <div className={`p-2 rounded-2xl transition-all duration-300 ${
                 activeTab === tab.id 
                   ? 'bg-dmn-green-500 text-gray-900 scale-110 shadow-lg shadow-dmn-green-500/20' 
-                  : 'text-gray-400 group-hover:text-white'
+                  : 'text-gray-400 active:scale-95'
               }`}>
-                <tab.icon size={20} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-2'} />
+                <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-2 opacity-70'} />
               </div>
-              <span className={`text-[8px] font-black uppercase tracking-widest mt-1 hidden transition-all duration-300 ${
-                activeTab === tab.id ? 'opacity-100 text-white' : 'opacity-40 text-gray-400'
+              <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 transition-all duration-300 ${
+                activeTab === tab.id ? 'opacity-100 text-white translate-y-0' : 'opacity-40 text-gray-400'
               }`}>
                 {tab.label}
               </span>
               {activeTab === tab.id && (
                 <motion.div 
-                  layoutId="nav-dot"
+                  layoutId="nav-dot-mobile"
                   className="absolute -bottom-1 w-1 h-1 bg-dmn-green-500 rounded-full"
                 />
               )}
@@ -3009,7 +2956,7 @@ export default function App() {
       <footer className="mt-20 pb-40 px-6 text-center space-y-4">
         <div className="w-12 h-1 bg-dmn-green-100 mx-auto rounded-full"></div>
         <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Daara Madjmahoune Noreyni</p>
-        <p className="text-[10px] italic text-gray-400">“La transparence est une responsabilité”</p>
+        <p className="text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.1em]">La transparence est une responsabilité</p>
       </footer>
 
       {renderMemberHistoryModal()}
@@ -3291,6 +3238,22 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 🚀 SYSTEM STATUS FOOTER */}
+      <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
+         <div className="flex items-center gap-4">
+            <div className={`w-2 h-2 rounded-full ${isAuthReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">DMN Cloud Engine v3.0.0</p>
+         </div>
+         <div className="flex gap-8">
+            <p className="text-[10px] font-bold text-gray-400 uppercase">Base de données : <span className={isAuthReady ? 'text-green-600' : 'text-red-500'}>{isAuthReady ? 'Connectée' : 'Hors-ligne'}</span></p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase">Performance : <span className="text-blue-500">{isLowEndDevice ? 'Économique' : 'Optimale'}</span></p>
+         </div>
+         <div className="flex items-center gap-2 text-[9px] font-black text-dmn-green-700 bg-dmn-green-50 px-4 py-2 rounded-xl uppercase tracking-widest border border-dmn-green-100 shadow-sm">
+            <Shield size={12} />
+            Système Sécurisé par Celulle CS DMN
+         </div>
+      </footer>
     </div>
   );
 }

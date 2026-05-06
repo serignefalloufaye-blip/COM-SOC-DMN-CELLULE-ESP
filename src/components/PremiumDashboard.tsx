@@ -3,13 +3,14 @@ import { Membre, Cotisation, Depense, Recette, Dette, TicketCollecte, TicketConv
 import { MOIS } from '../data';
 import { 
   Building2, TrendingUp, TrendingDown, Users, AlertCircle, 
-  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3
+  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3, Shield
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, AreaChart, Area
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAdaptive } from '../hooks/useAdaptive';
 
 interface PremiumDashboardProps {
   membres: Membre[];
@@ -29,6 +30,7 @@ interface PremiumDashboardProps {
   logoUrl?: string;
   userRole?: 'admin' | 'visitor' | 'caisse' | 'cafe' | 'tickets' | 'lecteur' | null;
   onLogoUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onQuickAction?: (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => void;
 }
 
 const formatPrice = (p: number) => p.toLocaleString('fr-FR');
@@ -37,8 +39,11 @@ export function PremiumDashboard({
   membres, cotisations, depenses, recettes, dettes,
   ticketCollectes, ticketConversions, ticketDistributions,
   cafeProductions, cafeVentes, cafeDepenses,
-  globalYear, globalMonth, logoUrl, userRole, onLogoUpload
+  globalYear, globalMonth, logoUrl, userRole, onLogoUpload,
+  onQuickAction
 }: PremiumDashboardProps) {
+
+  const { isMobile, isLowEndDevice, performance } = useAdaptive();
 
   // --- LOGIC CALCULATIONS (Keep from original) ---
   const filteredCafeVentes = useMemo(() => cafeVentes.filter(v => new Date(v.date).getFullYear() === globalYear), [cafeVentes, globalYear]);
@@ -121,7 +126,14 @@ export function PremiumDashboard({
     ...recettes.map(r => ({ date: r.createdAt || r.updatedAt || 0, label: `Recette : ${r.motif}`, amount: r.montant, type: 'in', icon: ArrowUpRight })),
     ...ticketDistributions.map(d => ({ date: d.createdAt || 0, label: `Tickets à ${membres.find(m => m.id === d.mId)?.prenom} ${membres.find(m => m.id === d.mId)?.nom}`, amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, type: 'ticket', icon: Ticket })),
     ...cafeVentes.map(v => ({ date: v.createdAt || v.date, label: `Vente Café (${v.quantite})`, amount: v.total, type: 'cafe', icon: Coffee }))
-  ].sort((a, b) => b.date - a.date).slice(0, 6);
+  ].sort((a, b) => b.date - a.date);
+
+  const recentHistory = history.slice(0, 6);
+
+  const today = new Date().setHours(0,0,0,0);
+  const todayTransactions = history.filter(h => new Date(h.date).setHours(0,0,0,0) === today);
+  const todayIn = todayTransactions.filter(t => t.type === 'in' || t.type === 'cafe').reduce((s, t) => s + t.amount, 0);
+  const todayOut = todayTransactions.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -143,191 +155,279 @@ export function PremiumDashboard({
       initial="hidden"
       animate="show"
       variants={containerVariants}
-      className="max-w-md mx-auto space-y-8 pb-20 pt-4"
+      className="max-w-4xl mx-auto space-y-8 pb-32 pt-4 sm:pt-10"
     >
       {/* 💳 MAIN WALLET CARD */}
-      <motion.div variants={itemVariants} className="px-4 card-stack">
-        <div className="relative h-64 w-full bg-dmn-green-900 rounded-[3rem] p-8 shadow-premium overflow-hidden transition-transform hover:scale-[1.02] duration-500 cursor-pointer group">
-          {/* Background effects */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-dmn-green-500/10 rounded-full blur-[100px] -mr-32 -mt-32"></div>
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-dmn-gold/20 rounded-full blur-[80px] -ml-16 -mb-16"></div>
+      <motion.div variants={itemVariants} className="px-5 sm:px-0">
+        <div className="relative h-64 w-full bg-dmn-green-900 rounded-[3rem] p-8 shadow-2xl overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.98] duration-500 cursor-pointer group">
+          {/* Background Gradient Overlays */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-dmn-green-500/20 rounded-full blur-[110px] -mr-40 -mt-40 transition-transform group-hover:scale-125 duration-700"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-dmn-gold/30 rounded-full blur-[90px] -ml-20 -mb-20 transition-transform group-hover:scale-125 duration-700"></div>
           
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div className="space-y-1">
-                <p className="text-dmn-green-300 text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Solde Global</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-dmn-green-300 text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Solde Disponible</p>
+                  <div className="w-1.5 h-1.5 bg-dmn-green-400 rounded-full animate-pulse"></div>
+                </div>
                 <div className="flex items-baseline gap-2">
-                  <h2 className="text-4xl font-black text-white tracking-tight">
+                  <h2 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
                     {formatPrice(soldeGlobal)}
                   </h2>
-                  <span className="text-lg font-bold text-dmn-green-400">FCFA</span>
+                  <span className="text-lg font-bold text-dmn-green-400 group-hover:translate-x-1 transition-transform">FCFA</span>
                 </div>
               </div>
-              <div className="w-10 h-10 glass-dark rounded-xl flex items-center justify-center">
-                <Zap size={20} className="text-dmn-gold-light" />
+              <div className="w-12 h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center shadow-lg">
+                <Zap size={22} className="text-dmn-gold-light" />
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 sm:gap-10">
               <div className="space-y-1">
-                <p className="text-dmn-green-400/60 text-[9px] font-black uppercase tracking-widest">Entrées</p>
-                <p className="text-white font-black text-xs">+{formatPrice(totEntrees)} F</p>
+                <p className="text-dmn-green-400/60 text-[9px] font-black uppercase tracking-widest">Entrées Globales</p>
+                <div className="flex items-center gap-1.5">
+                   <ArrowUpRight size={12} className="text-dmn-green-400" />
+                   <p className="text-white font-black text-sm">{formatPrice(totEntrees)} F</p>
+                </div>
               </div>
-              <div className="w-px h-6 bg-white/10"></div>
+              <div className="w-px h-8 bg-white/10"></div>
               <div className="space-y-1">
-                <p className="text-red-400/60 text-[9px] font-black uppercase tracking-widest">Dépenses</p>
-                <p className="text-white font-black text-xs">-{formatPrice(totDepenses)} F</p>
+                <p className="text-red-400/60 text-[9px] font-black uppercase tracking-widest">Dépenses Globales</p>
+                <div className="flex items-center gap-1.5">
+                   <ArrowDownRight size={12} className="text-red-400" />
+                   <p className="text-white font-black text-sm">{formatPrice(totDepenses)} F</p>
+                </div>
               </div>
             </div>
 
             <div className="flex justify-between items-center text-white/40">
-              <p className="text-[8px] font-mono tracking-widest uppercase">**** **** **** {globalYear}</p>
+              <div className="flex gap-4">
+                 <p className="text-[10px] font-mono tracking-[0.3em] uppercase">**** {globalYear}</p>
+                 <Shield size={16} className="opacity-30" />
+              </div>
               <Building2 size={24} className="opacity-50" />
             </div>
           </div>
         </div>
       </motion.div>
 
-      {/* 📲 HORIZONTAL MODULE SCROLL */}
-      <motion.section variants={itemVariants} className="space-y-4">
-        <div className="px-6 flex justify-between items-center">
-          <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">Services</h3>
-          <ChevronRight size={14} className="text-gray-300" />
+      {/* ⚡ QUICK ACTIONS & DAILY STATUS */}
+      <motion.div variants={itemVariants} className="px-5 sm:px-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Daily Summary */}
+        <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex items-center justify-between">
+           <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-600">
+                 <Zap size={20} />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Aujourd'hui</p>
+                 <div className="flex items-center gap-2">
+                    <span className="text-green-600 font-black">+{formatPrice(todayIn)}</span>
+                    <span className="text-gray-300">/</span>
+                    <span className="text-red-500 font-black">-{formatPrice(todayOut)}</span>
+                 </div>
+              </div>
+           </div>
+           <div className="text-right">
+              <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-widest bg-dmn-green-50 px-2 py-0.5 rounded-md inline-block mb-1">Live</p>
+              <p className="text-[9px] font-bold text-gray-400">{new Date().toLocaleDateString('fr-FR', { weekday: 'long' })}</p>
+           </div>
         </div>
-        <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-2">
+
+        {/* Quick Access Menu */}
+        <div className="bg-gray-900 rounded-[2rem] p-3 flex items-center justify-around overflow-hidden relative shadow-xl shadow-dmn-green-950/20">
+           <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-12 -mt-12"></div>
+           <button onClick={() => onQuickAction?.('membre')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
+             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-dmn-green-500 group-hover:text-gray-900 transition-all">
+                <Users size={18} />
+             </div>
+             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Membre</span>
+           </button>
+           <button onClick={() => onQuickAction?.('ticket')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
+             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-amber-500 group-hover:text-gray-900 transition-all">
+                <Ticket size={18} />
+             </div>
+             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Tickets</span>
+           </button>
+           <button onClick={() => onQuickAction?.('cafe')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
+             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-orange-500 group-hover:text-gray-900 transition-all">
+                <Coffee size={18} />
+             </div>
+             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Café</span>
+           </button>
+           <button onClick={() => onQuickAction?.('rapport')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
+             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-blue-500 group-hover:text-gray-900 transition-all">
+                <BarChart3 size={18} />
+             </div>
+             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Rapport</span>
+           </button>
+        </div>
+      </motion.div>
+
+      {/* 📲 HORIZONTAL MODULE SCROLL */}
+      <motion.section variants={itemVariants} className="space-y-5">
+        <div className="px-7 flex justify-between items-center">
+          <h3 className="text-[12px] font-black text-gray-400 uppercase tracking-[0.25em]">Services Actifs</h3>
+          <div className="flex items-center gap-1 text-[10px] font-bold text-dmn-green-600 bg-dmn-green-50 px-3 py-1 rounded-full uppercase tracking-widest">
+             Live <div className="w-1.5 h-1.5 bg-dmn-green-500 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+        <div className="flex gap-4 sm:gap-5 overflow-x-auto px-6 no-scrollbar pb-2 sm:pb-3">
           {/* Caisse Module Card */}
-          <div className="min-w-[140px] premium-card p-5 flex flex-col gap-4 relative overflow-hidden group">
-            <div className="w-10 h-10 rounded-2xl bg-dmn-green-50 text-dmn-green-600 flex items-center justify-center transition-transform group-hover:scale-110">
+          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-dmn-green-600/5 transition-all">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-dmn-green-50 text-dmn-green-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
               <Wallet size={18} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400">Caisse</p>
-              <p className="font-black text-gray-900">{formatPrice(totCotisations)} F</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Caisse</p>
+              <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-dmn-green-600 transition-colors uppercase">{formatPrice(totCotisations)} F</p>
             </div>
-            <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-dmn-green-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-dmn-green-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
 
           {/* Tickets Module Card */}
-          <div className="min-w-[140px] premium-card p-5 flex flex-col gap-4 relative overflow-hidden group">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center transition-transform group-hover:scale-110">
+          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-amber-600/5 transition-all">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
               <Ticket size={18} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400">Tickets</p>
-              <p className="font-black text-gray-900">{stockPD + stockRepas} uts</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Tickets en Stock</p>
+              <div className="flex items-baseline gap-1">
+                <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-amber-600 transition-colors uppercase">{stockPD + stockRepas}</p>
+                <span className="text-[9px] font-black text-gray-300">UTS</span>
+              </div>
+              <div className="w-full h-1 bg-gray-50 rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(100, ((stockPD + stockRepas) / 100) * 100)}%` }}></div>
+              </div>
             </div>
-            <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-amber-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-amber-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
 
           {/* Café Module Card */}
-          <div className="min-w-[140px] premium-card p-5 flex flex-col gap-4 relative overflow-hidden group">
-            <div className="w-10 h-10 rounded-2xl bg-[#f5ebe0] text-[#78350f] flex items-center justify-center transition-transform group-hover:scale-110">
+          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-orange-800/5 transition-all">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#f5ebe0] text-[#78350f] flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
               <Coffee size={18} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400">Café</p>
-              <p className="font-black text-gray-900">{cafeStock} uts</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Stock Café</p>
+              <div className="flex items-baseline gap-1">
+                <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-[#78350f] transition-colors uppercase">{cafeStock}</p>
+                <span className="text-[9px] font-black text-gray-300">UTS</span>
+              </div>
+              <div className="w-full h-1 bg-gray-50 rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-[#78350f] rounded-full" style={{ width: `${Math.min(100, (cafeStock / 500) * 100)}%` }}></div>
+              </div>
             </div>
-            <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-[#fdfaf6] rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-[#fdfaf6] rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
 
           {/* Stats Module Card */}
-          <div className="min-w-[140px] premium-card p-5 flex flex-col gap-4 relative overflow-hidden group">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center transition-transform group-hover:scale-110">
+          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-blue-600/5 transition-all">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
               <BarChart3 size={18} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400">Stats</p>
-              <p className="font-black text-gray-900">{membresActifs} actifs</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">Membres</p>
+              <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-blue-600 transition-colors uppercase">{membresActifs} actifs</p>
             </div>
-            <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-blue-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-blue-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
         </div>
       </motion.section>
 
-      {/* 📊 ANALYTICS PREVIEW */}
+      {/* 📊 ANALYTICS PREVIEW (Adaptive) */}
       <motion.div variants={itemVariants} className="px-4">
         <div className="premium-card p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
               <Activity size={16} className="text-dmn-green-500" /> Analystiques
             </h3>
-            <button className="text-[10px] font-black text-dmn-green-600 uppercase tracking-widest flex items-center gap-1">
-              Détails <ArrowRight size={12} />
-            </button>
+            <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-md">
+              {performance === 'low' ? 'Simplifié (Eco)' : 'Détaillé (HD)'}
+            </div>
           </div>
           <div className="h-40 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={evolutionSoldeData}>
-                <defs>
-                  <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22C55E" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#22C55E" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
-                <XAxis dataKey="name" hide />
-                <Tooltip 
-                  contentStyle={{ 
-                    borderRadius: '24px', 
-                    border: 'none', 
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
-                    padding: '12px 16px'
-                  }} 
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="Entrées" 
-                  stroke="#22C55E" 
-                  fillOpacity={1} 
-                  fill="url(#colorArea)" 
-                  strokeWidth={3} 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {isLowEndDevice ? (
+              <div className="h-full flex items-center justify-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-100 italic text-[10px] text-gray-400 font-bold px-10 text-center">
+                Affichage optimisé pour votre appareil
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={evolutionSoldeData}>
+                  <defs>
+                    <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22C55E" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#22C55E" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
+                  <XAxis dataKey="name" hide />
+                  <Tooltip 
+                    contentStyle={{ 
+                      borderRadius: '24px', 
+                      border: 'none', 
+                      boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
+                      padding: '12px 16px',
+                      fontSize: '10px',
+                      fontWeight: '900'
+                    }} 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="Entrées" 
+                    stroke="#22C55E" 
+                    fillOpacity={1} 
+                    fill="url(#colorArea)" 
+                    strokeWidth={3} 
+                    animationDuration={performance === 'high' ? 2000 : 0}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </motion.div>
 
       {/* 📋 RECENT TRANSACTIONS */}
-      <motion.section variants={itemVariants} className="px-4 space-y-4">
+      <motion.section variants={itemVariants} className="px-5 sm:px-0 space-y-5">
         <div className="flex justify-between items-center px-2">
-          <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">Transactions Récentes</h3>
-          <button className="text-[11px] font-black text-dmn-green-600 uppercase tracking-widest">Voir tout</button>
+          <h3 className="text-[12px] font-black text-gray-400 uppercase tracking-[0.25em]">Flux financier récent</h3>
+          <button className="text-[10px] font-black text-dmn-green-600 bg-dmn-green-50 px-4 py-2 rounded-full uppercase tracking-widest hover:bg-dmn-green-100 transition-colors">Tout voir</button>
         </div>
-        <div className="space-y-2">
-          {history.map((h, i) => (
+        <div className="space-y-4">
+          {recentHistory.map((h, i) => (
             <motion.div 
               key={i}
-              whileTap={{ scale: 0.98 }}
-              className="premium-card p-4 flex items-center justify-between group transition-colors hover:bg-gray-50/50"
+              whileTap={{ scale: 0.985 }}
+              className="bg-white p-5 rounded-[2.5rem] flex items-center justify-between group transition-all hover:shadow-xl hover:shadow-gray-200/40 border border-gray-100"
             >
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+              <div className="flex items-center gap-5">
+                <div className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 ${
                   h.type === 'in' ? 'bg-green-50 text-green-600' :
                   h.type === 'out' ? 'bg-red-50 text-red-600' :
                   'bg-orange-50 text-orange-500'
                 }`}>
-                  <h.icon size={20} />
+                  <h.icon size={24} className={h.type === 'in' ? 'animate-bounce-slow' : ''} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-black text-gray-900 truncate pr-2">{h.label}</p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
-                    {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '---'}
+                  <p className="text-sm sm:text-base font-black text-gray-900 truncate pr-2 group-hover:text-dmn-green-700 transition-colors">{h.label}</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) : '---'}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className={`text-sm font-black ${
+                <p className={`text-base font-black ${
                   h.type === 'in' ? 'text-dmn-green-600' :
                   h.type === 'out' ? 'text-red-600' :
                   'text-amber-600'
                 }`}>
                   {h.type === 'in' ? '+' : '-'}{formatPrice(h.amount)}
                 </p>
-                <div className="w-full h-1 bg-gray-50 rounded-full mt-2 overflow-hidden">
-                  <div className={`h-full rounded-full ${
-                    h.type === 'in' ? 'bg-dmn-green-500' : 'bg-red-400'
+                <div className="w-16 h-1.5 bg-gray-50 rounded-full mt-3 overflow-hidden ml-auto">
+                  <div className={`h-full rounded-full transition-all duration-700 delay-300 ${
+                    h.type === 'in' ? 'bg-green-500' : 'bg-red-400'
                   }`} style={{ width: '100%' }}></div>
                 </div>
               </div>

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Coffee, TrendingUp, TrendingDown, Package, Plus, Search, 
   Trash2, ArrowRightLeft, BarChart3, Calendar, Wallet, History,
-  AlertCircle, Filter
+  AlertCircle, Filter, PieChart as PieChartIcon
 } from 'lucide-react';
 import { CafeProduction, CafeVente, CafeDepense, CafeTransfert, ModePaiement } from '../../types';
 import { db } from '../../firebase';
@@ -12,6 +12,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts';
+import { useAdaptive } from '../../hooks/useAdaptive';
 
 interface CafeModuleProps {
   productions: CafeProduction[];
@@ -27,6 +28,7 @@ export function CafeModule({
   productions, ventes, depenses, transferts, 
   userRole, showToast, onTransferToCaisse 
 }: CafeModuleProps) {
+  const { isMobile, isLowEndDevice, performance } = useAdaptive();
   const [activeTab, setActiveTab] = useState<'stats' | 'ventes' | 'production' | 'depenses' | 'stock' | 'historique'>('stats');
   const [filterPeriod, setFilterPeriod] = useState<'Mois' | 'Trimestre' | 'Année'>('Mois');
   
@@ -209,27 +211,27 @@ export function CafeModule({
       </div>
 
       {/* Tabs */}
-      <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center overflow-x-auto no-scrollbar">
-        <div className="flex gap-1">
+      <div className="bg-white p-3 rounded-[2rem] shadow-sm border border-gray-100 flex justify-between items-center overflow-x-auto no-scrollbar mb-6 gap-4">
+        <div className="flex gap-2">
           {[
-            { id: 'stats', label: 'Dashboard', icon: BarChart3 },
+            { id: 'stats', label: 'Tableau de bord', icon: BarChart3 },
             { id: 'ventes', label: 'Ventes', icon: TrendingUp },
-            { id: 'production', label: 'Production', icon: Coffee },
+            { id: 'production', label: 'Productions', icon: Coffee },
             { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
-            { id: 'stock', label: 'Stock', icon: Package },
+            { id: 'stock', label: 'État du Stock', icon: Package },
             { id: 'historique', label: 'Historique', icon: History }
           ].map(t => (
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+              className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group whitespace-nowrap ${
                 activeTab === t.id 
-                  ? 'bg-brown-600 text-white shadow-lg shadow-brown-600/20' 
-                  : 'text-gray-500 hover:bg-gray-50'
+                  ? 'bg-brown-600 text-white shadow-md shadow-brown-600/20 ring-4 ring-brown-600/10' 
+                  : 'bg-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-transparent hover:border-gray-200'
               }`}
             >
-              <t.icon size={16} />
-              <span className="hidden sm:inline">{t.label}</span>
+              <t.icon size={20} className={activeTab === t.id ? 'stroke-[2.5px]' : 'stroke-[2px] group-hover:scale-110 transition-transform text-gray-400 group-hover:text-brown-600'} />
+              <span>{t.label}</span>
             </button>
           ))}
         </div>
@@ -306,7 +308,7 @@ export function CafeModule({
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
              <div className="flex justify-between items-center mb-6">
                 <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
-                  <PieChart className="text-brown-600" size={18} /> Répartition Dépenses
+                  <PieChartIcon className="text-brown-600" size={18} /> Répartition Dépenses
                 </h3>
              </div>
              <div className="h-64">
@@ -573,20 +575,35 @@ export function CafeModule({
     );
   }
 
+  const [searchHistory, setSearchHistory] = useState('');
+
   function renderHistorique() {
     // Combine all and sort
     const allActivities = [
       ...productions.map(p => ({ ...p, _type: 'production', _title: `Production: ${p.quantite} Unités (${p.typeCafe||'Café'})` })),
       ...ventes.map(v => ({ ...v, _type: 'vente', _title: `Vente: ${v.quantite} Unités` })),
       ...depenses.map(d => ({ ...d, _type: 'depense', _title: `Dépense: ${d.motif}` }))
-    ].sort((a,b) => b.date - a.date);
+    ].filter(act => 
+      act._title.toLowerCase().includes(searchHistory.toLowerCase()) ||
+      act._type.toLowerCase().includes(searchHistory.toLowerCase())
+    ).sort((a,b) => b.date - a.date);
 
     return (
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-         <div className="p-6 border-b border-gray-100">
+         <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
            <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
-              <History size={18} className="text-gray-400"/> Historique Global (Toutes périodes)
+              <History size={18} className="text-gray-400"/> Historique Global
            </h3>
+           <div className="relative w-full sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input 
+                 type="text" 
+                 placeholder="Chercher..." 
+                 value={searchHistory}
+                 onChange={(e) => setSearchHistory(e.target.value)}
+                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20"
+              />
+           </div>
          </div>
          <div className="overflow-x-auto">
             <table className="w-full text-left">
