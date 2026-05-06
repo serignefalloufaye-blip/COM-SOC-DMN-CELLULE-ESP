@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key,
-  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu
+  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu, Loader2
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -20,11 +20,7 @@ import { User } from 'firebase/auth';
 import { useDebounce } from './utils/useDebounce';
 import { hasPermission, logAudit } from './utils/permissions';
 import { RotatingMessages } from './components/RotatingMessages';
-import { Annuel } from './components/Annuel';
-import { Tickets } from './components/Tickets';
-import { CafeModule } from './components/cafe/CafeModule';
-import { PremiumDashboard } from './components/PremiumDashboard';
-import { UserRoles } from './components/UserRoles';
+import { NetworkIndicator } from './components/NetworkIndicator';
 import { ReportService } from './services/ReportService';
 import * as XLSX from 'xlsx';
 import { 
@@ -32,7 +28,15 @@ import {
 } from './types';
 import { useAdaptive } from './hooks/useAdaptive';
 
-type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres' | 'cafe' | 'roles';
+// Lazy load heavy components
+const Tickets = lazy(() => import('./components/Tickets').then(m => ({ default: m.Tickets })));
+const CafeModule = lazy(() => import('./components/cafe/CafeModule').then(m => ({ default: m.CafeModule })));
+const PremiumDashboard = lazy(() => import('./components/PremiumDashboard').then(m => ({ default: m.PremiumDashboard })));
+const UserRoles = lazy(() => import('./components/UserRoles').then(m => ({ default: m.UserRoles })));
+const Annuel = lazy(() => import('./components/Annuel').then(m => ({ default: m.Annuel })));
+const StatsAndReports = lazy(() => import('./components/StatsAndReports').then(m => ({ default: m.StatsAndReports })));
+
+type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres' | 'cafe' | 'roles' | 'rapports';
 
 export default function App() {
   const { screenSize, isMobile, isLowEndDevice, shouldReduceMotion } = useAdaptive();
@@ -112,7 +116,7 @@ export default function App() {
   const isAdmin = userRole === 'admin';
 
   const [membreSubTab, setMembreSubTab] = useState<'liste' | 'annuel' | 'retards'>('liste');
-  const [rapportSubTab, setRapportSubTab] = useState<'recap' | 'stats' | 'pdf'>('stats');
+
   const [membres, setMembres] = useState<Membre[]>([]);
   const [cotisations, setCotisations] = useState<Cotisation[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
@@ -173,7 +177,6 @@ export default function App() {
       case 'rapport':
         setActiveTab('finance');
         setFinanceSubTab('rapports');
-        setRapportSubTab('pdf');
         break;
     }
   };
@@ -409,9 +412,17 @@ export default function App() {
     if (!prenom || !nom) return;
     try {
       if (editingMembre?.id) {
+        // Edit mode
+        const duplicate = membres.find(m => m.id !== editingMembre.id && m.prenom === prenom && m.nom === nom && m.telephone === telephone);
+        if (duplicate) return showToast('Un autre membre avec ces identifiants existe déjà.', 'error');
+        
         await updateDoc(doc(db, 'membres', editingMembre.id), { prenom, nom, telephone, statut, moisIntegration, anneeIntegration, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Membre modifié avec succès');
       } else {
+        // Create mode
+        const exists = membres.find(m => m.prenom === prenom && m.nom === nom && m.telephone === telephone);
+        if (exists) return showToast('Ce membre existe déjà !', 'error');
+        
         await addDoc(collection(db, 'membres'), { prenom, nom, telephone, statut, moisIntegration, anneeIntegration, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Membre ajouté avec succès');
       }
@@ -1112,12 +1123,13 @@ export default function App() {
     const totDettesNonPayees = annualDettesItems.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
     const solde = totCot + totRec - totDep;
 
-    const generatePDF = (periodType: 'annual' | 'quarterly' | 'monthly', pValue?: string | number) => {
+    const generatePDF = (periodType: 'annuel' | 'trimestriel' | 'mensuel', pValue?: string | number) => {
       ReportService.generateFinancialReport({
         type: periodType,
         year: globalYear,
-        month: periodType === 'monthly' ? pValue as string : undefined,
-        quarter: periodType === 'quarterly' ? pValue as number : undefined,
+        month: periodType === 'mensuel' ? pValue as string : undefined,
+        quarter: periodType === 'trimestriel' ? pValue as number : undefined,
+        activeTab: 'all',
         membres,
         cotisations,
         depenses,
@@ -1150,7 +1162,7 @@ export default function App() {
               <h4 className="text-lg font-black text-gray-900 mb-2">Bilan Annuel {globalYear}</h4>
               <p className="text-xs text-gray-400 mb-6 font-bold leading-relaxed">Rapport exhaustif regroupant tous les modules de l'année.</p>
               <button 
-                onClick={() => generatePDF('annual')}
+                onClick={() => generatePDF('annuel')}
                 className="w-full bg-dmn-green-950 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
               >
                 <Printer size={14} /> Générer PDF Annuel
@@ -1168,7 +1180,7 @@ export default function App() {
                 {[1, 2, 3, 4].map(q => (
                   <button 
                     key={q}
-                    onClick={() => generatePDF('quarterly', q)}
+                    onClick={() => generatePDF('trimestriel', q)}
                     className="py-2.5 bg-gray-50 hover:bg-dmn-green-50 text-gray-600 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-tighter rounded-xl transition-all"
                   >
                     T{q} PDF
@@ -1189,7 +1201,7 @@ export default function App() {
                 {MOIS.map(m => (
                   <button 
                     key={m}
-                    onClick={() => generatePDF('monthly', m)}
+                    onClick={() => generatePDF('mensuel', m)}
                     className="w-full py-2.5 px-4 flex justify-between items-center group/btn hover:bg-dmn-green-50 text-gray-500 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-gray-50 hover:border-dmn-green-100"
                   >
                     <span>{m}</span>
@@ -1420,15 +1432,21 @@ export default function App() {
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Saisie directe</p>
                     </div>
                   </div>
-                  <div className="relative">
-                    <input 
-                      type="number"
-                      placeholder="500"
-                      value={currentAmount}
-                      onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
-                      className="border border-gray-200 rounded-2xl pl-3 pr-8 py-2.5 text-sm font-black focus:outline-none focus:border-dmn-green-500 bg-gray-50/50 shadow-inner w-24 text-right"
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-400">F</span>
+                  <div className="flex flex-col gap-2 relative">
+                    <div className="flex gap-1.5 justify-end mb-1">
+                      <button onClick={(e) => { e.preventDefault(); setQuickAmounts({...quickAmounts, [m.id]: 500}); }} className="px-2 py-1 bg-gray-100 rounded-lg text-[10px] font-black text-gray-600 hover:bg-gray-200">500</button>
+                      <button onClick={(e) => { e.preventDefault(); setQuickAmounts({...quickAmounts, [m.id]: 1000}); }} className="px-2 py-1 bg-gray-100 rounded-lg text-[10px] font-black text-gray-600 hover:bg-gray-200">1000</button>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        placeholder="500"
+                        value={currentAmount}
+                        onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
+                        className="border border-gray-200 rounded-2xl pl-3 pr-8 py-2.5 text-sm font-black focus:outline-none focus:border-dmn-green-500 bg-gray-50/50 shadow-inner w-24 text-right"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-400">F</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -2771,7 +2789,6 @@ export default function App() {
                 { id: 'recettes', label: 'Recettes', icon: Plus },
                 { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
                 { id: 'dettes', label: 'Dettes', icon: Banknote },
-                { id: 'rapports', label: 'Rapports', icon: TrendingUp },
               ].map(sub => (
                 <button 
                   key={sub.id} 
@@ -2821,33 +2838,44 @@ export default function App() {
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="p-3 sm:p-6 lg:p-8"
           >
-        {activeTab === 'dashboard' && <PremiumDashboard 
-          membres={membres} cotisations={cotisations} depenses={depenses} 
-          recettes={recettes} dettes={dettes} 
-          ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
-          cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
-          globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
-          logoUrl={appSettings.logoUrl} userRole={userRole} onLogoUpload={handleLogoUpload}
-          onQuickAction={handleQuickAction}
-        />}
+            <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-dmn-green-500" size={32} /></div>}>
+        {activeTab === 'dashboard' && (
+          <>
+            <RotatingMessages />
+            <PremiumDashboard 
+              membres={membres} cotisations={cotisations} depenses={depenses} 
+              recettes={recettes} dettes={dettes} 
+              ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
+              cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
+              globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
+              logoUrl={appSettings.logoUrl} userRole={userRole} onLogoUpload={handleLogoUpload}
+              onQuickAction={handleQuickAction}
+            />
+          </>
+        )}
 
         {activeTab === 'finance' && financeSubTab === 'saisie' && renderSaisieRapide()}
         {activeTab === 'finance' && financeSubTab === 'cotisations' && renderCotisations()}
         {activeTab === 'finance' && financeSubTab === 'recettes' && renderRecettes()}
         {activeTab === 'finance' && financeSubTab === 'depenses' && renderDepenses()}
         {activeTab === 'finance' && financeSubTab === 'dettes' && renderDettes()}
-        {activeTab === 'finance' && financeSubTab === 'rapports' && (
-          <div className="space-y-8 animate-in fade-in duration-300">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar border-b border-gray-100 pb-2">
-               <button onClick={() => setRapportSubTab('recap')} className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${rapportSubTab === 'recap' ? 'bg-dmn-green-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Tableau Récap</button>
-               <button onClick={() => setRapportSubTab('stats')} className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${rapportSubTab === 'stats' ? 'bg-dmn-green-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Graphiques Analystiques</button>
-               <button onClick={() => setRapportSubTab('pdf')} className={`text-xs font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap ${rapportSubTab === 'pdf' ? 'bg-dmn-green-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Génération Rapports PDF</button>
-            </div>
-            {/* Conditional Sub-Rendering for Reports */}
-            {rapportSubTab === 'recap' && renderRecap()}
-            {rapportSubTab === 'stats' && renderStats()}
-            {rapportSubTab === 'pdf' && renderRapports()}
-          </div>
+        {activeTab === 'rapports' && (
+          <StatsAndReports
+            globalYear={globalYear}
+            globalMonth={globalMonth}
+            cotisations={cotisations}
+            depenses={depenses}
+            recettes={recettes}
+            dettes={dettes}
+            ticketCollectes={ticketCollectes}
+            ticketDistributions={ticketDistributions}
+            cafeProductions={cafeProductions}
+            cafeVentes={cafeVentes}
+            cafeDepenses={cafeDepenses}
+            membres={membres}
+            showToast={showToast}
+            userRole={userRole as any}
+          />
         )}
 
         {activeTab === 'membres' && membreSubTab === 'liste' && renderMembres()}
@@ -2881,6 +2909,7 @@ export default function App() {
             handleUseAccessCode={handleUseAccessCode}
           />
         )}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
@@ -2889,11 +2918,12 @@ export default function App() {
       <nav className="hidden sm:flex max-w-7xl mx-auto px-6 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-[136px] z-[80] bg-white/80 backdrop-blur-md border-b border-gray-100">
         {[
           { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
-          { id: 'finance', label: 'Caisse & Rapports', icon: Wallet, roles: ['admin', 'caisse', 'lecteur'] },
-          { id: 'tickets', label: 'Tickets Resto', icon: Ticket, roles: ['admin', 'tickets', 'lecteur'] },
-          { id: 'cafe', label: 'Café ☕', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
-          { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
-          { id: 'roles', label: 'Rôles & Équipe', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+          { id: 'finance', label: 'Caisse & Rapports', icon: Wallet, roles: ['admin', 'caisse'] },
+          { id: 'tickets', label: 'Tickets Resto', icon: Ticket, roles: ['admin', 'tickets'] },
+          { id: 'cafe', label: 'Café ☕', icon: Coffee, roles: ['admin', 'cafe'] },
+          { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
+          { id: 'rapports', label: 'Rapports & Stats', icon: TrendingUp, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
+          { id: 'roles', label: 'Profil & Rôles', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
         ].filter(tab => tab.roles.includes(userRole as any)).map(tab => (
           <button
             key={tab.id}
@@ -2918,11 +2948,12 @@ export default function App() {
           className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2.5rem] h-[72px] flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-[92%]"
         >
           {[
-            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur', 'visitor'] },
-            { id: 'finance', label: 'Caisse', icon: Wallet, roles: ['admin', 'caisse', 'lecteur'] },
-            { id: 'tickets', label: 'Tickets', icon: Ticket, roles: ['admin', 'tickets', 'lecteur'] },
-            { id: 'cafe', label: 'Café', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
-            { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
+            { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur', 'visitor'] },
+            { id: 'finance', label: 'Caisse', icon: Wallet, roles: ['admin', 'caisse'] },
+            { id: 'tickets', label: 'Tickets', icon: Ticket, roles: ['admin', 'tickets'] },
+            { id: 'cafe', label: 'Café', icon: Coffee, roles: ['admin', 'cafe'] },
+            { id: 'rapports', label: 'Rapports', icon: TrendingUp, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
+            { id: 'roles', label: 'Profil', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
           ].filter(tab => tab.roles.includes(userRole as any || 'visitor')).map(tab => (
             <button
               key={tab.id}
@@ -3215,6 +3246,9 @@ export default function App() {
         </div>
       )}
 
+      {/* Network Status Indicator */}
+      <NetworkIndicator />
+
       {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-8 fade-in duration-300">
@@ -3239,21 +3273,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🚀 SYSTEM STATUS FOOTER */}
-      <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
-         <div className="flex items-center gap-4">
-            <div className={`w-2 h-2 rounded-full ${isAuthReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">DMN Cloud Engine v3.0.0</p>
-         </div>
-         <div className="flex gap-8">
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Base de données : <span className={isAuthReady ? 'text-green-600' : 'text-red-500'}>{isAuthReady ? 'Connectée' : 'Hors-ligne'}</span></p>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Performance : <span className="text-blue-500">{isLowEndDevice ? 'Économique' : 'Optimale'}</span></p>
-         </div>
-         <div className="flex items-center gap-2 text-[9px] font-black text-dmn-green-700 bg-dmn-green-50 px-4 py-2 rounded-xl uppercase tracking-widest border border-dmn-green-100 shadow-sm">
-            <Shield size={12} />
-            Système Sécurisé par Celulle CS DMN
-         </div>
-      </footer>
+
     </div>
   );
 }

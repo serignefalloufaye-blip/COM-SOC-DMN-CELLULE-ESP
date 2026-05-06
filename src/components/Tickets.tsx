@@ -256,17 +256,17 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Tickets P.Déj (50F)</label>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setConvPD(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <button type="button" onClick={() => setConvPD(p => Math.max(0, p - 1))} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Minus size={18} /></button>
                 <span className="font-bold text-lg w-8 text-center">{convPD}</span>
-                <button type="button" onClick={() => setConvPD(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+                <button type="button" onClick={() => setConvPD(p => p + 1)} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Plus size={18} /></button>
               </div>
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Tickets Repas (100F)</label>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setConvRepas(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <button type="button" onClick={() => setConvRepas(p => Math.max(0, p - 1))} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Minus size={18} /></button>
                 <span className="font-bold text-lg w-8 text-center">{convRepas}</span>
-                <button type="button" onClick={() => setConvRepas(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+                <button type="button" onClick={() => setConvRepas(p => p + 1)} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Plus size={18} /></button>
               </div>
             </div>
           </div>
@@ -325,17 +325,17 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Petit Dèj (Dispo: {stockPetitDej})</label>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setDistPD(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <button type="button" onClick={() => setDistPD(p => Math.max(0, p - 1))} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Minus size={18} /></button>
                 <span className="font-bold text-lg w-8 text-center">{distPD}</span>
-                <button type="button" onClick={() => setDistPD(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+                <button type="button" onClick={() => setDistPD(p => p + 1)} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Plus size={18} /></button>
               </div>
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Repas (Dispo: {stockRepas})</label>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setDistRepas(p => Math.max(0, p - 1))} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Minus size={18} /></button>
+                <button type="button" onClick={() => setDistRepas(p => Math.max(0, p - 1))} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Minus size={18} /></button>
                 <span className="font-bold text-lg w-8 text-center">{distRepas}</span>
-                <button type="button" onClick={() => setDistRepas(p => p + 1)} className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"><Plus size={18} /></button>
+                <button type="button" onClick={() => setDistRepas(p => p + 1)} className="p-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors active:scale-95 flex items-center justify-center"><Plus size={18} /></button>
               </div>
             </div>
           </div>
@@ -579,18 +579,18 @@ function TicketForm({ onSubmit }: { onSubmit: (pd: number, repas: number) => voi
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
           <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest ml-1">Petit Déj</p>
-          <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-orange-200">
-            <button onClick={() => setPd(p => Math.max(0, p - 1))} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Minus size={14}/></button>
-            <span className="text-sm font-black w-6 text-center">{pd}</span>
-            <button onClick={() => setPd(p => p + 1)} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Plus size={14}/></button>
+          <div className="flex items-center justify-between bg-white pl-1 pr-1 py-1 rounded-xl border border-orange-200">
+            <button onClick={() => setPd(p => Math.max(0, p - 1))} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors active:scale-95"><Minus size={16}/></button>
+            <span className="text-base font-black w-8 text-center">{pd}</span>
+            <button onClick={() => setPd(p => p + 1)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors active:scale-95"><Plus size={16}/></button>
           </div>
         </div>
         <div className="flex flex-col gap-1">
           <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Repas</p>
-          <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-blue-200">
-            <button onClick={() => setRepas(p => Math.max(0, p - 1))} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Minus size={14}/></button>
-            <span className="text-sm font-black w-6 text-center">{repas}</span>
-            <button onClick={() => setRepas(p => p + 1)} className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Plus size={14}/></button>
+          <div className="flex items-center justify-between bg-white pl-1 pr-1 py-1 rounded-xl border border-blue-200">
+            <button onClick={() => setRepas(p => Math.max(0, p - 1))} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors active:scale-95"><Minus size={16}/></button>
+            <span className="text-base font-black w-8 text-center">{repas}</span>
+            <button onClick={() => setRepas(p => p + 1)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors active:scale-95"><Plus size={16}/></button>
           </div>
         </div>
       </div>
@@ -599,7 +599,7 @@ function TicketForm({ onSubmit }: { onSubmit: (pd: number, repas: number) => voi
           onSubmit(pd, repas);
           setPd(0); setRepas(0);
         }}
-        className="w-full p-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"
+        className="w-full p-4 mt-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"
       >
         <Ticket size={18} />
         Enregistrer les tickets

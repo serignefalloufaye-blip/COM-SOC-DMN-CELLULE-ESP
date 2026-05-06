@@ -19,10 +19,10 @@ interface UserRolesProps {
 
 const ROLES: { value: UserRole; label: string; color: string; desc: string }[] = [
   { value: 'admin', label: 'Admin', color: 'bg-red-100 text-red-700', desc: 'Contrôle total du système' },
-  { value: 'caisse', label: 'Caisse', color: 'bg-green-100 text-green-700', desc: 'Gestion Caisse Sociale uniquement' },
-  { value: 'tickets', label: 'Tickets', color: 'bg-blue-100 text-blue-700', desc: 'Gestion Tickets Resto uniquement' },
-  { value: 'cafe', label: 'Café', color: 'bg-amber-100 text-amber-700', desc: 'Gestion Module Café uniquement' },
-  { value: 'lecteur', label: 'Lecteur', color: 'bg-gray-100 text-gray-700', desc: 'Consultation uniquement' },
+  { value: 'caisse', label: 'Gestionnaire Caisse', color: 'bg-green-100 text-green-700', desc: 'Gestion Caisse Sociale uniquement' },
+  { value: 'tickets', label: 'Gestionnaire Tickets', color: 'bg-blue-100 text-blue-700', desc: 'Gestion Tickets Resto uniquement' },
+  { value: 'cafe', label: 'Gestionnaire Café', color: 'bg-amber-100 text-amber-700', desc: 'Gestion Module Café uniquement' },
+  { value: 'lecteur', label: 'Lecture Seule', color: 'bg-gray-100 text-gray-700', desc: 'Consultation uniquement' },
 ];
 
 export function UserRoles({ 

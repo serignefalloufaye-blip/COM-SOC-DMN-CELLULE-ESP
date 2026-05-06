@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Membre, Cotisation, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, CafeProduction, CafeVente, CafeDepense } from '../types';
+import { Membre, Cotisation, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, CafeProduction, CafeVente, CafeDepense, UserRole } from '../types';
 import { MOIS } from '../data';
 import { 
   Building2, TrendingUp, TrendingDown, Users, AlertCircle, 
@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAdaptive } from '../hooks/useAdaptive';
+import { hasPermission } from '../utils/permissions';
 
 interface PremiumDashboardProps {
   membres: Membre[];
@@ -28,7 +29,7 @@ interface PremiumDashboardProps {
   globalMonth: string;
   globalMode: string;
   logoUrl?: string;
-  userRole?: 'admin' | 'visitor' | 'caisse' | 'cafe' | 'tickets' | 'lecteur' | null;
+  userRole?: UserRole | 'visitor' | null;
   onLogoUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onQuickAction?: (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => void;
 }
@@ -46,7 +47,14 @@ export function PremiumDashboard({
   const { isMobile, isLowEndDevice, performance } = useAdaptive();
 
   // --- LOGIC CALCULATIONS (Keep from original) ---
+  const formattedRole = userRole === 'visitor' ? null : userRole;
+  const isCaisse = hasPermission(formattedRole, 'caisse.read');
+  const isCafe = hasPermission(formattedRole, 'cafe.production.read');
+  const isTickets = hasPermission(formattedRole, 'tickets.read');
+  const isStats = hasPermission(formattedRole, 'stats.read');
+
   const filteredCafeVentes = useMemo(() => cafeVentes.filter(v => new Date(v.date).getFullYear() === globalYear), [cafeVentes, globalYear]);
+
   const totCafeRevenus = filteredCafeVentes.reduce((s, v) => s + v.total, 0);
   const totCafeQtySold = filteredCafeVentes.reduce((s, v) => s + v.quantite, 0);
   const totCafeQtyProd = cafeProductions.reduce((s, p) => s + p.quantite, 0);
@@ -120,13 +128,20 @@ export function PremiumDashboard({
     return { name: m.substring(0, 3), Entrées: moisCot + moisRec, Dépenses: moisDep, Solde: moisCot + moisRec - moisDep };
   });
 
-  const history = [
-    ...cotisations.map(c => ({ date: c.createdAt || 0, label: `Cotisation de ${membres.find(m => m.id === c.mId)?.prenom} ${membres.find(m => m.id === c.mId)?.nom}`, amount: c.montant, type: 'in', icon: Wallet })),
-    ...depenses.map(d => ({ date: d.createdAt || d.updatedAt || 0, label: `Dépense : ${d.evenement}`, amount: d.montant, type: 'out', icon: ArrowDownRight })),
-    ...recettes.map(r => ({ date: r.createdAt || r.updatedAt || 0, label: `Recette : ${r.motif}`, amount: r.montant, type: 'in', icon: ArrowUpRight })),
-    ...ticketDistributions.map(d => ({ date: d.createdAt || 0, label: `Tickets à ${membres.find(m => m.id === d.mId)?.prenom} ${membres.find(m => m.id === d.mId)?.nom}`, amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, type: 'ticket', icon: Ticket })),
-    ...cafeVentes.map(v => ({ date: v.createdAt || v.date, label: `Vente Café (${v.quantite})`, amount: v.total, type: 'cafe', icon: Coffee }))
-  ].sort((a, b) => b.date - a.date);
+  const historyItems = [];
+  if (isCaisse) {
+    historyItems.push(...cotisations.map(c => ({ date: c.createdAt || 0, label: `Cotisation de ${membres.find(m => m.id === c.mId)?.prenom} ${membres.find(m => m.id === c.mId)?.nom}`, amount: c.montant, type: 'in', icon: Wallet })));
+    historyItems.push(...depenses.map(d => ({ date: d.createdAt || d.updatedAt || 0, label: `Dépense : ${d.evenement}`, amount: d.montant, type: 'out', icon: ArrowDownRight })));
+    historyItems.push(...recettes.map(r => ({ date: r.createdAt || r.updatedAt || 0, label: `Recette : ${r.motif}`, amount: r.montant, type: 'in', icon: ArrowUpRight })));
+  }
+  if (isTickets) {
+    historyItems.push(...ticketDistributions.map(d => ({ date: d.createdAt || 0, label: `Tickets à ${membres.find(m => m.id === d.mId)?.prenom} ${membres.find(m => m.id === d.mId)?.nom}`, amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, type: 'ticket', icon: Ticket })));
+  }
+  if (isCafe) {
+    historyItems.push(...cafeVentes.map(v => ({ date: v.createdAt || v.date, label: `Vente Café (${v.quantite})`, amount: v.total, type: 'cafe', icon: Coffee })));
+  }
+
+  const history = historyItems.sort((a, b) => b.date - a.date);
 
   const recentHistory = history.slice(0, 6);
 
@@ -158,6 +173,7 @@ export function PremiumDashboard({
       className="max-w-4xl mx-auto space-y-8 pb-32 pt-4 sm:pt-10"
     >
       {/* 💳 MAIN WALLET CARD */}
+      {(isCaisse || isStats) && (
       <motion.div variants={itemVariants} className="px-5 sm:px-0">
         <div className="relative h-64 w-full bg-dmn-green-900 rounded-[3rem] p-8 shadow-2xl overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.98] duration-500 cursor-pointer group">
           {/* Background Gradient Overlays */}
@@ -211,6 +227,7 @@ export function PremiumDashboard({
           </div>
         </div>
       </motion.div>
+      )}
 
       {/* ⚡ QUICK ACTIONS & DAILY STATUS */}
       <motion.div variants={itemVariants} className="px-5 sm:px-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -238,30 +255,38 @@ export function PremiumDashboard({
         {/* Quick Access Menu */}
         <div className="bg-gray-900 rounded-[2rem] p-3 flex items-center justify-around overflow-hidden relative shadow-xl shadow-dmn-green-950/20">
            <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-12 -mt-12"></div>
+           {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
            <button onClick={() => onQuickAction?.('membre')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
              <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-dmn-green-500 group-hover:text-gray-900 transition-all">
                 <Users size={18} />
              </div>
              <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Membre</span>
            </button>
+           )}
+           {(!userRole || ['admin', 'tickets'].includes(userRole)) && (
            <button onClick={() => onQuickAction?.('ticket')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
              <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-amber-500 group-hover:text-gray-900 transition-all">
                 <Ticket size={18} />
              </div>
              <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Tickets</span>
            </button>
+           )}
+           {(!userRole || ['admin', 'cafe'].includes(userRole)) && (
            <button onClick={() => onQuickAction?.('cafe')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
              <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-orange-500 group-hover:text-gray-900 transition-all">
                 <Coffee size={18} />
              </div>
              <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Café</span>
            </button>
+           )}
+           {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
            <button onClick={() => onQuickAction?.('rapport')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
              <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-blue-500 group-hover:text-gray-900 transition-all">
                 <BarChart3 size={18} />
              </div>
              <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Rapport</span>
            </button>
+           )}
         </div>
       </motion.div>
 
@@ -275,6 +300,7 @@ export function PremiumDashboard({
         </div>
         <div className="flex gap-4 sm:gap-5 overflow-x-auto px-6 no-scrollbar pb-2 sm:pb-3">
           {/* Caisse Module Card */}
+          {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
           <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-dmn-green-600/5 transition-all">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-dmn-green-50 text-dmn-green-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
               <Wallet size={18} />
@@ -285,8 +311,10 @@ export function PremiumDashboard({
             </div>
             <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-dmn-green-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
+          )}
 
           {/* Tickets Module Card */}
+          {(!userRole || ['admin', 'tickets'].includes(userRole)) && (
           <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-amber-600/5 transition-all">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
               <Ticket size={18} />
@@ -303,8 +331,10 @@ export function PremiumDashboard({
             </div>
             <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-amber-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
+          )}
 
           {/* Café Module Card */}
+          {(!userRole || ['admin', 'cafe'].includes(userRole)) && (
           <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-orange-800/5 transition-all">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#f5ebe0] text-[#78350f] flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
               <Coffee size={18} />
@@ -321,8 +351,10 @@ export function PremiumDashboard({
             </div>
             <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-[#fdfaf6] rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
+          )}
 
           {/* Stats Module Card */}
+          {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
           <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-blue-600/5 transition-all">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
               <BarChart3 size={18} />
@@ -333,10 +365,12 @@ export function PremiumDashboard({
             </div>
             <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-blue-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
           </div>
+          )}
         </div>
       </motion.section>
 
       {/* 📊 ANALYTICS PREVIEW (Adaptive) */}
+      {(isCaisse || isStats) && (
       <motion.div variants={itemVariants} className="px-4">
         <div className="premium-card p-6">
           <div className="flex justify-between items-center mb-6">
@@ -388,11 +422,12 @@ export function PremiumDashboard({
           </div>
         </div>
       </motion.div>
+      )}
 
       {/* 📋 RECENT TRANSACTIONS */}
       <motion.section variants={itemVariants} className="px-5 sm:px-0 space-y-5">
         <div className="flex justify-between items-center px-2">
-          <h3 className="text-[12px] font-black text-gray-400 uppercase tracking-[0.25em]">Flux financier récent</h3>
+          <h3 className="text-[12px] font-black text-gray-400 uppercase tracking-[0.25em]">Historique récent</h3>
           <button className="text-[10px] font-black text-dmn-green-600 bg-dmn-green-50 px-4 py-2 rounded-full uppercase tracking-widest hover:bg-dmn-green-100 transition-colors">Tout voir</button>
         </div>
         <div className="space-y-4">
@@ -402,23 +437,26 @@ export function PremiumDashboard({
               whileTap={{ scale: 0.985 }}
               className="bg-white p-5 rounded-[2.5rem] flex items-center justify-between group transition-all hover:shadow-xl hover:shadow-gray-200/40 border border-gray-100"
             >
-              <div className="flex items-center gap-5">
-                <div className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 ${
+              <div className="flex items-center gap-3 sm:gap-5 min-w-0 flex-1">
+                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 ${
                   h.type === 'in' ? 'bg-green-50 text-green-600' :
                   h.type === 'out' ? 'bg-red-50 text-red-600' :
                   'bg-orange-50 text-orange-500'
                 }`}>
-                  <h.icon size={24} className={h.type === 'in' ? 'animate-bounce-slow' : ''} />
+                  <h.icon size={20} className={`sm:hidden ${h.type === 'in' ? 'animate-bounce-slow' : ''}`} />
+                  <h.icon size={24} className={`hidden sm:block ${h.type === 'in' ? 'animate-bounce-slow' : ''}`} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm sm:text-base font-black text-gray-900 truncate pr-2 group-hover:text-dmn-green-700 transition-colors">{h.label}</p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                    {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) : '---'}
+                <div className="min-w-0 pr-2">
+                  <p className="text-[13px] sm:text-base font-black text-gray-900 truncate group-hover:text-dmn-green-700 transition-colors leading-tight">
+                    {h.label}
+                  </p>
+                  <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '---'}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className={`text-base font-black ${
+              <div className="text-right shrink-0">
+                <p className={`text-sm sm:text-base font-black ${
                   h.type === 'in' ? 'text-dmn-green-600' :
                   h.type === 'out' ? 'text-red-600' :
                   'text-amber-600'
@@ -441,6 +479,15 @@ export function PremiumDashboard({
 
       {/* 🧭 PREMIUM INFOS */}
       <motion.div variants={itemVariants} className="px-4">
+        {userRole === 'lecteur' && (
+          <div className="bg-amber-50 rounded-[2.5rem] p-8 mt-8 border border-amber-100 flex flex-col items-center text-center space-y-4 shadow-sm mb-8">
+            <Shield size={40} className="text-amber-500 mb-2" />
+            <h3 className="text-xl font-black text-amber-900">Espace Membre</h3>
+            <p className="text-sm font-medium text-amber-800/80 max-w-sm">
+              Votre compte est en cours de configuration. Pour voir vos propres cotisations et tickets, veuillez vous rapprocher d'un administrateur pour lier votre compte à votre profil de membre sur l'application.
+            </p>
+          </div>
+        )}
         <div className="bg-dmn-green-900/5 rounded-[2.5rem] p-8 border border-dmn-green-100 flex flex-col items-center text-center space-y-4">
           <div className="w-16 h-1 bg-dmn-green-600/20 rounded-full"></div>
           <p className="text-sm font-black text-dmn-green-900">“Le travail est une adoration”</p>

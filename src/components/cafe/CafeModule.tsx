@@ -398,7 +398,7 @@ export function CafeModule({
         )}
 
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
              <table className="w-full text-center">
                 <thead className="bg-gray-50 border-b border-gray-100">
                    <tr>
@@ -425,6 +425,29 @@ export function CafeModule({
                    ))}
                 </tbody>
              </table>
+          </div>
+          {/* Mobile view */}
+          <div className="md:hidden divide-y divide-gray-50">
+             {filteredVentes.slice().sort((a,b) => b.date - a.date).map(v => (
+               <div key={v.id} className="p-4 flex flex-col gap-2">
+                 <div className="flex justify-between items-center">
+                   <div className="flex items-center gap-2">
+                     <span className="bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg text-[10px] font-black uppercase">{v.typeVente || 'Sur place'}</span>
+                     <span className="text-xs font-bold text-gray-500">{formats.date(v.date)}</span>
+                   </div>
+                   <span className="px-2 py-1 bg-gray-100 rounded-lg text-[9px] font-black text-gray-500">{v.mode}</span>
+                 </div>
+                 <div className="flex justify-between items-end mt-1">
+                   <div>
+                     <p className="text-xs font-bold text-gray-600">{v.quantite} × {v.prixUnitaire} F</p>
+                   </div>
+                   <p className="text-lg font-black text-emerald-600">{formats.price(v.total)}</p>
+                 </div>
+               </div>
+             ))}
+             {filteredVentes.length === 0 && (
+               <div className="p-6 text-center text-sm font-medium text-gray-400">Aucune vente enregistrée</div>
+             )}
           </div>
         </div>
       </div>

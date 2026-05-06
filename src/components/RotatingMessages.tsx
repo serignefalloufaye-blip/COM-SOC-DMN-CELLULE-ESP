@@ -8,7 +8,8 @@ const MESSAGES = [
   "Servir la communauté est un acte de foi",
   "La discipline dans la gestion est une forme de respect",
   "La transparence est une responsabilité", // From user prompt
-  "Système de Gestion – Daara M." // From user prompt
+  "Le travail est une adoration", // From user prompt
+  "Système de Gestion – Daara M."
 ];
 
 export const RotatingMessages = () => {

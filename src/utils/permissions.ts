@@ -12,6 +12,7 @@ export type Permission =
   | 'stats.read' | 'reports.generate'
   | 'members.read' | 'members.create' | 'members.update' | 'members.delete'
   | 'users.manage'
+  | 'personal.read'
   | '*';
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -45,12 +46,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'stats.read'
   ],
   lecteur: [
-    'caisse.read',
-    'tickets.read',
-    'cafe.production.read',
-    'cafe.sales.read',
-    'stats.read',
-    'members.read'
+    'personal.read'
   ]
 };
 
