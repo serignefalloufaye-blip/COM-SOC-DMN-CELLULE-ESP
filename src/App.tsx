@@ -175,8 +175,7 @@ export default function App() {
         setActiveTab('cafe');
         break;
       case 'rapport':
-        setActiveTab('finance');
-        setFinanceSubTab('rapports');
+        setActiveTab('rapports');
         break;
     }
   };

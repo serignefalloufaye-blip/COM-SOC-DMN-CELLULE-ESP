@@ -304,7 +304,10 @@ export function PremiumDashboard({
         <div className="flex gap-4 sm:gap-5 overflow-x-auto px-6 no-scrollbar pb-2 sm:pb-3">
           {/* Caisse Module Card */}
           {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
-          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-dmn-green-600/5 transition-all">
+          <div 
+            onClick={() => onQuickAction?.('membre')}
+            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-dmn-green-600/5 transition-all"
+          >
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-dmn-green-50 text-dmn-green-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
               <Wallet size={18} />
             </div>
@@ -318,7 +321,10 @@ export function PremiumDashboard({
 
           {/* Tickets Module Card */}
           {(!userRole || ['admin', 'tickets'].includes(userRole)) && (
-          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-amber-600/5 transition-all">
+          <div 
+            onClick={() => onQuickAction?.('ticket')}
+            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-amber-600/5 transition-all"
+          >
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
               <Ticket size={18} />
             </div>
@@ -338,7 +344,10 @@ export function PremiumDashboard({
 
           {/* Café Module Card */}
           {(!userRole || ['admin', 'cafe'].includes(userRole)) && (
-          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-orange-800/5 transition-all">
+          <div 
+            onClick={() => onQuickAction?.('cafe')}
+            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-orange-800/5 transition-all"
+          >
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#f5ebe0] text-[#78350f] flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
               <Coffee size={18} />
             </div>
@@ -358,7 +367,10 @@ export function PremiumDashboard({
 
           {/* Stats Module Card */}
           {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
-          <div className="min-w-[140px] sm:min-w-[170px] bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-blue-600/5 transition-all">
+          <div 
+            onClick={() => onQuickAction?.('rapport')}
+            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-blue-600/5 transition-all"
+          >
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
               <BarChart3 size={18} />
             </div>
