@@ -31,30 +31,49 @@ export function CafeModule({
   const { isMobile, isLowEndDevice, performance } = useAdaptive();
   const [activeTab, setActiveTab] = useState<'stats' | 'ventes' | 'production' | 'depenses' | 'stock' | 'historique'>('stats');
   const [filterPeriod, setFilterPeriod] = useState<'Mois' | 'Trimestre' | 'Année'>('Mois');
+  const [searchHistory, setSearchHistory] = useState('');
   
   const canSell = hasPermission(userRole as any, 'cafe.sales.create');
   const canProduce = hasPermission(userRole as any, 'cafe.production.create');
   const canExpense = hasPermission(userRole as any, 'cafe.expenses.create');
   const isAdmin = userRole === 'admin';
 
-  // Filters
-  const filterByPeriod = (date: number) => {
-    const d = new Date(date);
+  // Memoized filter function logic
+  const filterByPeriod = useMemo(() => (date: number, period: string) => {
+    const d = new Date(date || Date.now());
     const now = new Date();
-    if (filterPeriod === 'Mois') {
+    if (period === 'Mois') {
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    } else if (filterPeriod === 'Trimestre') {
+    } else if (period === 'Trimestre') {
       const currentQuarter = Math.floor(now.getMonth() / 3);
       const dateQuarter = Math.floor(d.getMonth() / 3);
       return currentQuarter === dateQuarter && d.getFullYear() === now.getFullYear();
     } else {
       return d.getFullYear() === now.getFullYear();
     }
-  };
+  }, []);
 
-  const filteredVentes = useMemo(() => ventes.filter(v => filterByPeriod(v.date)), [ventes, filterPeriod]);
-  const filteredProductions = useMemo(() => productions.filter(p => filterByPeriod(p.date)), [productions, filterPeriod]);
-  const filteredDepenses = useMemo(() => depenses.filter(d => filterByPeriod(d.date)), [depenses, filterPeriod]);
+  const filteredVentes = useMemo(() => ventes.filter(v => filterByPeriod(v.date, filterPeriod)), [ventes, filterPeriod, filterByPeriod]);
+  const filteredProductions = useMemo(() => productions.filter(p => filterByPeriod(p.date, filterPeriod)), [productions, filterPeriod, filterByPeriod]);
+  const filteredDepenses = useMemo(() => depenses.filter(d => filterByPeriod(d.date, filterPeriod)), [depenses, filterPeriod, filterByPeriod]);
+
+  // All activities memoized for history
+  const allActivities = useMemo(() => {
+    const combined = [
+      ...productions.map(p => ({ ...p, _type: 'production', _title: `Production: ${p.quantite} Unités (${p.typeCafe||'Café'})` })),
+      ...ventes.map(v => ({ ...v, _type: 'vente', _title: `Vente: ${v.quantite} Unités` })),
+      ...depenses.map(d => ({ ...d, _type: 'depense', _title: `Dépense: ${d.motif}` })),
+      ...transferts.map(t => ({ ...t, _type: 'transfert', _title: `Transfert: ${t.message || 'Vers Caisse Sociale'}` }))
+    ];
+
+    const searchLower = searchHistory.toLowerCase();
+    return combined
+      .filter(act => 
+        act._title.toLowerCase().includes(searchLower) ||
+        act._type.toLowerCase().includes(searchLower)
+      )
+      .sort((a, b) => (b.date || 0) - (a.date || 0));
+  }, [productions, ventes, depenses, transferts, searchHistory]);
 
   // Calculate Totals (Global or Filtered)
   // For Dashboard KPI we show Filtered. Stock is always Global.
@@ -128,6 +147,14 @@ export function CafeModule({
     },
     date: (val: number) => new Date(val).toLocaleDateString('fr-FR')
   };
+
+  const sortedVentesForChart = useMemo(() => 
+    filteredVentes.slice().sort((a, b) => (a.date || 0) - (b.date || 0)), 
+  [filteredVentes]);
+
+  const sortedVentes = useMemo(() => filteredVentes.slice().sort((a,b) => b.date - a.date), [filteredVentes]);
+  const sortedProductions = useMemo(() => filteredProductions.slice().sort((a,b) => b.date - a.date), [filteredProductions]);
+  const sortedDepenses = useMemo(() => filteredDepenses.slice().sort((a,b) => b.date - a.date), [filteredDepenses]);
 
   return (
     <div className="space-y-6">
@@ -287,7 +314,7 @@ export function CafeModule({
              </div>
              <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={filteredVentes.slice().sort((a,b) => a.date - b.date)}>
+                  <LineChart data={sortedVentesForChart}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis 
                       dataKey="date" 
@@ -414,7 +441,7 @@ export function CafeModule({
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                   {filteredVentes.slice().sort((a,b) => b.date - a.date).map(v => (
+                   {sortedVentes.map(v => (
                      <tr key={v.id} className="hover:bg-gray-50/50">
                         <td className="px-6 py-4 text-xs font-bold text-gray-600">{formats.date(v.date)}</td>
                         <td className="px-6 py-4 text-xs font-medium text-gray-600">{v.typeVente || 'Sur place'}</td>
@@ -431,7 +458,7 @@ export function CafeModule({
           </div>
           {/* Mobile view */}
           <div className="md:hidden divide-y divide-gray-50">
-             {filteredVentes.slice().sort((a,b) => b.date - a.date).map(v => (
+             {sortedVentes.map(v => (
                <div key={v.id} className="p-4 flex flex-col gap-2">
                  <div className="flex justify-between items-center">
                    <div className="flex items-center gap-2">
@@ -482,7 +509,7 @@ export function CafeModule({
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           {filteredProductions.slice().sort((a,b) => b.date - a.date).map(p => (
+           {sortedProductions.map(p => (
              <div key={p.id} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center group hover:border-brown-200 transition-all">
                 <div>
                    <p className="text-xs font-bold text-gray-400">{formats.date(p.date)}</p>
@@ -538,7 +565,7 @@ export function CafeModule({
         )}
 
         <div className="space-y-3">
-           {filteredDepenses.slice().sort((a,b) => b.date - a.date).map(d => (
+           {sortedDepenses.map(d => (
              <div key={d.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center hover:border-red-100 transition-all">
                 <div className="flex items-center gap-4">
                    <div className="p-2 bg-red-50 text-red-600 rounded-xl">
@@ -601,19 +628,7 @@ export function CafeModule({
     );
   }
 
-  const [searchHistory, setSearchHistory] = useState('');
-
   function renderHistorique() {
-    // Combine all and sort
-    const allActivities = [
-      ...productions.map(p => ({ ...p, _type: 'production', _title: `Production: ${p.quantite} Unités (${p.typeCafe||'Café'})` })),
-      ...ventes.map(v => ({ ...v, _type: 'vente', _title: `Vente: ${v.quantite} Unités` })),
-      ...depenses.map(d => ({ ...d, _type: 'depense', _title: `Dépense: ${d.motif}` }))
-    ].filter(act => 
-      act._title.toLowerCase().includes(searchHistory.toLowerCase()) ||
-      act._type.toLowerCase().includes(searchHistory.toLowerCase())
-    ).sort((a,b) => b.date - a.date);
-
     return (
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -631,7 +646,9 @@ export function CafeModule({
               />
            </div>
          </div>
-         <div className="overflow-x-auto">
+
+         {/* Desktop View */}
+         <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
                <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
@@ -642,13 +659,14 @@ export function CafeModule({
                   </tr>
                </thead>
                <tbody className="divide-y divide-gray-50">
-                  {allActivities.map((act: any, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/50">
+                  {allActivities.map((act: any) => (
+                    <tr key={`${act._type}-${act.id}`} className="hover:bg-gray-50/50">
                        <td className="px-6 py-4 text-xs font-bold text-gray-500 whitespace-nowrap">{formats.date(act.date)}</td>
                        <td className="px-6 py-4">
                           <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${
                             act._type === 'production' ? 'bg-amber-100 text-amber-700' :
                             act._type === 'vente' ? 'bg-emerald-100 text-emerald-700' :
+                            act._type === 'transfert' ? 'bg-blue-100 text-blue-700' :
                             'bg-red-100 text-red-700'
                           }`}>
                             {act._type}
@@ -662,8 +680,47 @@ export function CafeModule({
                        </td>
                     </tr>
                   ))}
+                  {allActivities.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-10 text-center text-sm font-medium text-gray-400">
+                        Aucun historique trouvé
+                      </td>
+                    </tr>
+                  )}
                </tbody>
             </table>
+         </div>
+
+         {/* Mobile View */}
+         <div className="md:hidden divide-y divide-gray-50">
+            {allActivities.map((act: any) => (
+              <div key={`${act._type}-${act.id}`} className="p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${
+                      act._type === 'production' ? 'bg-amber-100 text-amber-700' :
+                      act._type === 'vente' ? 'bg-emerald-100 text-emerald-700' :
+                      act._type === 'transfert' ? 'bg-blue-100 text-blue-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {act._type}
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-400">{formats.date(act.date)}</span>
+                  </div>
+                  <p className={`text-xs font-black ${
+                    act._type === 'vente' ? 'text-emerald-600' : 'text-red-600'
+                  }`}>
+                    {act._type === 'vente' ? '+' : '-'}{formats.price(act.total || act.montant)}
+                  </p>
+                </div>
+                <p className="text-xs font-bold text-gray-900">{act._title}</p>
+              </div>
+            ))}
+            {allActivities.length === 0 && (
+              <div className="px-6 py-10 text-center text-sm font-medium text-gray-400">
+                Aucun historique trouvé
+              </div>
+            )}
          </div>
       </div>
     );
