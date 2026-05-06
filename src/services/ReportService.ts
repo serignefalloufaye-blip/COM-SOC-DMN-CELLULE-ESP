@@ -6,6 +6,7 @@ import { MOIS } from '../data';
 
 export class ReportService {
   private static formatCurrency(amount: number): string {
+    if (amount === undefined || amount === null) return "0 FCFA";
     return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' FCFA';
   }
 

@@ -879,9 +879,13 @@ export default function App() {
   };
 
 
-  const formatPrice = (amount: number) => amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const formatPrice = (amount: number) => {
+    if (amount === undefined || amount === null) return "0";
+    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  };
 
   const formatFCFA = (val: number) => {
+    if (val === undefined || val === null) return "0 FCFA";
     return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' FCFA';
   };
 
@@ -1273,7 +1277,7 @@ export default function App() {
         {/* Bulk Action Bar */}
         <div className="bg-gray-50 border-b border-gray-100 p-4 sm:p-6 flex flex-col lg:flex-row gap-4 items-start lg:items-center">
           <div className="flex-1 w-full">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Sélection groupée (Mois & Montant)</p>
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Sélection groupée (Mois & Montant)</p>
             <div className="flex flex-wrap gap-2">
               <div className="flex flex-wrap gap-1 p-2 bg-white rounded-2xl border border-gray-200 shadow-sm flex-1">
                 {MOIS.map(m => (
@@ -1359,7 +1363,7 @@ export default function App() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 mb-3">
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sélection :</p>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sélection :</p>
                         <button 
                           onClick={() => {
                             const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
@@ -1530,7 +1534,7 @@ export default function App() {
                 </div>
                 
                 <div className="flex items-center gap-2 px-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Mois à payer :</p>
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Mois à payer :</p>
                   <button 
                     onClick={() => {
                       const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));

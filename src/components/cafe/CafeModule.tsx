@@ -122,7 +122,10 @@ export function CafeModule({
   };
 
   const formats = {
-    price: (val: number) => val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' F',
+    price: (val: number) => {
+      if (val === undefined || val === null) return "0 F";
+      return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' F';
+    },
     date: (val: number) => new Date(val).toLocaleDateString('fr-FR')
   };
 

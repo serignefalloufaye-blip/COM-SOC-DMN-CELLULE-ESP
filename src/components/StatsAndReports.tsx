@@ -49,7 +49,10 @@ export function StatsAndReports({
   }, [userRole]);
 
   // Utils
-  const formatPrice = (val: number) => val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' F';
+  const formatPrice = (val: number) => {
+    if (val === undefined || val === null) return "0 F";
+    return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' F';
+  };
 
   // --- Filtered Data ---
   const filterBySelectedPeriod = (item: any) => {

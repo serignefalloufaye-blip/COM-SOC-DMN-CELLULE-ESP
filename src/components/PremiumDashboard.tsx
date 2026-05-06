@@ -34,7 +34,10 @@ interface PremiumDashboardProps {
   onQuickAction?: (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => void;
 }
 
-const formatPrice = (p: number) => p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const formatPrice = (p: number) => {
+  if (p === undefined || p === null) return "0";
+  return p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+};
 
 export function PremiumDashboard({
   membres, cotisations, depenses, recettes, dettes,
@@ -191,7 +194,7 @@ export function PremiumDashboard({
                   <h2 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
                     {formatPrice(soldeGlobal)}
                   </h2>
-                  <span className="text-lg font-bold text-white/40 group-hover:translate-x-1 transition-transform">FCFA</span>
+                  <span className="text-lg font-bold text-white/60 group-hover:translate-x-1 transition-transform">FCFA</span>
                 </div>
               </div>
               <div className="w-12 h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center shadow-lg">
