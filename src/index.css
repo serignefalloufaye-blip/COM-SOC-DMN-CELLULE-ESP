@@ -6,14 +6,15 @@
   --font-heading: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-dmn-green-900: #0A3D2E;
-  --color-dmn-green-800: #065f46;
-  --color-dmn-green-600: #059669;
+  --color-dmn-green-900: #0B5D3B;
+  --color-dmn-green-950: #052e16;
+  --color-dmn-green-800: #084c30;
+  --color-dmn-green-600: #10B981;
   --color-dmn-green-500: #22C55E;
-  --color-dmn-gold: #d97706;
-  --color-dmn-gold-dark: #b45309;
-  --color-dmn-gold-light: #f59e0b;
-  --color-dmn-coffee: #5D4037;
+  --color-dmn-gold: #D4AF37;
+  --color-dmn-gold-dark: #B8860B;
+  --color-dmn-gold-light: #F3E5AB;
+  --color-dmn-coffee: #6B3F2A;
   --color-brown-50: #efebe9;
   --color-brown-100: #d7ccc8;
   --color-brown-200: #bcaaa4;
@@ -25,26 +26,47 @@
   --color-brown-900: #3e2723;
   --color-dmn-bg: #f8fafc;
   
-  --shadow-premium: 0 25px 60px -12px rgba(0, 0, 0, 0.12);
-  --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.03);
-  --shadow-gold: 0 20px 40px -10px rgba(217, 119, 6, 0.3);
-  --shadow-green: 0 20px 40px -10px rgba(5, 150, 105, 0.3);
+  --shadow-premium: 0 30px 60px -12px rgba(11, 93, 59, 0.15);
+  --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.02);
+  --shadow-gold: 0 20px 40px -10px rgba(212, 175, 55, 0.2);
+  --shadow-green: 0 20px 40px -10px rgba(16, 185, 129, 0.2);
+  --color-dmn-beige: #FDFBF7;
 }
 
 @layer utilities {
   .glass {
-    @apply bg-white/80 backdrop-blur-2xl border border-white/40 shadow-soft;
+    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-soft;
   }
   .glass-dark {
-    @apply bg-dmn-green-900/90 backdrop-blur-2xl border border-white/10;
+    @apply bg-dmn-green-900/85 backdrop-blur-xl border border-white/10;
   }
   .premium-card {
-    @apply bg-white rounded-[2.5rem] border border-gray-100 shadow-soft hover:shadow-premium transition-all duration-700 ease-in-out;
+    @apply bg-white rounded-[2.5rem] border border-gray-100/80 shadow-soft hover:shadow-premium transition-all duration-500 ease-out;
+  }
+  .premium-input {
+    @apply w-full bg-gray-50/50 border border-transparent rounded-[1.5rem] px-6 py-4 text-sm transition-all focus:bg-white focus:border-dmn-green-600/20 focus:ring-4 focus:ring-dmn-green-500/5 outline-none font-medium;
+  }
+  .btn-primary {
+    @apply bg-dmn-green-900 text-white font-black text-[11px] uppercase tracking-widest py-4 px-10 rounded-[1.5rem] transition-all active:scale-95 shadow-xl shadow-dmn-green-900/10 hover:bg-dmn-green-800 hover:-translate-y-0.5;
+  }
+  .btn-secondary {
+    @apply bg-white text-dmn-green-900 border border-gray-100 font-black text-[11px] uppercase tracking-widest py-4 px-10 rounded-[1.5rem] transition-all active:scale-95 hover:bg-gray-50 hover:shadow-lg;
+  }
+  .btn-gold {
+     @apply bg-dmn-gold text-white font-black text-[11px] uppercase tracking-widest py-4 px-10 rounded-[1.5rem] transition-all active:scale-95 shadow-xl shadow-dmn-gold/10 hover:bg-dmn-gold-dark hover:-translate-y-0.5;
   }
   .interactive-button {
-    @apply active:scale-95 transition-all duration-200 ease-out hover:brightness-110 shadow-sm active:brightness-90;
+    @apply transform active:scale-95 transition-all duration-200;
   }
-  .no-scrollbar::-webkit-scrollbar {
+  .fintech-heading {
+    @apply font-heading font-black tracking-tight text-dmn-green-950;
+  }
+  .fintech-kpi {
+    @apply font-heading font-black tracking-tighter tabular-nums;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
     display: none;
   }
   .no-scrollbar {
@@ -56,7 +78,6 @@
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
   }
-}
 
 @keyframes shimmer {
   0% { background-position: -200% 0; }

@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { hasPermission, logAudit } from '../utils/permissions';
 import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
 import { MOIS } from '../data';
+import { relativeDate } from '../utils/date';
 import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar, TrendingUp, TrendingDown, Clock, X, AlertCircle, CheckCircle2, Download, Table, Printer, BarChart3 } from 'lucide-react';
 import { TicketsStats } from './TicketsStats';
 import { useAdaptive } from '../hooks/useAdaptive';
@@ -429,7 +430,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
                      'bg-orange-100 text-orange-700'
                    }`}>{h.type}</span>
                    <span className="text-[9px] text-gray-400 font-bold">
-                     {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '---'}
+                     {relativeDate(h.date)}
                    </span>
                 </div>
                 <p className="text-xs font-bold text-gray-900">{h.desc}</p>
@@ -455,7 +456,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
               {sortedHistory.map((h, i) => (
                 <tr key={h.id || i} className="hover:bg-gray-50/50">
                   <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
-                    {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---'}
+                    {relativeDate(h.date)}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-block px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest mr-3 ${
@@ -495,7 +496,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
     { id: 'statistiques', label: 'Dashboard', icon: Activity },
     { id: 'collecte', label: 'Enr. Collecte', icon: Plus },
     { id: 'conversion', label: 'Conversion F', icon: ArrowRightLeft },
-    { id: 'distribution', label: 'Vente Directe', icon: Users },
+    { id: 'distribution', label: 'Distrib. Directe', icon: Users },
     { id: 'historique', label: 'Logs Activité', icon: History }
   ] as const;
 
@@ -506,25 +507,27 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       className="max-w-6xl mx-auto space-y-10 pb-40 px-4 sm:px-6"
     >
       {/* 🧭 PREMIUM NAVIGATION */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-8 sm:p-10 rounded-[3.5rem] shadow-soft border border-gray-100">
-        <div className="space-y-2">
-          <h2 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tighter">Gestion Restauration</h2>
-          <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.4em] flex items-center gap-2">
-            <Ticket size={14} className="text-dmn-gold" /> Logistique & Distribution – {effectiveMonth}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-10 rounded-[3rem] shadow-soft border border-gray-100/80">
+        <div className="space-y-3">
+          <h2 className="text-3xl sm:text-4xl fintech-heading">Gestion Tickets Resto</h2>
+          <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.4em] flex items-center gap-3">
+            <span className="w-2 h-2 bg-dmn-gold rounded-full shadow-[0_0_8px_rgba(107,63,42,0.4)]"></span> Flux Logistique – {effectiveMonth} {globalYear}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          <div className="flex bg-gray-100 p-1.5 rounded-[1.5rem] flex-1 lg:flex-none overflow-x-auto no-scrollbar">
+          <div className="flex bg-gray-50/50 p-2 rounded-[2rem] flex-1 lg:flex-none overflow-x-auto no-scrollbar border border-gray-100/50 shadow-inner">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  activeTab === tab.id ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'
+                className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                  activeTab === tab.id 
+                    ? 'bg-white text-dmn-green-950 shadow-xl shadow-dmn-green-900/5 border border-gray-100 scale-105' 
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
                 }`}
               >
-                <tab.icon size={12} className={activeTab === tab.id ? 'text-dmn-green-600' : ''} />
+                <tab.icon size={14} className={activeTab === tab.id ? 'text-dmn-green-600 stroke-[2.5px]' : 'stroke-2'} />
                 <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}
@@ -535,25 +538,25 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       {/* 🚀 QUICK STAT BAR */}
       {activeTab !== 'statistiques' && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-dmn-green-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-500"></div>
-             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Argent Dispo</p>
-             <p className="text-2xl font-black text-dmn-green-600 relative z-10">{argentDisponible} <span className="text-[10px]">F</span></p>
+          <div className="premium-card p-10 relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-dmn-green-500/10 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700"></div>
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Argent Dispo</p>
+             <p className="text-3xl fintech-kpi text-dmn-green-950 relative z-10">{argentDisponible} <span className="text-xs font-black text-gray-400 tracking-normal">FCFA</span></p>
           </div>
-          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-500"></div>
-             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">PetitDèj</p>
-             <p className="text-2xl font-black text-gray-900 relative z-10">{stockPetitDej} <span className="text-[10px]">UTS</span></p>
+          <div className="premium-card p-10 relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700"></div>
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Stock PetitDèj</p>
+             <p className="text-3xl fintech-kpi text-dmn-green-950 relative z-10">{stockPetitDej} <span className="text-xs font-black text-gray-400 tracking-normal">UTS</span></p>
           </div>
-          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-500"></div>
-             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Repas Complets</p>
-             <p className="text-2xl font-black text-gray-900 relative z-10">{stockRepas} <span className="text-[10px]">UTS</span></p>
+          <div className="premium-card p-10 relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700"></div>
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Stock Repas</p>
+             <p className="text-3xl fintech-kpi text-dmn-green-950 relative z-10">{stockRepas} <span className="text-xs font-black text-gray-400 tracking-normal">UTS</span></p>
           </div>
-          <div className="bg-gray-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden group">
-             <div className="absolute bottom-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-12 -mb-12 transition-transform group-hover:scale-150 duration-500"></div>
-             <p className="text-[9px] font-black text-dmn-gold uppercase tracking-widest mb-2">Flux Ventes</p>
-             <p className="text-2xl font-black relative z-10">{ticketsDistribuesPetitDej + ticketsDistribuesRepas} <span className="text-[10px] opacity-40">UTS</span></p>
+          <div className="premium-card bg-dmn-green-900 border-none p-10 text-white relative overflow-hidden group">
+             <div className="absolute bottom-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mb-16 transition-transform group-hover:scale-150 duration-700"></div>
+             <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-4">Total Distribué</p>
+             <p className="text-3xl fintech-kpi text-white relative z-10">{ticketsDistribuesPetitDej + ticketsDistribuesRepas} <span className="text-xs font-black text-white/30 tracking-normal">UTS</span></p>
           </div>
         </div>
       )}

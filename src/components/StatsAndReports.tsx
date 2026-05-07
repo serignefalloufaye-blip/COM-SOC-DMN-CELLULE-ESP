@@ -42,7 +42,7 @@ export function StatsAndReports({
   membres, showToast, userRole
 }: StatsAndReportsProps) {
   const defaultTab = ['admin', 'caisse', 'lecteur'].includes(userRole) ? 'caisse' : userRole === 'tickets' ? 'tickets' : 'cafe';
-  const [filterPeriod, setFilterPeriod] = useState<'mensuel' | 'trimestriel' | 'annuel'>('annuel');
+  const [filterPeriod, setFilterPeriod] = useState<'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel'>('annuel');
   const [selectedMonth, setSelectedMonth] = useState<string>(globalMonth);
   const [selectedQuarter, setSelectedQuarter] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'caisse' | 'tickets' | 'cafe'>(defaultTab as 'caisse' | 'tickets' | 'cafe');
@@ -59,8 +59,29 @@ export function StatsAndReports({
 
   // --- Filtered Data ---
   const filterBySelectedPeriod = (item: any) => {
+    // Determine the date to evaluate
+    const d = item.date ? new Date(item.date) : (item.createdAt ? new Date(item.createdAt) : null);
+    
+    if (filterPeriod === 'journalier') {
+      if (!d) return false;
+      const now = new Date();
+      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    if (filterPeriod === 'hebdomadaire') {
+      if (!d) return false;
+      const now = new Date();
+      const getWeek = (date: Date) => {
+        const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = dt.getUTCDay() || 7;
+        dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+        return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+      };
+      return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
+    }
+
     // Basic year check
-    if (item.annee !== globalYear) return false;
+    if (item.annee !== globalYear && d?.getFullYear() !== globalYear) return false;
 
     if (filterPeriod === 'annuel') return true;
     if (filterPeriod === 'mensuel') return item.mois === selectedMonth;
@@ -82,6 +103,23 @@ export function StatsAndReports({
 
   const cafeFilter = (item: any) => {
     const d = new Date(item.date || item.createdAt);
+    
+    if (filterPeriod === 'journalier') {
+      const now = new Date();
+      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    if (filterPeriod === 'hebdomadaire') {
+      const now = new Date();
+      const getWeek = (date: Date) => {
+        const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = dt.getUTCDay() || 7;
+        dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+        return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+      };
+      return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
+    }
+
     if (d.getFullYear() !== globalYear) return false;
     
     if (filterPeriod === 'mensuel') return MOIS[d.getMonth()] === selectedMonth;
@@ -187,10 +225,10 @@ export function StatsAndReports({
 
   // TICKETS
   const statsTickets = useMemo(() => {
-    const vendus = filteredTicketsDist.reduce((s, d) => s + d.petitDej + d.repas, 0);
+    const distribues = filteredTicketsDist.reduce((s, d) => s + d.petitDej + d.repas, 0);
     const stockTotal = (ticketCollectes.reduce((s, c) => s + c.petitDej + c.repas, 0)) - ticketDistributions.reduce((s, d) => s + d.petitDej + d.repas, 0);
     const incomeTickets = filteredTicketsDist.reduce((s, d) => s + (d.petitDej * 50 + d.repas * 100), 0);
-    return { vendus, stockTotal, incomeTickets, gratuits: 0 };
+    return { distribues, stockTotal, incomeTickets, gratuits: 0 };
   }, [ticketCollectes, ticketDistributions, filteredTicketsDist]);
 
   // CAFE calculations are handled inline or via memos above
@@ -239,9 +277,11 @@ export function StatsAndReports({
         <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
           <div className="flex bg-gray-100 p-1.5 rounded-[1.5rem] flex-1 lg:flex-none overflow-x-auto no-scrollbar">
             {[
-              { id: 'annuel', label: 'Année' },
+              { id: 'journalier', label: 'Jour' },
+              { id: 'hebdomadaire', label: 'Sem.' },
               { id: 'mensuel', label: 'Mois' },
-              { id: 'trimestriel', label: 'Trimestre' }
+              { id: 'trimestriel', label: 'Trimestre' },
+              { id: 'annuel', label: 'Année' }
             ].map(p => (
               <button
                 key={p.id}
@@ -439,10 +479,10 @@ export function StatsAndReports({
            <div className="space-y-6 pt-4">
               <div className="flex justify-between items-center text-xs font-black text-gray-600 uppercase tracking-widest">
                  <span className="flex items-center gap-2 font-black"><AlertCircle size={14} className="text-amber-500" /> Consommation de Stock</span>
-                 <span className="text-gray-900">{Math.round((statsTickets.vendus / (statsTickets.stockTotal + statsTickets.vendus || 1)) * 100)}%</span>
+                 <span className="text-gray-900">{Math.round((statsTickets.distribues / (statsTickets.stockTotal + statsTickets.distribues || 1)) * 100)}%</span>
               </div>
               <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden shadow-inner">
-                 <div className="h-full bg-gradient-to-r from-amber-400 to-amber-600 shimmer shadow-lg" style={{ width: `${Math.min(100, (statsTickets.vendus / (statsTickets.stockTotal + statsTickets.vendus || 1)) * 100)}%` }}></div>
+                 <div className="h-full bg-gradient-to-r from-amber-400 to-amber-600 shimmer shadow-lg" style={{ width: `${Math.min(100, (statsTickets.distribues / (statsTickets.stockTotal + statsTickets.distribues || 1)) * 100)}%` }}></div>
               </div>
               <p className="text-[10px] font-bold text-gray-400 italic text-center leading-relaxed">
                 Le stock restant est de {stockPD} PD et {stockRepas} repas complets.

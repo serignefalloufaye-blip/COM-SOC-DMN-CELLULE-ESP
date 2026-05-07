@@ -11,10 +11,11 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { MOIS } from './data';
-import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, AppUser, UserRole, AccessCode } from './types';
+import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, AppUser, UserRole, AccessCode, CafeProduction, CafeVente, CafeDepense, CafeTransfert, CafeSeller, CafeClient, CafeOrder, CafeDistribution, CafeVersement, CafePriceConfig } from './types';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
+import { getAutoDateData, relativeDate, formalizeDate, simpleDate } from './utils/date';
 import { User } from 'firebase/auth';
 
 import { useDebounce } from './utils/useDebounce';
@@ -22,10 +23,8 @@ import { hasPermission, logAudit } from './utils/permissions';
 import { RotatingMessages } from './components/RotatingMessages';
 import { NetworkIndicator } from './components/NetworkIndicator';
 import { ReportService } from './services/ReportService';
+import AdminDateInput from './components/AdminDateInput';
 import * as XLSX from 'xlsx';
-import { 
-  CafeProduction, CafeVente, CafeDepense, CafeTransfert, CafeSeller, CafeClient, CafeOrder
-} from './types';
 import { useAdaptive } from './hooks/useAdaptive';
 
 // Lazy load heavy components
@@ -129,9 +128,12 @@ export default function App() {
   const [cafeVentes, setCafeVentes] = useState<CafeVente[]>([]);
   const [cafeDepenses, setCafeDepenses] = useState<CafeDepense[]>([]);
   const [cafeTransferts, setCafeTransferts] = useState<CafeTransfert[]>([]);
+  const [cafeDistributions, setCafeDistributions] = useState<CafeDistribution[]>([]);
+  const [cafeVersements, setCafeVersements] = useState<CafeVersement[]>([]);
   const [cafeSellers, setCafeSellers] = useState<CafeSeller[]>([]);
   const [cafeClients, setCafeClients] = useState<CafeClient[]>([]);
   const [cafeOrders, setCafeOrders] = useState<CafeOrder[]>([]);
+  const [cafePriceConfig, setCafePriceConfig] = useState<CafePriceConfig | null>(null);
   const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
@@ -340,6 +342,14 @@ export default function App() {
       setCafeTransferts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeTransfert)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_transferts'));
 
+    const unsubCafeDistributions = onSnapshot(collection(db, 'cafe_distributions'), (snapshot) => {
+      setCafeDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeDistribution)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_distributions'));
+
+    const unsubCafeVersements = onSnapshot(collection(db, 'cafe_versements'), (snapshot) => {
+      setCafeVersements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeVersement)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_versements'));
+
     const unsubCafeSellers = onSnapshot(collection(db, 'cafe_sellers'), (snapshot) => {
       setCafeSellers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeSeller)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_sellers'));
@@ -358,12 +368,27 @@ export default function App() {
         }, (error) => handleFirestoreError(error, OperationType.GET, 'users'))
       : () => {};
 
+    const unsubCafePriceConfig = onSnapshot(doc(db, 'settings', 'cafe_prices'), (snapshot) => {
+      if (snapshot.exists()) {
+        setCafePriceConfig({ id: snapshot.id, ...snapshot.data() } as CafePriceConfig);
+      } else {
+        setCafePriceConfig({
+          id: 'cafe_prices',
+          prices: {
+            '1kg': { cost: 1500, price: 2500 },
+            '500g': { cost: 800, price: 1300 }
+          },
+          lastUpdated: Date.now()
+        });
+      }
+    });
+
     return () => { 
       unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); 
       unsubTicketCollectes(); unsubTicketConversions(); unsubTicketDistributions();
       unsubCafeProductions(); unsubCafeVentes(); unsubCafeDepenses(); unsubCafeTransferts();
-      unsubCafeSellers(); unsubCafeClients(); unsubCafeOrders();
-      unsubUsers();
+      unsubCafeDistributions(); unsubCafeVersements(); unsubCafeSellers(); unsubCafeClients(); unsubCafeOrders();
+      unsubUsers(); unsubCafePriceConfig();
     };
   }, [isAuthReady, user, userRole]);
 
@@ -527,14 +552,16 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const mId = formData.get('mId') as string;
-    const mois = formData.get('mois') as string;
-    const annee = parseInt(formData.get('annee') as string) || globalYear;
     const montant = parseInt(formData.get('montant') as string) || 0;
     const mode = formData.get('mode') as ModePaiement;
+    
+    // Automatically set date information
+    const customDateVal = formData.get('customDate') as string | null;
+    const { mois, annee, date: fullDate, heure, trimestre } = getAutoDateData(customDateVal);
 
     try {
       if (editingCot?.id) {
-        await updateDoc(doc(db, 'cotisations', editingCot.id), { mId, mois, annee, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
+        await updateDoc(doc(db, 'cotisations', editingCot.id), { mId, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Cotisation modifiée avec succès');
       } else {
         const existing = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === annee);
@@ -545,7 +572,7 @@ export default function App() {
           await updateDoc(doc(db, 'cotisations', existing.id), { montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
           showToast('Cotisation enregistrée avec succès');
         } else {
-          await addDoc(collection(db, 'cotisations'), { mId, mois, annee, montant, mode, createdAt: Date.now(), createdBy: user?.uid });
+          await addDoc(collection(db, 'cotisations'), { mId, mois, annee, trimestre, heure, montant, mode, createdAt: Date.now(), createdBy: user?.uid });
           showToast('Cotisation ajoutée avec succès');
         }
       }
@@ -560,16 +587,16 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const evenement = formData.get('evenement') as string;
-    const mois = formData.get('mois') as string;
-    const annee = parseInt(formData.get('annee') as string) || globalYear;
     const montant = parseInt(formData.get('montant') as string) || 0;
-    const date = new Date().toISOString();
+    
+    const customDateVal = formData.get('customDate') as string | null;
+    const { mois, annee, date, heure, trimestre } = getAutoDateData(customDateVal);
     try {
       if (editingDepense?.id) {
-        await updateDoc(doc(db, 'depenses', editingDepense.id), { evenement, mois, annee, montant, updatedAt: Date.now(), updatedBy: user?.uid });
+        await updateDoc(doc(db, 'depenses', editingDepense.id), { evenement, montant, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Dépense modifiée avec succès');
       } else {
-        await addDoc(collection(db, 'depenses'), { evenement, mois, annee, montant, date, createdAt: Date.now(), createdBy: user?.uid });
+        await addDoc(collection(db, 'depenses'), { evenement, mois, annee, trimestre, heure, montant, date, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Dépense ajoutée avec succès');
       }
       setIsDepenseModalOpen(false);
@@ -599,17 +626,17 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const motif = formData.get('motif') as string;
-    const mois = formData.get('mois') as string;
-    const annee = parseInt(formData.get('annee') as string) || globalYear;
     const montant = parseInt(formData.get('montant') as string) || 0;
     const mode = formData.get('mode') as ModePaiement;
-    const date = new Date().toISOString();
+    
+    const customDateVal = formData.get('customDate') as string | null;
+    const { mois, annee, date, heure, trimestre } = getAutoDateData(customDateVal);
     try {
       if (editingRecette?.id) {
-        await updateDoc(doc(db, 'recettes', editingRecette.id), { motif, mois, annee, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
+        await updateDoc(doc(db, 'recettes', editingRecette.id), { motif, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Entrée modifiée avec succès');
       } else {
-        await addDoc(collection(db, 'recettes'), { motif, mois, annee, montant, mode, date, createdAt: Date.now(), createdBy: user?.uid });
+        await addDoc(collection(db, 'recettes'), { motif, mois, annee, trimestre, heure, montant, mode, date, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Entrée ajoutée avec succès');
       }
       setIsRecetteModalOpen(false);
@@ -639,16 +666,16 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const motif = formData.get('motif') as string;
-    const mois = formData.get('mois') as string;
-    const annee = parseInt(formData.get('annee') as string) || globalYear;
     const montant = parseInt(formData.get('montant') as string) || 0;
-    const date = new Date().toISOString();
+    
+    const customDateVal = formData.get('customDate') as string | null;
+    const { mois, annee, date, heure, trimestre } = getAutoDateData(customDateVal);
     try {
       if (editingDette?.id) {
-        await updateDoc(doc(db, 'dettes', editingDette.id), { motif, mois, annee, montant, updatedAt: Date.now(), updatedBy: user?.uid });
+        await updateDoc(doc(db, 'dettes', editingDette.id), { motif, montant, updatedAt: Date.now(), updatedBy: user?.uid });
         showToast('Dette modifiée avec succès');
       } else {
-        await addDoc(collection(db, 'dettes'), { motif, mois, annee, montant, date, estPayee: false, createdAt: Date.now(), createdBy: user?.uid });
+        await addDoc(collection(db, 'dettes'), { motif, mois, annee, trimestre, heure, montant, date, estPayee: false, createdAt: Date.now(), createdBy: user?.uid });
         showToast('Dette ajoutée avec succès');
       }
       setIsDetteModalOpen(false);
@@ -721,7 +748,7 @@ export default function App() {
   };
 
   const Badge = ({ mode, date }: { mode: ModePaiement, date?: number | string }) => {
-    const formattedDate = date ? new Date(date).toLocaleDateString('fr-FR') : null;
+    const formattedDate = date ? simpleDate(date) : null;
     const baseClass = "inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap";
     let colorClass = "bg-emerald-100 text-emerald-700";
     let label = "ESP";
@@ -743,7 +770,7 @@ export default function App() {
   
   const DateBadge = ({ date }: { date?: number | string }) => {
     if (!date) return null;
-    const formattedDate = new Date(date).toLocaleDateString('fr-FR');
+    const formattedDate = simpleDate(date);
     return (
       <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap bg-gray-100 text-gray-500">
         Enregistré le {formattedDate}
@@ -877,7 +904,7 @@ export default function App() {
                           <p className="font-bold text-gray-900 text-sm">{c.mois} {c.annee}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <Badge mode={c.mode} date={c.createdAt || c.updatedAt} />
-                            <span className="text-[10px] text-gray-400 font-medium italic">Enregistré le {new Date(c.createdAt || Date.now()).toLocaleDateString()}</span>
+                            <span className="text-[10px] text-gray-400 font-medium italic">Enregistré le {simpleDate(c.createdAt || Date.now())}</span>
                           </div>
                         </div>
                         <p className="font-black text-dmn-green-600">+{formatPrice(c.montant)} F</p>
@@ -1243,7 +1270,7 @@ export default function App() {
           <div className="bg-dmn-green-950 p-10 text-white text-center relative">
             <div className="absolute top-1/2 left-10 -translate-y-1/2 opacity-10"><Activity size={80} /></div>
             <h3 className="text-2xl font-heading font-black uppercase tracking-widest mb-1 italic">Vérification de Transparence</h3>
-            <p className="text-dmn-green-300 text-[10px] font-bold uppercase tracking-[0.4em]">Daara Madjmahoune Noreyni – {globalYear}</p>
+            <p className="text-dmn-green-300 text-[10px] font-bold uppercase tracking-[0.4em]">Daara Madjmahoune Noreyni UCAD – {globalYear}</p>
           </div>
           <div className="p-10 sm:p-14 space-y-12">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
@@ -1814,7 +1841,8 @@ export default function App() {
       const percentage = totalMembres > 0 ? Math.round((sortedCots.length / totalMembres) * 100) : 0;
 
       message += `\nTotal : ${sortedCots.length} membre(s) sur ${totalMembres} (${percentage}%)\n`;
-      message += `Daara Madjmahoune Noreyni - Com Soc Cellule ESP`;
+      message += `Daara Madjmahoune Noreyni UCAD - Commission Sociale\n`;
+      message += `La transparence est une responsabilité`;
 
       navigator.clipboard.writeText(message).then(() => {
         showToast('Liste copiée dans le presse-papier !', 'success');
@@ -2013,11 +2041,11 @@ export default function App() {
                         onClick={() => handleToggleDetteStatus(d)}
                         className={`px-3 py-1 text-xs font-bold rounded-full transition-colors ${d.estPayee ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'} whitespace-nowrap`}
                       >
-                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non Payée depuis le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                        {d.estPayee ? `Payée le ${simpleDate(d.updatedAt || d.createdAt || Date.now())}` : `Non Payée depuis le ${simpleDate(d.createdAt || Date.now())}`}
                       </button>
                     ) : (
                       <span className={`px-3 py-1 text-xs font-bold rounded-full ${d.estPayee ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} whitespace-nowrap`}>
-                        {d.estPayee ? `Payée le ${new Date(d.updatedAt || d.createdAt || Date.now()).toLocaleDateString('fr-FR')}` : `Non Payée depuis le ${new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}`}
+                        {d.estPayee ? `Payée le ${simpleDate(d.updatedAt || d.createdAt || Date.now())}` : `Non Payée depuis le ${simpleDate(d.createdAt || Date.now())}`}
                       </span>
                     )}
                   </td>
@@ -2090,7 +2118,7 @@ export default function App() {
                 )}
               </div>
               {!d.estPayee && (
-                <p className="text-[9px] font-bold text-gray-400">Dette contractée le {new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR')}</p>
+                <p className="text-[9px] font-bold text-gray-400">Dette contractée le {simpleDate(d.createdAt || Date.now())}</p>
               )}
             </div>
           ))}
@@ -2756,21 +2784,18 @@ export default function App() {
       <div className="min-h-screen bg-dmn-bg flex items-center justify-center p-4">
         <div className="bg-white p-10 rounded-[40px] shadow-2xl max-w-md w-full text-center border border-gray-100 relative overflow-hidden animate-in zoom-in-95 duration-500">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-dmn-green-400 via-dmn-green-600 to-dmn-gold"></div>
-          <div className="absolute top-0 right-0 w-40 h-40 bg-dmn-green-50 rounded-full -mr-20 -mt-20 opacity-50"></div>
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-dmn-gold-light/10 rounded-full -ml-16 -mb-16 opacity-50"></div>
           
           <div className="relative z-10">
-            <div className="w-28 h-28 mx-auto bg-white rounded-[32px] flex items-center justify-center overflow-hidden shadow-xl mb-8 border-4 border-dmn-green-50 rotate-3 hover:rotate-0 transition-transform duration-300">
+            <div className="w-28 h-28 mx-auto bg-white rounded-[32px] flex items-center justify-center overflow-hidden shadow-2xl mb-8 border-4 border-dmn-beige rotate-3 hover:rotate-0 transition-transform duration-500">
               <img 
                 src={appSettings.logoUrl || "logo.png"} 
                 alt="Logo DMN" 
-                className="w-full h-full object-cover" 
+                className="w-full h-full object-contain p-2" 
                 referrerPolicy="no-referrer"
                 onError={(e) => { 
                   if (appSettings.logoUrl) {
                     e.currentTarget.src = "logo.png";
                   } else {
-                    console.error("Logo failed to load at logo.png");
                     e.currentTarget.style.display = 'none'; 
                     e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
                   }
@@ -2778,29 +2803,35 @@ export default function App() {
               />
               <span className="hidden text-dmn-green-600 font-bold text-2xl uppercase tracking-tighter">DMN</span>
             </div>
-            <h1 className="text-3xl font-heading font-black text-dmn-green-900 mb-2 tracking-tight">Commission Sociale</h1>
-            <p className="text-sm font-bold text-dmn-green-600 uppercase tracking-widest mb-6">Daara Madjmahoune Noreyni</p>
+            <h1 className="text-3xl fintech-heading mb-2">Système de Gestion DMN</h1>
+            <p className="text-[11px] font-black text-dmn-gold uppercase tracking-[0.3em] mb-8">Daara Madjmahoune Noreyni UCAD</p>
             
-            <div className="bg-gray-50 p-5 rounded-3xl mb-8 border border-gray-100">
-              <p className="text-gray-500 font-medium text-sm leading-relaxed">
-                Plateforme sécurisée de gestion des cotisations et des flux financiers.
+            <div className="bg-dmn-beige p-6 rounded-[2rem] mb-10 border border-dmn-gold-light/20 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-dmn-gold/5 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700"></div>
+              <p className="text-dmn-green-950 font-medium text-sm leading-relaxed relative z-10">
+                “La transparence est une responsabilité”
               </p>
+              <p className="text-[9px] font-black text-dmn-green-600/60 uppercase tracking-widest mt-2">DMN Premium Access</p>
             </div>
 
             <button 
               onClick={handleLogin} 
               disabled={isLoggingIn}
-              className="w-full bg-dmn-green-600 hover:bg-dmn-green-700 disabled:bg-gray-400 text-white font-black py-4 px-6 rounded-2xl transition-all shadow-lg shadow-dmn-green-100 active:scale-95 flex items-center justify-center gap-3 text-lg"
+              className="btn-primary w-full flex items-center justify-center gap-4 text-sm"
             >
               {isLoggingIn ? (
                 <>
-                  <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Connexion...
+                  <Loader2 className="animate-spin" size={20} />
+                  Sécurisation...
                 </>
               ) : (
-                "Accéder au Portail"
+                <>
+                  <Shield size={20} className="text-dmn-gold-light" />
+                  Accéder au Portail
+                </>
               )}
             </button>
+            <p className="mt-8 text-[9px] font-black text-gray-400 uppercase tracking-[0.4em]">Propulsé par Commission Sociale DMN UCAD</p>
           </div>
         </div>
       </div>
@@ -2810,34 +2841,31 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-dmn-bg text-gray-800 font-sans ${isMobile ? 'pb-32' : 'pb-10'} relative overflow-x-hidden`}>
       {/* Header Premium */}
-      <header className="bg-white/80 backdrop-blur-2xl border-b border-gray-100 flex justify-between items-center px-5 py-3.5 sticky top-0 z-[100] shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-dmn-green-900 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg border border-white/10 transition-transform active:scale-95">
-            <img 
-              src={appSettings.logoUrl || "logo.png"} 
-              alt="Logo DMN" 
-              className="w-full h-full object-cover" 
-              referrerPolicy="no-referrer"
-              onError={(e) => { 
-                if (appSettings.logoUrl) {
-                  e.currentTarget.src = "logo.png";
-                } else {
-                  e.currentTarget.style.display = 'none'; 
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden'); 
-                }
-              }} 
-            />
-            <span className="hidden text-white font-black text-[12px] uppercase">DMN</span>
+      <header className="bg-white/80 backdrop-blur-3xl border-b border-gray-100/50 flex justify-between items-center px-6 py-4 sticky top-0 z-[100] shadow-soft">
+        <div className="flex items-center gap-5">
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center overflow-hidden shadow-premium border border-gray-100 p-0.5 transition-transform active:scale-95 group">
+            <div className="w-full h-full bg-dmn-green-50 rounded-[14px] flex items-center justify-center overflow-hidden">
+              <img 
+                src={appSettings.logoUrl || "logo.png"} 
+                alt="Logo" 
+                className="w-full h-full object-contain p-1" 
+                referrerPolicy="no-referrer"
+              />
+            </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-[17px] font-black text-dmn-green-950 tracking-tight leading-none uppercase">Daara M.</h1>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-3">
+              <h1 className="text-[16px] fintech-heading leading-none uppercase hidden sm:block">Daara Madjmahoune Noreyni UCAD</h1>
+              <h1 className="text-[16px] fintech-heading leading-none uppercase sm:hidden">DMN UCAD</h1>
               {!isMobile && (
-                <span className="text-[10px] font-bold text-gray-400 border-l border-gray-200 pl-2 uppercase tracking-widest hidden lg:inline">Système de Gestion</span>
+                <div className="h-4 w-px bg-gray-200 hidden lg:block mx-1"></div>
+              )}
+              {!isMobile && (
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] hidden lg:inline">Système de Gestion DMN</span>
               )}
             </div>
-            <div className="text-[8px] font-black text-dmn-green-600 uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5">
-               <div className="w-1 h-1 bg-dmn-green-400 rounded-full animate-pulse"></div> CS DMN UCAD
+            <div className="text-[9px] font-black text-dmn-green-600 uppercase tracking-[0.2em] flex items-center gap-2">
+               <span className="w-2 h-2 bg-dmn-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.3)] animate-pulse"></span> Commission Sociale
             </div>
           </div>
         </div>
@@ -2922,9 +2950,9 @@ export default function App() {
                 <button 
                   key={sub.id} 
                   onClick={() => setFinanceSubTab(sub.id as any)} 
-                  className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all shadow-sm group whitespace-nowrap border ${
+                  className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
                     financeSubTab === sub.id 
-                      ? 'bg-dmn-green-600 text-white border-transparent shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10 scale-105' 
+                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10 scale-105' 
                       : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
@@ -2941,9 +2969,9 @@ export default function App() {
                 <button 
                   key={sub.id} 
                   onClick={() => setMembreSubTab(sub.id as any)} 
-                  className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all shadow-sm group whitespace-nowrap border ${
+                  className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
                     membreSubTab === sub.id 
-                      ? 'bg-dmn-green-600 text-white border-transparent shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10 scale-105' 
+                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10 scale-105' 
                       : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
@@ -3021,9 +3049,12 @@ export default function App() {
             ventes={cafeVentes}
             depenses={cafeDepenses}
             transferts={cafeTransferts}
+            distributions={cafeDistributions}
+            versements={cafeVersements}
             sellers={cafeSellers}
             clients={cafeClients}
             orders={cafeOrders}
+            priceConfig={cafePriceConfig}
             userRole={userRole || 'lecteur'}
             globalYear={globalYear}
             globalMonth={globalMonth}
@@ -3056,7 +3087,7 @@ export default function App() {
           { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
           { id: 'finance', label: 'Caisse & Rapports', icon: Wallet, roles: ['admin', 'caisse'] },
           { id: 'tickets', label: 'Tickets Resto', icon: Ticket, roles: ['admin', 'tickets'] },
-          { id: 'cafe', label: 'Café ☕', icon: Coffee, roles: ['admin', 'cafe'] },
+          { id: 'cafe', label: 'Café ☕', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
           { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
           { id: 'rapports', label: 'Rapports & Stats', icon: TrendingUp, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
           { id: 'roles', label: 'Profil & Rôles', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
@@ -3087,7 +3118,7 @@ export default function App() {
             { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur', 'visitor'] },
             { id: 'finance', label: 'Caisse', icon: Wallet, roles: ['admin', 'caisse'] },
             { id: 'tickets', label: 'Tickets', icon: Ticket, roles: ['admin', 'tickets'] },
-            { id: 'cafe', label: 'Café', icon: Coffee, roles: ['admin', 'cafe'] },
+            { id: 'cafe', label: 'Café', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
             { id: 'rapports', label: 'Rapports', icon: TrendingUp, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
             { id: 'roles', label: 'Profil', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
           ].filter(tab => tab.roles.includes(userRole as any || 'visitor')).map(tab => (
@@ -3120,10 +3151,16 @@ export default function App() {
       </div>
 
       {/* Footer (Simplified for mobile) */}
-      <footer className="mt-20 pb-40 px-6 text-center space-y-4">
-        <div className="w-12 h-1 bg-dmn-green-100 mx-auto rounded-full"></div>
-        <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Daara Madjmahoune Noreyni</p>
-        <p className="text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.1em]">La transparence est une responsabilité</p>
+      <footer className="mt-20 pb-40 px-6 text-center space-y-6">
+        <div className="w-16 h-1 bg-dmn-green-100/50 mx-auto rounded-full"></div>
+        <div className="space-y-2">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.4em]">Daara Madjmahoune Noreyni UCAD</p>
+          <p className="text-[12px] font-black text-dmn-green-950 uppercase tracking-widest">Système de Gestion DMN</p>
+        </div>
+        <div className="inline-block px-4 py-2 bg-dmn-beige border border-dmn-gold-light/20 rounded-xl">
+          <p className="text-[11px] font-black text-dmn-gold uppercase tracking-[0.2em]">“La transparence est une responsabilité”</p>
+        </div>
+        <p className="text-[8px] font-bold text-gray-300 uppercase tracking-widest pt-4">© {new Date().getFullYear()} DMN UCAD | Tous droits réservés</p>
       </footer>
 
       {renderMemberHistoryModal()}
@@ -3200,17 +3237,6 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois</label>
-                <select name="mois" defaultValue={editingCot.mois || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  <option value="" disabled>Sélectionner un mois</option>
-                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année</label>
-                <input type="number" name="annee" defaultValue={editingCot.annee || globalYear} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
                 <input type="number" name="montant" defaultValue={editingCot.montant} placeholder="500" required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
               </div>
@@ -3222,6 +3248,7 @@ export default function App() {
                   <option value="ESPÈCES">ESPÈCES</option>
                 </select>
               </div>
+              <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsCotModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
@@ -3246,19 +3273,10 @@ export default function App() {
                 <input name="evenement" defaultValue={editingDepense.evenement} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois</label>
-                <select name="mois" defaultValue={editingDepense.mois || globalMonth || MOIS[currentMonthIndex]} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année</label>
-                <input type="number" name="annee" defaultValue={editingDepense.annee || globalYear} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
                 <input type="number" name="montant" defaultValue={editingDepense.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
               </div>
+              <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsDepenseModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
@@ -3283,16 +3301,6 @@ export default function App() {
                 <input name="motif" defaultValue={editingRecette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Don, Subvention..." />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois</label>
-                <select name="mois" defaultValue={editingRecette.mois || globalMonth || MOIS[currentMonthIndex]} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année</label>
-                <input type="number" name="annee" defaultValue={editingRecette.annee || globalYear} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
                 <input type="number" name="montant" defaultValue={editingRecette.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
               </div>
@@ -3304,6 +3312,7 @@ export default function App() {
                   <option value="ESPÈCES">ESPÈCES</option>
                 </select>
               </div>
+              <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsRecetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
@@ -3328,19 +3337,10 @@ export default function App() {
                 <input name="motif" defaultValue={editingDette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Achat matériel, Prêt à X..." />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois</label>
-                <select name="mois" defaultValue={editingDette.mois || globalMonth || MOIS[currentMonthIndex]} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année</label>
-                <input type="number" name="annee" defaultValue={editingDette.annee || globalYear} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
                 <input type="number" name="montant" defaultValue={editingDette.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
               </div>
+              <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsDetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>

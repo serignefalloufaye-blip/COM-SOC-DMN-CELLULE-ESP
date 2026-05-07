@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useAdaptive } from '../hooks/useAdaptive';
 import { hasPermission } from '../utils/permissions';
+import { simpleDate, relativeDate } from '../utils/date';
 
 interface PremiumDashboardProps {
   membres: Membre[];
@@ -212,23 +213,24 @@ export function PremiumDashboard({
       className="max-w-5xl mx-auto space-y-10 pb-32 pt-4 sm:pt-12 px-4 sm:px-6"
     >
       {/* 🚀 WELCOME & LOGO */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-2">
-        <div className="flex items-center gap-5">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-4">
+        <div className="flex items-center gap-6">
           <div className="relative group">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-3xl p-1 shadow-lg border border-gray-100 overflow-hidden">
+            <div className="absolute inset-0 bg-dmn-green-500/10 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="w-20 h-20 bg-white rounded-[2rem] p-1.5 shadow-soft border border-gray-100/80 overflow-hidden relative z-10 transition-transform group-hover:scale-105 duration-500">
               {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-2xl" />
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1.5rem]" />
               ) : (
                 <div className="w-full h-full bg-dmn-green-50 flex items-center justify-center text-dmn-green-700">
-                  <Building2 size={32} />
+                  <Building2 size={36} strokeWidth={2.5} />
                 </div>
               )}
             </div>
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight leading-tight">Daara Madjmahoune</h1>
-            <p className="text-[10px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.3em] mt-1 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-dmn-green-500 rounded-full animate-pulse"></span> Terminal de Gestion
+            <h1 className="text-2xl sm:text-4xl fintech-heading">Daara Madjmahoune Noreyni UCAD</h1>
+            <p className="text-[10px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.4em] mt-2 flex items-center gap-3">
+              <span className="w-2 h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Système de Gestion DMN
             </p>
           </div>
         </div>
@@ -256,14 +258,14 @@ export function PremiumDashboard({
           
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <p className="text-white/60 text-[11px] font-black uppercase tracking-[0.4em]">Trésorerie Centrale</p>
-                  <Shield size={14} className="text-white/30" />
+                  <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">Solde Trésorerie Centrale</p>
+                  <Shield size={14} className="text-white/20" />
                 </div>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-2xl font-bold text-white/40 mb-1 tracking-tighter">FCFA</span>
-                  <h2 className="text-5xl sm:text-7xl font-black text-white tracking-tighter tabular-nums drop-shadow-xl">
+                <div className="flex items-baseline gap-4">
+                  <span className="text-3xl font-heading font-black text-dmn-gold opacity-80 mb-2 tracking-tighter">FCFA</span>
+                  <h2 className="text-6xl sm:text-8xl fintech-kpi text-white drop-shadow-2xl">
                     {formatPrice(soldeGlobal)}
                   </h2>
                 </div>
@@ -386,7 +388,7 @@ export function PremiumDashboard({
         <div className="flex gap-2 sm:gap-6 overflow-x-auto no-scrollbar py-1">
            {[
              { id: 'membre', label: 'Inscrire Membre', icon: Users, color: 'bg-dmn-green-500', perm: ['admin', 'caisse'] },
-             { id: 'ticket', label: 'Vendre Tickets', icon: Ticket, color: 'bg-amber-500', perm: ['admin', 'tickets'] },
+             { id: 'ticket', label: 'Distribuer Tickets', icon: Ticket, color: 'bg-amber-500', perm: ['admin', 'tickets'] },
              { id: 'cafe', label: 'Action Café', icon: Coffee, color: 'bg-orange-500', perm: ['admin', 'cafe'] },
              { id: 'rapport', label: 'Générer Rapport', icon: BarChart3, color: 'bg-blue-500', perm: ['admin', 'caisse'] }
            ].filter(a => !userRole || a.perm.includes(userRole as any)).map((action) => (
@@ -528,7 +530,7 @@ export function PremiumDashboard({
                       {h.label}
                     </h4>
                     <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
-                       <Calendar size={10} /> {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '---'}
+                       <Calendar size={10} /> {h.date ? simpleDate(h.date) : '---'}
                     </p>
                   </div>
                 </div>

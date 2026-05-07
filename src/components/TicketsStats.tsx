@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Membre, TicketCollecte, TicketConversion, TicketDistribution } from '../types';
 import { MOIS } from '../data';
 import { Search, Filter, TrendingUp, TrendingDown, Users, Package, Navigation, Calendar, Activity } from 'lucide-react';
+import { simpleDate } from '../utils/date';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
@@ -348,7 +349,7 @@ export function TicketsStats({ membres, collectes, conversions, distributions }:
                     return (
                       <tr key={i} className="hover:bg-gray-50/50">
                         <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
-                          {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '---'}
+                          {h.date ? simpleDate(h.date) : '---'}
                         </td>
                         <td className="px-6 py-4 font-bold text-gray-900">
                           {membre ? `${membre.prenom} ${membre.nom}` : '-'}

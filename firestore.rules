@@ -136,9 +136,31 @@ service cloud.firestore {
       return data.date is number &&
              data.quantite is number && data.quantite > 0 &&
              data.prixUnitaire is number && data.prixUnitaire >= 0 &&
+             (!('typeCafe' in data) || (data.typeCafe is string && data.typeCafe.size() < 100)) &&
              (!('typeVente' in data) || (data.typeVente in ['Sur place', 'Commande'])) &&
+             (!('vendeurId' in data) || (data.vendeurId is string)) &&
+             (!('clientId' in data) || (data.clientId is string)) &&
              data.total is number && data.total >= 0 &&
-             data.mode in ['WAVE', 'OM', 'ESPÈCES'];
+             data.mode in ['WAVE', 'OM', 'ESPÈCES'] &&
+             (!('createdAt' in data) || (data.createdAt is number));
+    }
+
+    function isValidCafeDistribution(data) {
+      return data.date is number &&
+             data.celluleId is string && data.celluleId.size() > 0 &&
+             data.typeCafe is string && data.typeCafe.size() > 0 &&
+             data.quantite is number && data.quantite > 0 &&
+             data.prixUnitaire is number && data.prixUnitaire >= 0 &&
+             data.total is number && data.total >= 0 &&
+             data.createdAt is number;
+    }
+
+    function isValidCafeVersement(data) {
+      return data.date is number &&
+             data.vendeurId is string && data.vendeurId.size() > 0 &&
+             data.montant is number && data.montant > 0 &&
+             data.mode in ['WAVE', 'OM', 'ESPÈCES'] &&
+             data.createdAt is number;
     }
 
     function isValidCafeDepense(data) {
@@ -152,6 +174,34 @@ service cloud.firestore {
       return data.date is number &&
              data.montant is number && data.montant > 0 &&
              (!('message' in data) || (data.message is string && data.message.size() < 500));
+    }
+
+    function isValidCafeSeller(data) {
+      return data.nom is string && data.nom.size() > 0 &&
+             (!('telephone' in data) || (data.telephone is string && data.telephone.size() < 20)) &&
+             data.active is bool &&
+             data.createdAt is number;
+    }
+
+    function isValidCafeClient(data) {
+      return data.nom is string && data.nom.size() > 0 &&
+             (!('telephone' in data) || (data.telephone is string && data.telephone.size() < 20)) &&
+             data.totalAchats is number &&
+             (!('lastAchat' in data) || (data.lastAchat is number)) &&
+             data.createdAt is number;
+    }
+
+    function isValidCafeOrder(data) {
+      return (!('clientId' in data) || (data.clientId is string)) &&
+             (!('clientNom' in data) || (data.clientNom is string)) &&
+             (!('vendeurId' in data) || (data.vendeurId is string)) &&
+             data.quantite is number && data.quantite > 0 &&
+             data.prixUnitaire is number && data.prixUnitaire >= 0 &&
+             data.total is number && data.total >= 0 &&
+             data.statut in ['en_attente', 'validee', 'livree', 'annulee'] &&
+             data.date is number &&
+             data.mode in ['WAVE', 'OM', 'ESPÈCES'] &&
+             data.createdAt is number;
     }
 
     // Rules
@@ -262,6 +312,41 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeTransfert(request.resource.data);
       allow update: if isCafe() && isValidCafeTransfert(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /cafe_distributions/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isCafe() && isValidCafeDistribution(request.resource.data);
+      allow update: if isCafe() && isValidCafeDistribution(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /cafe_versements/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isCafe() && isValidCafeVersement(request.resource.data);
+      allow update: if isCafe() && isValidCafeVersement(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /cafe_sellers/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isCafe() && isValidCafeSeller(request.resource.data);
+      allow update: if isCafe() && isValidCafeSeller(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /cafe_clients/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isCafe() && isValidCafeClient(request.resource.data);
+      allow update: if isCafe() && isValidCafeClient(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /cafe_orders/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isCafe() && isValidCafeOrder(request.resource.data);
+      allow update: if isCafe() && isValidCafeOrder(request.resource.data);
       allow delete: if isAdmin();
     }
     

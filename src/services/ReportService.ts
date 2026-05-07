@@ -15,7 +15,7 @@ export class ReportService {
   }
 
   static generateExcelReport(params: {
-    type: 'mensuel' | 'trimestriel' | 'annuel';
+    type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel';
     year: number;
     month?: string;
     quarter?: number;
@@ -41,7 +41,7 @@ export class ReportService {
     // Helper to filter data
     const filterByPeriod = (item: any) => {
       // If item has explicit year/month, use them
-      if (item.annee !== undefined && item.mois !== undefined) {
+      if (item.annee !== undefined && item.mois !== undefined && type !== 'journalier' && type !== 'hebdomadaire') {
         if (item.annee !== year) return false;
         if (type === 'mensuel' && item.mois !== month) return false;
         if (type === 'trimestriel') {
@@ -62,6 +62,21 @@ export class ReportService {
       const itemQuarter = Math.floor(itemMonthIdx / 3) + 1;
 
       if (itemYear !== year) return false;
+      if (type === 'journalier') {
+         const now = new Date();
+         return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }
+      if (type === 'hebdomadaire') {
+         const now = new Date();
+         const getWeek = (date: Date) => {
+           const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+           const dayNum = dt.getUTCDay() || 7;
+           dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
+           const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+           return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+         };
+         return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
+      }
       if (type === 'mensuel' && itemMonthName !== month) return false;
       if (type === 'trimestriel' && itemQuarter !== quarter) return false;
       return true;
@@ -98,7 +113,7 @@ export class ReportService {
 
   static generateFinancialReport(
     params: {
-      type: 'mensuel' | 'trimestriel' | 'annuel';
+      type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel';
       year: number;
       month?: string;
       quarter?: number;
@@ -138,6 +153,8 @@ export class ReportService {
     doc.text('Système de Gestion - Rapport Officiel', pageWidth / 2, 25, { align: 'center' });
     
     let reportTitle = '';
+    if (type === 'journalier') reportTitle = `RAPPORT JOURNALIER`;
+    if (type === 'hebdomadaire') reportTitle = `RAPPORT HEBDOMADAIRE`;
     if (type === 'annuel') reportTitle = `RAPPORT ANNUEL ${year}`;
     else if (type === 'mensuel') reportTitle = `RAPPORT MENSUEL - ${month} ${year}`;
     else if (type === 'trimestriel') reportTitle = `RAPPORT TRIMESTRIEL T${quarter} ${year}`;
@@ -145,11 +162,16 @@ export class ReportService {
     doc.setFontSize(10);
     doc.text(reportTitle, pageWidth / 2, 32, { align: 'center' });
 
+    doc.setFontSize(8);
+    doc.setTextColor(200, 200, 200);
+    doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 37, { align: 'center' });
+
     let currentY = 50;
 
     // Filter data based on period
     const filterByPeriod = (item: any) => {
-      if (item.annee !== undefined && item.mois !== undefined) {
+      // If item has explicit year/month, use them
+      if (item.annee !== undefined && item.mois !== undefined && type !== 'journalier' && type !== 'hebdomadaire') {
         if (item.annee !== year) return false;
         if (type === 'mensuel' && item.mois !== month) return false;
         if (type === 'trimestriel') {
@@ -169,6 +191,21 @@ export class ReportService {
       const itemQuarter = Math.floor(itemMonthIdx / 3) + 1;
 
       if (itemYear !== year) return false;
+      if (type === 'journalier') {
+         const now = new Date();
+         return itemDate.getDate() === now.getDate() && itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+      }
+      if (type === 'hebdomadaire') {
+         const now = new Date();
+         const getWeek = (date: Date) => {
+           const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+           const dayNum = dt.getUTCDay() || 7;
+           dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
+           const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+           return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+         };
+         return getWeek(itemDate) === getWeek(now) && itemDate.getFullYear() === now.getFullYear();
+      }
       if (type === 'mensuel' && itemMonthName !== month) return false;
       if (type === 'trimestriel' && itemQuarter !== quarter) return false;
       return true;
@@ -177,6 +214,7 @@ export class ReportService {
     // Filtered lists
     const fCotisations = cotisations.filter(c => {
        if (c.annee !== year) return false;
+       if (type === 'journalier' || type === 'hebdomadaire') return false; // Usually not filtered this granularly, but valid
        if (type === 'mensuel' && c.mois !== month) return false;
        if (type === 'trimestriel') {
           const mIdx = MOIS.indexOf(c.mois);

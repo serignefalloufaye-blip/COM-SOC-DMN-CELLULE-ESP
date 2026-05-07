@@ -88,9 +88,10 @@
       "description": "Enregistrement d'une séance de production",
       "type": "object",
       "properties": {
-        "date": { "type": "string", "format": "date-time" },
+        "date": { "type": "number" },
         "quantite": { "type": "number", "description": "Nombre de paquets/unités" },
         "coutUnitaire": { "type": "number" },
+        "typeCafe": { "type": "string" },
         "total": { "type": "number" }
       },
       "required": ["date", "quantite", "coutUnitaire", "total"]
@@ -100,13 +101,32 @@
       "description": "Enregistrement d'une vente de café",
       "type": "object",
       "properties": {
-        "date": { "type": "string", "format": "date-time" },
+        "date": { "type": "number" },
         "quantite": { "type": "number" },
         "prixUnitaire": { "type": "number" },
+        "typeCafe": { "type": "string" },
+        "typeVente": { "type": "string" },
+        "vendeurId": { "type": "string" },
+        "clientId": { "type": "string" },
         "total": { "type": "number" },
         "mode": { "type": "string", "enum": ["ESPÈCES", "WAVE", "OM"] }
       },
       "required": ["date", "quantite", "prixUnitaire", "total", "mode"]
+    },
+    "CafeDistribution": {
+      "title": "Distribution de Café",
+      "description": "Distribution de stock de café vers une cellule/vendeur",
+      "type": "object",
+      "properties": {
+        "date": { "type": "number" },
+        "celluleId": { "type": "string" },
+        "typeCafe": { "type": "string" },
+        "quantite": { "type": "number" },
+        "prixUnitaire": { "type": "number" },
+        "total": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["date", "celluleId", "typeCafe", "quantite", "prixUnitaire", "total", "createdAt"]
     },
     "CafeDepense": {
       "title": "Dépense Café",
@@ -129,6 +149,92 @@
         "message": { "type": "string" }
       },
       "required": ["date", "montant"]
+    },
+    "CafeSeller": {
+      "title": "Vendeur de Café",
+      "description": "Gestion des vendeurs de café",
+      "type": "object",
+      "properties": {
+        "nom": { "type": "string" },
+        "telephone": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["nom", "active", "createdAt"]
+    },
+    "CafeClient": {
+      "title": "Client de Café",
+      "description": "Gestion des clients de café",
+      "type": "object",
+      "properties": {
+        "nom": { "type": "string" },
+        "telephone": { "type": "string" },
+        "totalAchats": { "type": "number" },
+        "lastAchat": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["nom", "totalAchats", "createdAt"]
+    },
+    "CafeOrder": {
+      "title": "Commande de Café",
+      "description": "Commande passée par un client",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientNom": { "type": "string" },
+        "vendeurId": { "type": "string" },
+        "quantite": { "type": "number" },
+        "prixUnitaire": { "type": "number" },
+        "total": { "type": "number" },
+        "statut": { "type": "string", "enum": ["en_attente", "validee", "livree", "annulee"] },
+        "date": { "type": "number" },
+        "mode": { "type": "string", "enum": ["ESPÈCES", "WAVE", "OM"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["quantite", "prixUnitaire", "total", "statut", "date", "mode", "createdAt"]
+    },
+    "CafeVersement": {
+      "title": "Versement Café",
+      "description": "Versement d'argent d'un revendeur vers le Daara",
+      "type": "object",
+      "properties": {
+        "vendeurId": { "type": "string" },
+        "date": { "type": "number" },
+        "montant": { "type": "number" },
+        "mode": { "type": "string", "enum": ["ESPÈCES", "WAVE", "OM"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["vendeurId", "date", "montant", "mode", "createdAt"]
+    },
+    "CafePriceConfig": {
+      "title": "Configuration des prix du café",
+      "description": "Tarifs officiels (coût, revendeur, public) pour les formats 1kg et 500g",
+      "type": "object",
+      "properties": {
+        "prices": {
+          "type": "object",
+          "properties": {
+            "1kg": {
+              "type": "object",
+              "properties": {
+                "cost": { "type": "number" },
+                "reseller": { "type": "number" },
+                "public": { "type": "number" }
+              }
+            },
+            "500g": {
+              "type": "object",
+              "properties": {
+                "cost": { "type": "number" },
+                "reseller": { "type": "number" },
+                "public": { "type": "number" }
+              }
+            }
+          }
+        },
+        "lastUpdated": { "type": "number" }
+      },
+      "required": ["prices", "lastUpdated"]
     }
   },
   "firestore": {
@@ -171,6 +277,26 @@
     "/cafe_transferts/{transId}": {
       "schema": { "$ref": "#/entities/CafeTransfert" },
       "description": "Transferts d'argent vers la caisse sociale"
+    },
+    "/cafe_distributions/{distId}": {
+      "schema": { "$ref": "#/entities/CafeDistribution" },
+      "description": "Distributions de café vers les cellules/vendeurs"
+    },
+    "/cafe_versements/{versementId}": {
+      "schema": { "$ref": "#/entities/CafeVersement" },
+      "description": "Versements des revendeurs"
+    },
+    "/cafe_sellers/{sellerId}": {
+      "schema": { "$ref": "#/entities/CafeSeller" },
+      "description": "Liste des vendeurs de café"
+    },
+    "/cafe_clients/{clientId}": {
+      "schema": { "$ref": "#/entities/CafeClient" },
+      "description": "Liste des clients du café"
+    },
+    "/cafe_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/CafeOrder" },
+      "description": "Commandes de café"
     }
   }
 }
