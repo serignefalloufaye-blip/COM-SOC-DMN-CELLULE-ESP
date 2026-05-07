@@ -24,7 +24,7 @@ import { NetworkIndicator } from './components/NetworkIndicator';
 import { ReportService } from './services/ReportService';
 import * as XLSX from 'xlsx';
 import { 
-  CafeProduction, CafeVente, CafeDepense, CafeTransfert 
+  CafeProduction, CafeVente, CafeDepense, CafeTransfert, CafeSeller, CafeClient, CafeOrder
 } from './types';
 import { useAdaptive } from './hooks/useAdaptive';
 
@@ -129,6 +129,9 @@ export default function App() {
   const [cafeVentes, setCafeVentes] = useState<CafeVente[]>([]);
   const [cafeDepenses, setCafeDepenses] = useState<CafeDepense[]>([]);
   const [cafeTransferts, setCafeTransferts] = useState<CafeTransfert[]>([]);
+  const [cafeSellers, setCafeSellers] = useState<CafeSeller[]>([]);
+  const [cafeClients, setCafeClients] = useState<CafeClient[]>([]);
+  const [cafeOrders, setCafeOrders] = useState<CafeOrder[]>([]);
   const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
@@ -160,7 +163,12 @@ export default function App() {
     setConfirmModal({ isOpen: true, title, message, onConfirm });
   };
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab, financeSubTab, membreSubTab]);
+
   const handleQuickAction = (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     switch (action) {
       case 'membre':
         setActiveTab('membres');
@@ -332,6 +340,18 @@ export default function App() {
       setCafeTransferts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeTransfert)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_transferts'));
 
+    const unsubCafeSellers = onSnapshot(collection(db, 'cafe_sellers'), (snapshot) => {
+      setCafeSellers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeSeller)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_sellers'));
+
+    const unsubCafeClients = onSnapshot(collection(db, 'cafe_clients'), (snapshot) => {
+      setCafeClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeClient)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_clients'));
+
+    const unsubCafeOrders = onSnapshot(collection(db, 'cafe_orders'), (snapshot) => {
+      setCafeOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeOrder)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_orders'));
+
     const unsubUsers = userRole === 'admin' 
       ? onSnapshot(collection(db, 'users'), (snapshot) => {
           setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as AppUser)));
@@ -342,6 +362,7 @@ export default function App() {
       unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); 
       unsubTicketCollectes(); unsubTicketConversions(); unsubTicketDistributions();
       unsubCafeProductions(); unsubCafeVentes(); unsubCafeDepenses(); unsubCafeTransferts();
+      unsubCafeSellers(); unsubCafeClients(); unsubCafeOrders();
       unsubUsers();
     };
   }, [isAuthReady, user, userRole]);
@@ -2955,6 +2976,7 @@ export default function App() {
               recettes={recettes} dettes={dettes} 
               ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
               cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
+              cafeSellers={cafeSellers} cafeClients={cafeClients} cafeOrders={cafeOrders}
               globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
               logoUrl={appSettings.logoUrl} userRole={userRole} onLogoUpload={handleLogoUpload}
               onQuickAction={handleQuickAction}
@@ -2977,6 +2999,7 @@ export default function App() {
             dettes={dettes}
             ticketCollectes={ticketCollectes}
             ticketDistributions={ticketDistributions}
+            ticketConversions={ticketConversions}
             cafeProductions={cafeProductions}
             cafeVentes={cafeVentes}
             cafeDepenses={cafeDepenses}
@@ -2998,7 +3021,12 @@ export default function App() {
             ventes={cafeVentes}
             depenses={cafeDepenses}
             transferts={cafeTransferts}
+            sellers={cafeSellers}
+            clients={cafeClients}
+            orders={cafeOrders}
             userRole={userRole || 'lecteur'}
+            globalYear={globalYear}
+            globalMonth={globalMonth}
             showToast={showToast}
             onTransferToCaisse={handleCafeTransferToCaisse}
           />

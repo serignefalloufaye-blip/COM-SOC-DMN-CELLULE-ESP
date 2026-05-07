@@ -1,10 +1,11 @@
+import { motion, AnimatePresence } from 'motion/react';
 import React, { useState } from 'react';
 import { Membre, TicketCollecte, TicketConversion, TicketDistribution } from '../types';
 import { db } from '../firebase';
 import { hasPermission, logAudit } from '../utils/permissions';
 import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
 import { MOIS } from '../data';
-import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar } from 'lucide-react';
+import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar, TrendingUp, TrendingDown, Clock, X, AlertCircle, CheckCircle2, Download, Table, Printer, BarChart3 } from 'lucide-react';
 import { TicketsStats } from './TicketsStats';
 import { useAdaptive } from '../hooks/useAdaptive';
 
@@ -491,82 +492,95 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   };
 
   const tabs = [
-    { id: 'statistiques', label: 'Statistiques avancées', icon: Activity },
-    { id: 'collecte', label: 'Collecte Mensuelle', icon: Users },
-    { id: 'conversion', label: 'Conversion', icon: ArrowRightLeft },
-    { id: 'distribution', label: 'Distribution', icon: Ticket },
-    { id: 'historique', label: 'Historique', icon: History },
+    { id: 'statistiques', label: 'Dashboard', icon: Activity },
+    { id: 'collecte', label: 'Enr. Collecte', icon: Plus },
+    { id: 'conversion', label: 'Conversion F', icon: ArrowRightLeft },
+    { id: 'distribution', label: 'Vente Directe', icon: Users },
+    { id: 'historique', label: 'Logs Activité', icon: History }
   ] as const;
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500 pb-12">
-      
-      {/* Dashboard Section */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-1 sm:px-0">
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-xl transition-all">
-          <div className="absolute -right-4 -top-4 w-16 h-16 bg-gray-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-500"></div>
-          <div className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-             <div className="w-1 h-1 bg-gray-300 rounded-full"></div> Argent Dispo
-          </div>
-          <div className="flex items-baseline gap-1">
-             <p className="text-2xl sm:text-3xl font-black text-gray-900">{argentDisponible}</p>
-             <span className="text-[10px] font-bold text-gray-400">FCFA</span>
-          </div>
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-6xl mx-auto space-y-10 pb-40 px-4 sm:px-6"
+    >
+      {/* 🧭 PREMIUM NAVIGATION */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-8 sm:p-10 rounded-[3.5rem] shadow-soft border border-gray-100">
+        <div className="space-y-2">
+          <h2 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tighter">Gestion Restauration</h2>
+          <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.4em] flex items-center gap-2">
+            <Ticket size={14} className="text-dmn-gold" /> Logistique & Distribution – {effectiveMonth}
+          </p>
         </div>
 
-        <div className="bg-dmn-green-600 p-6 rounded-[2.5rem] shadow-lg shadow-dmn-green-600/20 border border-dmn-green-700 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
-          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <div className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-             <div className="w-1 h-1 bg-dmn-green-200 rounded-full animate-pulse"></div> Petit Dèj
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div className="flex bg-gray-100 p-1.5 rounded-[1.5rem] flex-1 lg:flex-none overflow-x-auto no-scrollbar">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  activeTab === tab.id ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <tab.icon size={12} className={activeTab === tab.id ? 'text-dmn-green-600' : ''} />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
           </div>
-          <p className="text-2xl sm:text-3xl font-black">{stockPetitDej}</p>
-        </div>
-
-        <div className="bg-dmn-green-900 p-6 rounded-[2.5rem] shadow-lg shadow-dmn-green-900/20 border border-dmn-green-950 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
-          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <div className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-             <div className="w-1 h-1 bg-dmn-green-200 rounded-full"></div> Stock Repas
-          </div>
-          <p className="text-2xl sm:text-3xl font-black">{stockRepas}</p>
-        </div>
-
-        <div className="bg-orange-500 p-6 rounded-[2.5rem] shadow-lg shadow-orange-500/20 border border-orange-600 text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
-          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500"></div>
-          <div className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-             <div className="w-1 h-1 bg-orange-200 rounded-full"></div> Total Sortis
-          </div>
-          <p className="text-2xl sm:text-3xl font-black">{ticketsDistribuesPetitDej + ticketsDistribuesRepas}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-        
-        <div className="flex overflow-x-auto border-b border-gray-100 no-scrollbar p-3 gap-3">
-          {tabs.map(t => (
-             <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group whitespace-nowrap min-w-fit ${
-                activeTab === t.id 
-                  ? 'bg-dmn-green-600 text-white shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10' 
-                  : 'bg-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-transparent hover:border-gray-200'
-              }`}
-             >
-                <t.icon size={20} className={activeTab === t.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} />
-                <span>{t.label}</span>
-             </button>
-          ))}
+      {/* 🚀 QUICK STAT BAR */}
+      {activeTab !== 'statistiques' && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-dmn-green-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-500"></div>
+             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Argent Dispo</p>
+             <p className="text-2xl font-black text-dmn-green-600 relative z-10">{argentDisponible} <span className="text-[10px]">F</span></p>
+          </div>
+          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-500"></div>
+             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">PetitDèj</p>
+             <p className="text-2xl font-black text-gray-900 relative z-10">{stockPetitDej} <span className="text-[10px]">UTS</span></p>
+          </div>
+          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-500"></div>
+             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Repas Complets</p>
+             <p className="text-2xl font-black text-gray-900 relative z-10">{stockRepas} <span className="text-[10px]">UTS</span></p>
+          </div>
+          <div className="bg-gray-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden group">
+             <div className="absolute bottom-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-12 -mb-12 transition-transform group-hover:scale-150 duration-500"></div>
+             <p className="text-[9px] font-black text-dmn-gold uppercase tracking-widest mb-2">Flux Ventes</p>
+             <p className="text-2xl font-black relative z-10">{ticketsDistribuesPetitDej + ticketsDistribuesRepas} <span className="text-[10px] opacity-40">UTS</span></p>
+          </div>
         </div>
+      )}
 
-        <div className="p-4 sm:p-6">
-          {activeTab === 'statistiques' && <TicketsStats membres={membres} collectes={collectes} conversions={conversions} distributions={distributions} />}
+      {/* 📊 DYNAMIC CONTENT */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="min-h-[400px]"
+        >
+          {activeTab === 'statistiques' && (
+            <TicketsStats 
+              membres={membres} collectes={collectes} conversions={conversions} distributions={distributions} 
+            />
+          )}
+
           {activeTab === 'collecte' && renderCollecte()}
           {activeTab === 'conversion' && renderConversion()}
           {activeTab === 'distribution' && renderDistribution()}
           {activeTab === 'historique' && renderHistorique()}
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      </AnimatePresence>
+    </motion.div>
   );
 }
 

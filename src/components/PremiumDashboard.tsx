@@ -1,9 +1,12 @@
 import React, { useMemo } from 'react';
-import { Membre, Cotisation, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, CafeProduction, CafeVente, CafeDepense, UserRole } from '../types';
+import { 
+  Membre, Cotisation, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, CafeProduction, CafeVente, 
+  CafeDepense, UserRole, CafeSeller, CafeClient, CafeOrder 
+} from '../types';
 import { MOIS } from '../data';
 import { 
   Building2, TrendingUp, TrendingDown, Users, AlertCircle, 
-  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3, Shield
+  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3, Shield, Star
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -25,6 +28,9 @@ interface PremiumDashboardProps {
   cafeProductions: CafeProduction[];
   cafeVentes: CafeVente[];
   cafeDepenses: CafeDepense[];
+  cafeSellers?: CafeSeller[];
+  cafeClients?: CafeClient[];
+  cafeOrders?: CafeOrder[];
   globalYear: number;
   globalMonth: string;
   globalMode: string;
@@ -39,17 +45,54 @@ const formatPrice = (p: number) => {
   return p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 };
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 400 } }
+};
+
 export function PremiumDashboard({
   membres, cotisations, depenses, recettes, dettes,
   ticketCollectes, ticketConversions, ticketDistributions,
   cafeProductions, cafeVentes, cafeDepenses,
+  cafeSellers = [], cafeClients = [], cafeOrders = [],
   globalYear, globalMonth, logoUrl, userRole, onLogoUpload,
   onQuickAction
 }: PremiumDashboardProps) {
 
   const { isMobile, isLowEndDevice, performance } = useAdaptive();
 
-  // --- LOGIC CALCULATIONS (Keep from original) ---
+  // --- TOP SELLERS & CLIENTS ---
+  const commercialInsights = useMemo(() => {
+    const topSellers = cafeSellers.map(s => {
+      const sales = cafeVentes.filter(v => v.vendeurId === s.id);
+      return { ...s, total: sales.reduce((sum, v) => sum + v.total, 0), count: sales.length };
+    }).sort((a,b) => b.total - a.total).slice(0, 3);
+
+    const clientActivity = cafeOrders.reduce((acc: any, o) => {
+       const nom = o.clientNom || 'Anonyme';
+       acc[nom] = (acc[nom] || 0) + o.total;
+       return acc;
+    }, {});
+    
+    const topClients = Object.entries(clientActivity)
+      .map(([nom, total]) => ({ nom, total: total as number }))
+      .sort((a,b) => b.total - a.total)
+      .slice(0, 3);
+
+    return { topSellers, topClients };
+  }, [cafeSellers, cafeVentes, cafeOrders]);
+
+  // --- LOGIC CALCULATIONS ---
   const formattedRole = userRole === 'visitor' ? null : userRole;
   const isCaisse = hasPermission(formattedRole, 'caisse.read');
   const isCafe = hasPermission(formattedRole, 'cafe.production.read');
@@ -145,371 +188,393 @@ export function PremiumDashboard({
   }
 
   const history = historyItems.sort((a, b) => b.date - a.date);
-
-  const recentHistory = history.slice(0, 6);
+  const recentHistory = history.slice(0, 8);
 
   const today = new Date().setHours(0,0,0,0);
   const todayTransactions = history.filter(h => new Date(h.date).setHours(0,0,0,0) === today);
   const todayIn = todayTransactions.filter(t => t.type === 'in' || t.type === 'cafe').reduce((s, t) => s + t.amount, 0);
   const todayOut = todayTransactions.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 400 } }
-  };
+  // --- Smart Insights ---
+  const smartInsights = useMemo(() => {
+    const insights = [];
+    if (soldeGlobal < 50000) insights.push({ text: "Solde faible. Surveillez les prochaines cotisations.", icon: AlertCircle, color: "text-amber-600" });
+    if (totDettesEnAttente > 100000) insights.push({ text: "Volume important de dettes non payées.", icon: TrendingUp, color: "text-red-500" });
+    if (membresActifs / membres.length < 0.6) insights.push({ text: "Taux de régularité des membres en baisse.", icon: Users, color: "text-orange-500" });
+    return insights.slice(0, 2);
+  }, [soldeGlobal, totDettesEnAttente, membresActifs, membres.length]);
 
   return (
     <motion.div 
       initial="hidden"
       animate="show"
       variants={containerVariants}
-      className="max-w-4xl mx-auto space-y-8 pb-32 pt-4 sm:pt-10"
+      className="max-w-5xl mx-auto space-y-10 pb-32 pt-4 sm:pt-12 px-4 sm:px-6"
     >
+      {/* 🚀 WELCOME & LOGO */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-2">
+        <div className="flex items-center gap-5">
+          <div className="relative group">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-3xl p-1 shadow-lg border border-gray-100 overflow-hidden">
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-2xl" />
+              ) : (
+                <div className="w-full h-full bg-dmn-green-50 flex items-center justify-center text-dmn-green-700">
+                  <Building2 size={32} />
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight leading-tight">Daara Madjmahoune</h1>
+            <p className="text-[10px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.3em] mt-1 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-dmn-green-500 rounded-full animate-pulse"></span> Terminal de Gestion
+            </p>
+          </div>
+        </div>
+        
+        {smartInsights.length > 0 && (
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            {smartInsights.map((insight, idx) => (
+              <div key={idx} className="bg-white/50 backdrop-blur-sm border border-gray-100 py-2.5 px-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-right-4 duration-500 shadow-sm">
+                <insight.icon size={16} className={insight.color} />
+                <p className="text-[10px] font-bold text-gray-600 leading-none">{insight.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 💳 MAIN WALLET CARD */}
       {(isCaisse || isStats) && (
-      <motion.div variants={itemVariants} className="px-5 sm:px-0">
-        <div className="relative h-64 w-full bg-dmn-green-900 rounded-[3rem] p-8 shadow-2xl overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.98] duration-500 cursor-pointer group">
-          {/* Background Gradient Overlays */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-dmn-green-500/20 rounded-full blur-[110px] -mr-40 -mt-40 transition-transform group-hover:scale-125 duration-700"></div>
-          <div className="absolute bottom-0 left-0 w-40 h-40 bg-dmn-gold/30 rounded-full blur-[90px] -ml-20 -mb-20 transition-transform group-hover:scale-125 duration-700"></div>
+      <motion.div variants={itemVariants} className="relative group">
+        <div className="absolute inset-x-0 -bottom-6 h-12 bg-dmn-green-900/10 blur-3xl rounded-full scale-95 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+        <div className="relative h-72 sm:h-80 w-full bg-dmn-green-900 rounded-[3.5rem] p-8 sm:p-10 shadow-2xl shadow-dmn-green-900/30 overflow-hidden transition-all duration-700 group-hover:translate-y-[-4px]">
+          {/* Background Elements */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-dmn-green-500/20 rounded-full blur-[120px] -mr-48 -mt-48 transition-transform group-hover:scale-110 duration-1000"></div>
+          <div className="absolute bottom-0 left-0 w-60 h-60 bg-dmn-gold/20 rounded-full blur-[100px] -ml-30 -mb-30 transition-transform group-hover:scale-110 duration-1000"></div>
           
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Solde Disponible</p>
-                  <div className="w-1.5 h-1.5 bg-dmn-green-400 rounded-full animate-pulse"></div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <p className="text-white/60 text-[11px] font-black uppercase tracking-[0.4em]">Trésorerie Centrale</p>
+                  <Shield size={14} className="text-white/30" />
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <h2 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-2xl font-bold text-white/40 mb-1 tracking-tighter">FCFA</span>
+                  <h2 className="text-5xl sm:text-7xl font-black text-white tracking-tighter tabular-nums drop-shadow-xl">
                     {formatPrice(soldeGlobal)}
                   </h2>
-                  <span className="text-lg font-bold text-white/60 group-hover:translate-x-1 transition-transform">FCFA</span>
                 </div>
               </div>
-              <div className="w-12 h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center shadow-lg">
-                <Zap size={22} className="text-dmn-gold-light" />
+              <div className="p-4 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-lg ring-1 ring-white/20 hover:scale-110 transition-transform cursor-help" title="Identifiant Caisse">
+                <LayoutGrid size={28} className="text-dmn-gold-light" />
               </div>
             </div>
 
-            <div className="flex items-center gap-6 sm:gap-10">
-              <div className="space-y-1">
-                <p className="text-white/50 text-[9px] font-black uppercase tracking-widest">Entrées Globales</p>
-                <div className="flex items-center gap-1.5">
-                   <ArrowUpRight size={12} className="text-dmn-green-400" />
-                   <p className="text-white font-black text-sm">{formatPrice(totEntrees)} F</p>
-                </div>
-              </div>
-              <div className="w-px h-8 bg-white/10"></div>
-              <div className="space-y-1">
-                <p className="text-white/50 text-[9px] font-black uppercase tracking-widest">Dépenses Globales</p>
-                <div className="flex items-center gap-1.5">
-                   <ArrowDownRight size={12} className="text-red-400" />
-                   <p className="text-white font-black text-sm">{formatPrice(totDepenses)} F</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center text-white/60">
-              <div className="flex gap-4">
-                 <p className="text-[10px] font-mono tracking-[0.3em] uppercase">**** {globalYear}</p>
-                 <Shield size={16} className="opacity-30" />
-              </div>
-              <Building2 size={24} className="opacity-50" />
-            </div>
-          </div>
-        </div>
-      </motion.div>
-      )}
-
-      {/* ⚡ QUICK ACTIONS & DAILY STATUS */}
-      <motion.div variants={itemVariants} className="px-5 sm:px-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Daily Summary */}
-        <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex items-center justify-between">
-           <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-600">
-                 <Zap size={20} />
-              </div>
-              <div>
-                 <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Aujourd'hui</p>
-                 <div className="flex items-center gap-2">
-                    <span className="text-green-600 font-black">+{formatPrice(todayIn)}</span>
-                    <span className="text-gray-300">/</span>
-                    <span className="text-red-500 font-black">-{formatPrice(todayOut)}</span>
-                 </div>
-              </div>
-           </div>
-           <div className="text-right">
-              <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-widest bg-dmn-green-50 px-2 py-0.5 rounded-md inline-block mb-1">Live</p>
-              <p className="text-[9px] font-bold text-gray-400">{new Date().toLocaleDateString('fr-FR', { weekday: 'long' })}</p>
-           </div>
-        </div>
-
-        {/* Quick Access Menu */}
-        <div className="bg-gray-900 rounded-[2rem] p-3 flex items-center justify-around overflow-hidden relative shadow-xl shadow-dmn-green-950/20">
-           <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-12 -mt-12"></div>
-           {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
-           <button onClick={() => onQuickAction?.('membre')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
-             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-dmn-green-500 group-hover:text-gray-900 transition-all">
-                <Users size={18} />
-             </div>
-             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Membre</span>
-           </button>
-           )}
-           {(!userRole || ['admin', 'tickets'].includes(userRole)) && (
-           <button onClick={() => onQuickAction?.('ticket')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
-             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-amber-500 group-hover:text-gray-900 transition-all">
-                <Ticket size={18} />
-             </div>
-             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Tickets</span>
-           </button>
-           )}
-           {(!userRole || ['admin', 'cafe'].includes(userRole)) && (
-           <button onClick={() => onQuickAction?.('cafe')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
-             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-orange-500 group-hover:text-gray-900 transition-all">
-                <Coffee size={18} />
-             </div>
-             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Café</span>
-           </button>
-           )}
-           {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
-           <button onClick={() => onQuickAction?.('rapport')} className="flex flex-col items-center gap-1 group active:scale-90 transition-all">
-             <div className="p-2.5 bg-white/10 rounded-xl text-white group-hover:bg-blue-500 group-hover:text-gray-900 transition-all">
-                <BarChart3 size={18} />
-             </div>
-             <span className="text-[8px] font-black text-white/50 uppercase tracking-tighter">Rapport</span>
-           </button>
-           )}
-        </div>
-      </motion.div>
-
-      {/* 📲 HORIZONTAL MODULE SCROLL */}
-      <motion.section variants={itemVariants} className="space-y-5">
-        <div className="px-7 flex justify-between items-center">
-          <h3 className="text-[12px] font-black text-gray-400 uppercase tracking-[0.25em]">Services Actifs</h3>
-          <div className="flex items-center gap-1 text-[10px] font-bold text-dmn-green-600 bg-dmn-green-50 px-3 py-1 rounded-full uppercase tracking-widest">
-             Live <div className="w-1.5 h-1.5 bg-dmn-green-500 rounded-full animate-pulse"></div>
-          </div>
-        </div>
-        <div className="flex gap-4 sm:gap-5 overflow-x-auto px-6 no-scrollbar pb-2 sm:pb-3">
-          {/* Caisse Module Card */}
-          {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
-          <div 
-            onClick={() => onQuickAction?.('membre')}
-            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-dmn-green-600/5 transition-all"
-          >
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-dmn-green-50 text-dmn-green-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
-              <Wallet size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Caisse</p>
-              <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-dmn-green-600 transition-colors uppercase">{formatPrice(totCotisations)} F</p>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-dmn-green-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
-          </div>
-          )}
-
-          {/* Tickets Module Card */}
-          {(!userRole || ['admin', 'tickets'].includes(userRole)) && (
-          <div 
-            onClick={() => onQuickAction?.('ticket')}
-            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-amber-600/5 transition-all"
-          >
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
-              <Ticket size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Tickets en Stock</p>
-              <div className="flex items-baseline gap-1">
-                <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-amber-600 transition-colors uppercase">{stockPD + stockRepas}</p>
-                <span className="text-[9px] font-black text-gray-300">UTS</span>
-              </div>
-              <div className="w-full h-1 bg-gray-50 rounded-full mt-2 overflow-hidden">
-                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(100, ((stockPD + stockRepas) / 100) * 100)}%` }}></div>
-              </div>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-amber-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
-          </div>
-          )}
-
-          {/* Café Module Card */}
-          {(!userRole || ['admin', 'cafe'].includes(userRole)) && (
-          <div 
-            onClick={() => onQuickAction?.('cafe')}
-            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-orange-800/5 transition-all"
-          >
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#f5ebe0] text-[#78350f] flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm text-xs sm:text-base">
-              <Coffee size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Stock Café</p>
-              <div className="flex items-baseline gap-1">
-                <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-[#78350f] transition-colors uppercase">{cafeStock}</p>
-                <span className="text-[9px] font-black text-gray-300">UTS</span>
-              </div>
-              <div className="w-full h-1 bg-gray-50 rounded-full mt-2 overflow-hidden">
-                <div className="h-full bg-[#78350f] rounded-full" style={{ width: `${Math.min(100, (cafeStock / 500) * 100)}%` }}></div>
-              </div>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-[#fdfaf6] rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
-          </div>
-          )}
-
-          {/* Stats Module Card */}
-          {(!userRole || ['admin', 'caisse'].includes(userRole)) && (
-          <div 
-            onClick={() => onQuickAction?.('rapport')}
-            className="min-w-[140px] sm:min-w-[170px] cursor-pointer bg-white p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-100 flex flex-col gap-4 sm:gap-6 relative overflow-hidden group shadow-sm hover:shadow-xl hover:shadow-blue-600/5 transition-all"
-          >
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center transition-all group-hover:scale-110 group-hover:-rotate-3 shadow-sm text-xs sm:text-base">
-              <BarChart3 size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 uppercase tracking-wider">Membres</p>
-              <p className="font-black text-lg sm:text-xl text-gray-900 group-hover:text-blue-600 transition-colors uppercase">{membresActifs} actifs</p>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-blue-50 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"></div>
-          </div>
-          )}
-        </div>
-      </motion.section>
-
-      {/* 📊 ANALYTICS PREVIEW (Adaptive) */}
-      {(isCaisse || isStats) && (
-      <motion.div variants={itemVariants} className="px-4">
-        <div className="premium-card p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
-              <Activity size={16} className="text-dmn-green-500" /> Analystiques
-            </h3>
-            <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-md">
-              {performance === 'low' ? 'Simplifié (Eco)' : 'Détaillé (HD)'}
-            </div>
-          </div>
-          <div className="h-40 w-full">
-            {isLowEndDevice ? (
-              <div className="h-full flex items-center justify-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-100 italic text-[10px] text-gray-400 font-bold px-10 text-center">
-                Affichage optimisé pour votre appareil
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={evolutionSoldeData}>
-                  <defs>
-                    <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22C55E" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#22C55E" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
-                  <XAxis dataKey="name" hide />
-                  <Tooltip 
-                    contentStyle={{ 
-                      borderRadius: '24px', 
-                      border: 'none', 
-                      boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
-                      padding: '12px 16px',
-                      fontSize: '10px',
-                      fontWeight: '900'
-                    }} 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="Entrées" 
-                    stroke="#22C55E" 
-                    fillOpacity={1} 
-                    fill="url(#colorArea)" 
-                    strokeWidth={3} 
-                    animationDuration={performance === 'high' ? 2000 : 0}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      </motion.div>
-      )}
-
-      {/* 📋 RECENT TRANSACTIONS */}
-      <motion.section variants={itemVariants} className="px-5 sm:px-0 space-y-5">
-        <div className="flex justify-between items-center px-2">
-          <h3 className="text-[12px] font-black text-gray-400 uppercase tracking-[0.25em]">Historique récent</h3>
-          <button className="text-[10px] font-black text-dmn-green-600 bg-dmn-green-50 px-4 py-2 rounded-full uppercase tracking-widest hover:bg-dmn-green-100 transition-colors">Tout voir</button>
-        </div>
-        <div className="space-y-4">
-          {recentHistory.map((h, i) => (
-            <motion.div 
-              key={i}
-              whileTap={{ scale: 0.985 }}
-              className="bg-white p-5 rounded-[2.5rem] flex items-center justify-between group transition-all hover:shadow-xl hover:shadow-gray-200/40 border border-gray-100"
-            >
-              <div className="flex items-center gap-3 sm:gap-5 min-w-0 flex-1">
-                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 ${
-                  h.type === 'in' ? 'bg-green-50 text-green-600' :
-                  h.type === 'out' ? 'bg-red-50 text-red-600' :
-                  'bg-orange-50 text-orange-500'
-                }`}>
-                  <h.icon size={20} className={`sm:hidden ${h.type === 'in' ? 'animate-bounce-slow' : ''}`} />
-                  <h.icon size={24} className={`hidden sm:block ${h.type === 'in' ? 'animate-bounce-slow' : ''}`} />
-                </div>
-                <div className="min-w-0 pr-2">
-                  <p className="text-[13px] sm:text-base font-black text-gray-900 truncate group-hover:text-dmn-green-700 transition-colors leading-tight">
-                    {h.label}
-                  </p>
-                  <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                    {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '---'}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <p className={`text-sm sm:text-base font-black ${
-                  h.type === 'in' ? 'text-dmn-green-600' :
-                  h.type === 'out' ? 'text-red-600' :
-                  'text-amber-600'
-                }`}>
-                  {h.type === 'in' ? '+' : '-'}{formatPrice(h.amount)}
+            <div className="grid grid-cols-2 gap-8 sm:gap-16 max-w-sm">
+              <div className="space-y-2">
+                <p className="text-dmn-green-400/60 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <TrendingUp size={10} /> Flux Entrants
                 </p>
-                <div className="w-16 h-1.5 bg-gray-50 rounded-full mt-3 overflow-hidden ml-auto">
-                  <div className={`h-full rounded-full transition-all duration-700 delay-300 ${
-                    h.type === 'in' ? 'bg-green-500' : 'bg-red-400'
-                  }`} style={{ width: '100%' }}></div>
+                <p className="text-xl sm:text-2xl font-black text-white">{formatPrice(totEntrees)} <span className="text-xs text-white/40">F</span></p>
+                <div className="w-12 h-1 bg-dmn-green-500/30 rounded-full overflow-hidden">
+                   <div className="h-full bg-dmn-green-400 w-2/3 shimmer"></div>
                 </div>
               </div>
-            </motion.div>
-          ))}
+              <div className="space-y-2">
+                <p className="text-red-400/60 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <TrendingDown size={10} /> Flux Sortants
+                </p>
+                <p className="text-xl sm:text-2xl font-black text-white">{formatPrice(totDepenses)} <span className="text-xs text-white/40">F</span></p>
+                <div className="w-12 h-1 bg-red-500/30 rounded-full overflow-hidden">
+                   <div className="h-full bg-red-400 w-1/3"></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center border-t border-white/10 pt-6">
+              <p className="text-[11px] font-mono tracking-[0.4em] text-white/30 uppercase">VALID UNTIL {globalYear + 1}</p>
+              <div className="flex items-center gap-1">
+                 <div className="w-8 h-5 bg-white/10 rounded-md"></div>
+                 <div className="w-8 h-5 bg-white/5 rounded-md"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+      )}
+
+      {/* 📊 KPI GRID */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 px-1">
+        {[
+          { label: 'Membres Actifs', value: membresActifs, color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: Users, sub: `${membres.length} total` },
+          { label: 'Dettes', value: formatPrice(totDettesEnAttente), color: 'text-red-500', bg: 'bg-red-50', icon: AlertCircle, sub: 'À recouvrer' },
+          { label: 'Repas', value: stockRepas, color: 'text-amber-600', bg: 'bg-amber-50', icon: Ticket, sub: 'En stock' },
+          { label: 'Café', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités dispo' }
+        ].map((item, i) => (
+          <motion.div
+            key={i}
+            variants={itemVariants}
+            whileHover={{ y: -5 }}
+            className={`premium-card p-5 flex flex-col justify-between h-32 relative overflow-hidden`}
+          >
+            <div className={`p-2 w-10 h-10 ${item.bg} ${item.color} rounded-xl flex items-center justify-center mb-2`}>
+              <item.icon size={20} />
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{item.label}</p>
+              <h4 className={`text-lg font-black ${item.color} leading-none mt-1`}>{item.value}</h4>
+              <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-tighter opacity-60">{item.sub}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* 🏆 COMMERCIAL INSIGHTS */}
+      {isCafe && (
+        <motion.section variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm">
+             <h3 className="text-xs font-black text-gray-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <Star className="text-amber-500" size={16} /> Top Vendeurs (CA)
+             </h3>
+             <div className="space-y-4">
+                {commercialInsights.topSellers.map((seller, idx) => (
+                  <div key={seller.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                     <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-black text-xs text-gray-400">
+                           {idx + 1}
+                        </div>
+                        <p className="text-sm font-black text-gray-900">{seller.nom}</p>
+                     </div>
+                     <p className="text-sm font-black text-dmn-green-600">{formatPrice(seller.total)} F</p>
+                  </div>
+                ))}
+                {commercialInsights.topSellers.length === 0 && (
+                  <p className="text-xs font-bold text-gray-400 italic text-center py-4">Pas encore de données de vente par vendeur.</p>
+                )}
+             </div>
+          </div>
+          <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm">
+             <h3 className="text-xs font-black text-gray-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <Zap className="text-dmn-gold" size={16} /> Meilleurs Clients
+             </h3>
+             <div className="space-y-4">
+                {commercialInsights.topClients.map((client, idx) => (
+                  <div key={client.nom} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                     <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
+                           <Star size={14} />
+                        </div>
+                        <p className="text-sm font-black text-gray-900">{client.nom}</p>
+                     </div>
+                     <p className="text-sm font-black text-dmn-gold">{formatPrice(client.total)} F</p>
+                  </div>
+                ))}
+                {commercialInsights.topClients.length === 0 && (
+                  <p className="text-xs font-bold text-gray-400 italic text-center py-4">Pas encore de clients enregistrés.</p>
+                )}
+             </div>
+          </div>
+        </motion.section>
+      )}
+
+      {/* 🚀 QUICK ACTIONS (Floating Style) */}
+      <motion.div variants={itemVariants} className="bg-gray-900 rounded-[3rem] p-4 flex items-center justify-between shadow-2xl relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-r from-dmn-green-900/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div className="flex gap-2 sm:gap-6 overflow-x-auto no-scrollbar py-1">
+           {[
+             { id: 'membre', label: 'Inscrire Membre', icon: Users, color: 'bg-dmn-green-500', perm: ['admin', 'caisse'] },
+             { id: 'ticket', label: 'Vendre Tickets', icon: Ticket, color: 'bg-amber-500', perm: ['admin', 'tickets'] },
+             { id: 'cafe', label: 'Action Café', icon: Coffee, color: 'bg-orange-500', perm: ['admin', 'cafe'] },
+             { id: 'rapport', label: 'Générer Rapport', icon: BarChart3, color: 'bg-blue-500', perm: ['admin', 'caisse'] }
+           ].filter(a => !userRole || a.perm.includes(userRole as any)).map((action) => (
+             <button 
+               key={action.id}
+               onClick={() => onQuickAction?.(action.id as any)}
+               className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 transition-all group/btn whitespace-nowrap"
+             >
+               <div className={`p-2.5 ${action.color} text-black font-black rounded-xl group-hover/btn:scale-110 transition-transform`}>
+                  <action.icon size={18} />
+               </div>
+               <span className="text-xs font-black text-gray-300 uppercase tracking-widest group-hover/btn:text-white transition-colors">{action.label}</span>
+             </button>
+           ))}
+        </div>
+      </motion.div>
+
+      {/* 📊 ANALYTICS SECTION */}
+      {(isCaisse || isStats) && (
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 premium-card p-8">
+           <div className="flex justify-between items-center mb-10">
+              <div>
+                <h3 className="text-sm font-black text-gray-900 flex items-center gap-2 uppercase tracking-widest">
+                  <TrendingUp size={16} className="text-dmn-green-500" /> Courbe de Flux Mensuels
+                </h3>
+                <p className="text-[10px] font-bold text-gray-400 mt-1">Comparaison des entrées et du solde annuel ({globalYear})</p>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-dmn-green-500"></div>
+                  <span className="text-[10px] font-black text-gray-400 uppercase">Entrées</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-dmn-gold"></div>
+                  <span className="text-[10px] font-black text-gray-400 uppercase">Solde</span>
+                </div>
+              </div>
+           </div>
+           <div className="h-64 w-full">
+              {isLowEndDevice ? (
+                <div className="h-full flex items-center justify-center bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-100">
+                  <p className="text-xs font-bold text-gray-400 italic">Veuillez activer le mode performance pour voir les graphiques</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={evolutionSoldeData}>
+                    <defs>
+                      <linearGradient id="colorEnt" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22C55E" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#22C55E" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 800 }} dy={10} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', padding: '16px', fontSize: '12px' }}
+                    />
+                    <Area 
+                      type="monotone" dataKey="Entrées" stroke="#22C55E" strokeWidth={4} fillOpacity={1} fill="url(#colorEnt)" radius={4}
+                    />
+                    <Line type="monotone" dataKey="Solde" stroke="#d97706" strokeWidth={3} dot={{ r: 4, fill: '#d97706' }} activeDot={{ r: 6 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+           </div>
+        </div>
+
+        <div className="bg-dmn-green-950 rounded-[3rem] p-8 text-white flex flex-col justify-between relative overflow-hidden shadow-xl shadow-dmn-green-950/40">
+           <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-20 -mt-20 blur-2xl"></div>
+           <div className="space-y-6">
+              <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-dmn-green-400 mb-6">Résumé de l'année ({globalYear})</h4>
+              
+              <div className="space-y-8">
+                <div>
+                  <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Impact Social</p>
+                  <p className="text-3xl font-black">{formatPrice(globalTotExpenses)} <span className="text-sm font-light text-white/50 italic">Utilisés</span></p>
+                  <div className="w-full h-1 bg-white/5 rounded-full mt-3 overflow-hidden">
+                    <div className="h-full bg-red-400 shimmer" style={{ width: `${Math.min(100, (globalTotExpenses / globalTotIncome) * 100)}%` }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Volume Café</p>
+                  <p className="text-3xl font-black">{totCafeQtySold || 0} <span className="text-sm font-light text-white/50 italic">Tasses</span></p>
+                  <p className="text-[9px] font-bold text-dmn-green-500 mt-2">+{formatPrice(totCafeRevenus)} FCFA en CA</p>
+                </div>
+
+                <div>
+                  <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Régularité</p>
+                  <p className="text-3xl font-black">{Math.round((membresActifs / (membres.length || 1)) * 100)}% <span className="text-sm font-light text-white/50 italic">À jour</span></p>
+                </div>
+              </div>
+           </div>
+
+           <button 
+             onClick={() => onQuickAction?.('rapport')}
+             className="w-full mt-10 py-4 bg-white/10 hover:bg-white/20 transition-all rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest border border-white/10"
+           >
+              Analyses détaillées <ArrowRight size={14} />
+           </button>
+        </div>
+      </motion.div>
+      )}
+
+      {/* 📋 ACTIVITY STREAM */}
+      <motion.section variants={itemVariants} className="space-y-6">
+        <div className="flex justify-between items-center px-4">
+          <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-3">
+             Flux d'activités <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-shimmer"></div>
+          </h3>
+          <button className="text-[10px] font-black text-dmn-green-600 hover:text-dmn-green-700 transition-colors uppercase tracking-widest flex items-center gap-1">
+             Historique complet <ChevronRight size={14} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <AnimatePresence mode="popLayout">
+            {recentHistory.map((h, i) => (
+              <motion.div 
+                layout
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                key={i}
+                className="premium-card p-5 sm:p-6 flex items-center justify-between group cursor-pointer"
+              >
+                <div className="flex items-center gap-5 min-w-0 flex-1">
+                  <div className={`shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm ${
+                    h.type === 'in' ? 'bg-dmn-green-50 text-dmn-green-600' :
+                    h.type === 'out' ? 'bg-red-50 text-red-600' :
+                    h.type === 'cafe' ? 'bg-orange-50 text-orange-600' :
+                    'bg-blue-50 text-blue-600'
+                  }`}>
+                    <h.icon size={22} className={h.type === 'in' ? 'animate-bounce-slow' : ''} />
+                  </div>
+                  <div className="min-w-0 pr-4">
+                    <h4 className="text-sm sm:text-base font-black text-gray-900 group-hover:text-dmn-green-800 transition-colors truncate">
+                      {h.label}
+                    </h4>
+                    <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                       <Calendar size={10} /> {h.date ? new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '---'}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={`text-sm sm:text-lg font-black tracking-tight ${
+                    h.type === 'in' || h.type === 'cafe' ? 'text-dmn-green-600' : 'text-red-500'
+                  }`}>
+                    {h.type === 'in' || h.type === 'cafe' ? '+' : '-'}{formatPrice(h.amount)}
+                  </p>
+                  <div className={`mt-2 h-1 w-16 bg-gray-100 rounded-full overflow-hidden ml-auto`}>
+                    <div className={`h-full rounded-full ${h.type === 'in' || h.type === 'cafe' ? 'bg-dmn-green-500' : 'bg-red-400'} shimmer`} style={{ width: '100%' }}></div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
           {history.length === 0 && (
-            <div className="text-center py-10 text-gray-400 font-medium">Aucun mouvement récent</div>
+            <div className="text-center py-16 bg-white rounded-[3rem] border-2 border-dashed border-gray-100">
+               <Activity size={32} className="text-gray-200 mx-auto mb-4" />
+               <p className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Aucune activité détectée</p>
+            </div>
           )}
         </div>
       </motion.section>
 
-      {/* 🧭 PREMIUM INFOS */}
-      <motion.div variants={itemVariants} className="px-4">
-        {userRole === 'lecteur' && (
-          <div className="bg-amber-50 rounded-[2.5rem] p-8 mt-8 border border-amber-100 flex flex-col items-center text-center space-y-4 shadow-sm mb-8">
-            <Shield size={40} className="text-amber-500 mb-2" />
-            <h3 className="text-xl font-black text-amber-900">Espace Membre</h3>
-            <p className="text-sm font-medium text-amber-800/80 max-w-sm">
-              Votre compte est en cours de configuration. Pour voir vos propres cotisations et tickets, veuillez vous rapprocher d'un administrateur pour lier votre compte à votre profil de membre sur l'application.
+      {/* 🧭 MOTIVATIONAL FOOTER */}
+      <motion.div variants={itemVariants} className="pt-10">
+        <div className="bg-dmn-green-950 rounded-[4rem] p-12 text-center relative overflow-hidden group">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+          <div className="relative z-10 flex flex-col items-center space-y-6">
+            <div className="w-12 h-1 bg-dmn-gold-light/40 rounded-full"></div>
+            <p className="text-lg sm:text-2xl font-black text-dmn-gold-light italic tracking-tight italic max-w-lg leading-relaxed">
+              “La rectitude dans la gestion est le garant de la prospérité sociale.”
             </p>
+            <div className="space-y-1">
+               <p className="text-[12px] font-black text-white uppercase tracking-[0.4em]">Daara Madjmahoune Noreyni</p>
+               <p className="text-[9px] font-bold text-dmn-green-400 uppercase tracking-[0.2em]">Gestion Transparente | Engagement Solidaire</p>
+            </div>
+            <div className="pt-4 flex gap-3">
+               <div className="w-2 h-2 bg-dmn-green-500 rounded-full"></div>
+               <div className="w-2 h-2 bg-white/20 rounded-full"></div>
+               <div className="w-2 h-2 bg-white/10 rounded-full"></div>
+            </div>
           </div>
-        )}
-        <div className="bg-dmn-green-900/5 rounded-[2.5rem] p-8 border border-dmn-green-100 flex flex-col items-center text-center space-y-4">
-          <div className="w-16 h-1 bg-dmn-green-600/20 rounded-full"></div>
-          <p className="text-sm font-black text-dmn-green-900">“Le travail est une adoration”</p>
-          <p className="text-[10px] font-bold text-dmn-green-600 uppercase tracking-[0.2em]">Daara Madjmahoune Noreyni</p>
         </div>
       </motion.div>
-
     </motion.div>
   );
 }

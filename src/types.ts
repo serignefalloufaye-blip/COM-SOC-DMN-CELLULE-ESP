@@ -130,9 +130,42 @@ export interface CafeVente {
   quantite: number;
   prixUnitaire: number;
   typeVente?: 'Sur place' | 'Commande';
+  vendeurId?: string;
+  clientId?: string;
   total: number;
   mode: ModePaiement;
   createdAt?: number;
+}
+
+export interface CafeSeller {
+  id: string;
+  nom: string;
+  telephone?: string;
+  active: boolean;
+  createdAt: number;
+}
+
+export interface CafeClient {
+  id: string;
+  nom: string;
+  telephone?: string;
+  totalAchats: number;
+  lastAchat?: number;
+  createdAt: number;
+}
+
+export interface CafeOrder {
+  id: string;
+  clientId?: string;
+  clientNom?: string;
+  vendeurId?: string;
+  quantite: number;
+  prixUnitaire: number;
+  total: number;
+  statut: 'en_attente' | 'validee' | 'livree' | 'annulee';
+  date: number;
+  mode: ModePaiement;
+  createdAt: number;
 }
 
 export interface CafeDepense {

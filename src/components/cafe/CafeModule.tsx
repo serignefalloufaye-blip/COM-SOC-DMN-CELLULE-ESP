@@ -1,13 +1,19 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Coffee, TrendingUp, TrendingDown, Package, Plus, Search, 
   Trash2, ArrowRightLeft, BarChart3, Calendar, Wallet, History,
-  AlertCircle, Filter, PieChart as PieChartIcon
+  AlertCircle, Filter, PieChart as PieChartIcon, Users as UsersIcon,
+  ShoppingBag, Star, UserPlus, CheckCircle2 as CheckIcon, XCircle,
+  Truck, Tag, ChevronRight, MapPin
 } from 'lucide-react';
-import { CafeProduction, CafeVente, CafeDepense, CafeTransfert, ModePaiement } from '../../types';
+import { 
+  CafeProduction, CafeVente, CafeDepense, CafeTransfert, ModePaiement,
+  CafeSeller, CafeClient, CafeOrder
+} from '../../types';
 import { db } from '../../firebase';
 import { hasPermission, logAudit } from '../../utils/permissions';
-import { collection, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Legend
@@ -19,17 +25,23 @@ interface CafeModuleProps {
   ventes: CafeVente[];
   depenses: CafeDepense[];
   transferts: CafeTransfert[];
+  sellers: CafeSeller[];
+  clients: CafeClient[];
+  orders: CafeOrder[];
   userRole: string;
+  globalYear: number;
+  globalMonth: string;
   showToast: (message: string, type?: 'success' | 'error') => void;
   onTransferToCaisse: (montant: number) => Promise<void>;
 }
 
 export function CafeModule({ 
   productions, ventes, depenses, transferts, 
-  userRole, showToast, onTransferToCaisse 
+  sellers, clients, orders,
+  userRole, globalYear, globalMonth, showToast, onTransferToCaisse 
 }: CafeModuleProps) {
   const { isMobile, isLowEndDevice, performance } = useAdaptive();
-  const [activeTab, setActiveTab] = useState<'stats' | 'ventes' | 'production' | 'depenses' | 'stock' | 'historique'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'ventes' | 'production' | 'depenses' | 'stock' | 'historique' | 'vendeurs' | 'clients' | 'commandes'>('stats');
   const [filterPeriod, setFilterPeriod] = useState<'Mois' | 'Trimestre' | 'Année'>('Mois');
   const [searchHistory, setSearchHistory] = useState('');
   
@@ -38,20 +50,25 @@ export function CafeModule({
   const canExpense = hasPermission(userRole as any, 'cafe.expenses.create');
   const isAdmin = userRole === 'admin';
 
-  // Memoized filter function logic
-  const filterByPeriod = useMemo(() => (date: number, period: string) => {
+  // Memoized filter function logic - Respecting Global Year
+  const filterByPeriod = useMemo(() => (date: number | string, period: string) => {
     const d = new Date(date || Date.now());
-    const now = new Date();
+    const yearMatch = d.getFullYear() === globalYear;
+    if (!yearMatch) return false;
+
     if (period === 'Mois') {
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      const now = new Date();
+      // If globalMonth is set in App, we could use it, but Cafe has its own "Mois" filter.
+      // Let's make it smarter: use current month if looking at current year.
+      return d.getMonth() === now.getMonth();
     } else if (period === 'Trimestre') {
+      const now = new Date();
       const currentQuarter = Math.floor(now.getMonth() / 3);
       const dateQuarter = Math.floor(d.getMonth() / 3);
-      return currentQuarter === dateQuarter && d.getFullYear() === now.getFullYear();
-    } else {
-      return d.getFullYear() === now.getFullYear();
-    }
-  }, []);
+      return currentQuarter === dateQuarter;
+    } 
+    return true; // "Année" period (yearMatch is already true)
+  }, [globalYear]);
 
   const filteredVentes = useMemo(() => ventes.filter(v => filterByPeriod(v.date, filterPeriod)), [ventes, filterPeriod, filterByPeriod]);
   const filteredProductions = useMemo(() => productions.filter(p => filterByPeriod(p.date, filterPeriod)), [productions, filterPeriod, filterByPeriod]);
@@ -95,7 +112,60 @@ export function CafeModule({
   const totalQtySold = useMemo(() => ventes.reduce((s, v) => s + v.quantite, 0), [ventes]);
   const currentStock = totalQtyProduced - totalQtySold;
 
-  const handleAddVente = async (quantite: number, prixUnitaire: number, mode: ModePaiement, typeVente: 'Sur place' | 'Commande') => {
+  const handleAddSeller = async (nom: string, telephone: string) => {
+    if (!isAdmin) return;
+    try {
+      await addDoc(collection(db, 'cafe_sellers'), {
+        nom, telephone, active: true, createdAt: Date.now()
+      });
+      showToast("Vendeur ajouté !");
+    } catch (e) { showToast("Erreur", "error"); }
+  };
+
+  const handleDeleteSeller = async (id: string) => {
+    if (!isAdmin) return;
+    try {
+      await deleteDoc(doc(db, 'cafe_sellers', id));
+      showToast("Vendeur supprimé");
+    } catch (e) { showToast("Erreur", "error"); }
+  };
+
+  const handleAddOrder = async (clientNom: string, quantite: number, prixUnitaire: number, mode: ModePaiement) => {
+    if (!canSell) return;
+    try {
+      await addDoc(collection(db, 'cafe_orders'), {
+        clientNom, quantite, prixUnitaire, total: quantite * prixUnitaire,
+        statut: 'en_attente', date: Date.now(), mode, createdAt: Date.now()
+      });
+      showToast("Commande enregistrée !");
+    } catch (e) { showToast("Erreur", "error"); }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: CafeOrder['statut']) => {
+    if (!canSell) return;
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      if (newStatus === 'livree' && order.statut !== 'livree') {
+        // Automatically create a sale when delivered
+        await addDoc(collection(db, 'cafe_ventes'), {
+          date: Date.now(),
+          quantite: order.quantite,
+          prixUnitaire: order.prixUnitaire,
+          total: order.total,
+          mode: order.mode,
+          typeVente: 'Commande',
+          createdAt: serverTimestamp()
+        });
+      }
+
+      await updateDoc(doc(db, 'cafe_orders', orderId), { statut: newStatus });
+      showToast(`Statut mis à jour : ${newStatus}`);
+    } catch (e) { showToast("Erreur", "error"); }
+  };
+
+  const handleAddVente = async (quantite: number, prixUnitaire: number, mode: ModePaiement, typeVente: 'Sur place' | 'Commande', vendeurId?: string) => {
     if (!canSell) {
       showToast("Accès refusé", "error");
       return;
@@ -112,6 +182,7 @@ export function CafeModule({
         total: quantite * prixUnitaire,
         mode,
         typeVente,
+        vendeurId: vendeurId || '',
         createdAt: serverTimestamp()
       });
       showToast("Vente enregistrée !");
@@ -159,52 +230,86 @@ export function CafeModule({
   const renderStats = () => {
     // Data preparation for charts
     const pieData = [
-      { name: 'Matières premières', value: filteredDepenses.filter(d => d.categorie === 'Matières premières').reduce((s, d) => s + d.montant, 0) },
+      { name: 'Achats Divers', value: filteredDepenses.filter(d => d.categorie === 'Matières premières' || d.categorie === 'Autres' || !d.categorie).reduce((s, d) => s + d.montant, 0) },
       { name: 'Transport', value: filteredDepenses.filter(d => d.categorie === 'Transport').reduce((s, d) => s + d.montant, 0) },
-      { name: 'Autres', value: filteredDepenses.filter(d => d.categorie === 'Autres' || !d.categorie).reduce((s, d) => s + d.montant, 0) },
       { name: 'Coût Production', value: totalProductionCoutFiltered }
     ].filter(d => d.value > 0);
 
-    const COLORS = ['#8d6e63', '#a1887f', '#bcaaa4', '#6d4c41'];
+    // Monthly data for the current year
+    const monthlyData = Array.from({ length: 12 }, (_, i) => {
+      const monthVentes = ventes.filter(v => {
+        const d = new Date(v.date);
+        return d.getFullYear() === globalYear && d.getMonth() === i;
+      });
+      const monthProd = productions.filter(p => {
+        const d = new Date(p.date);
+        return d.getFullYear() === globalYear && d.getMonth() === i;
+      });
+      const monthDep = depenses.filter(dep => {
+        const depDate = new Date(dep.date);
+        return depDate.getFullYear() === globalYear && depDate.getMonth() === i;
+      });
+
+      const rev = monthVentes.reduce((s, v) => s + v.total, 0);
+      const cost = monthProd.reduce((s, p) => s + p.total, 0) + monthDep.reduce((s, d) => s + d.montant, 0);
+
+      return {
+        name: new Date(0, i).toLocaleString('fr-FR', { month: 'short' }),
+        Revenus: rev,
+        Bénéfice: rev - cost
+      };
+    });
+
+    const COLORS = ['#8d6e63', '#bcaaa4', '#5d4037'];
 
     return (
       <div className="space-y-6">
+        {/* Row 1: Main Trends */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
-                  <TrendingUp className="text-brown-600" /> Évolution des ventes
-                </h3>
+                <div>
+                  <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
+                    <TrendingUp className="text-brown-600" /> Performance Annuelle ({globalYear})
+                  </h3>
+                  <p className="text-[10px] font-bold text-gray-400 mt-1">Revenus vs Bénéfices par mois</p>
+                </div>
              </div>
              <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={sortedVentesForChart}>
+                  <AreaChart data={monthlyData}>
+                    <defs>
+                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8d6e63" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#8d6e63" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorBen" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={formats.date}
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}}
-                      dy={10}
-                     />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
                     <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
                     <RechartsTooltip 
                       contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                      labelFormatter={formats.date}
-                      formatter={(value: any) => [`${value} F`, 'Total']}
                     />
-                    <Line type="monotone" dataKey="total" stroke="#8d6e63" strokeWidth={3} dot={{r: 4, fill: '#8d6e63'}} activeDot={{r: 6}} />
-                  </LineChart>
+                    <Area type="monotone" dataKey="Revenus" stroke="#8d6e63" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
+                    <Area type="monotone" dataKey="Bénéfice" stroke="#10b981" fillOpacity={1} fill="url(#colorBen)" strokeWidth={2} />
+                    <Legend />
+                  </AreaChart>
                 </ResponsiveContainer>
              </div>
           </div>
 
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
-                  <PieChartIcon className="text-brown-600" size={18} /> Répartition Dépenses
-                </h3>
+                <div>
+                  <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
+                    <PieChartIcon className="text-brown-600" size={18} /> Structure des Coûts
+                  </h3>
+                  <p className="text-[10px] font-bold text-gray-400 mt-1">Période: {filterPeriod}</p>
+                </div>
              </div>
              <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -230,26 +335,63 @@ export function CafeModule({
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-           <div className="flex justify-between items-center mb-6">
-              <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
-                <BarChart3 className="text-brown-600" /> Production vs Ventes (Quantité)
-              </h3>
-           </div>
-           <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={[
-                  { name: 'Production', quantity: filteredProductions.reduce((s,p) => s+p.quantite, 0) },
-                  { name: 'Ventes', quantity: filteredVentes.reduce((s,v) => s+v.quantite, 0) }
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 700, fill: '#64748b'}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
-                  <RechartsTooltip cursor={{fill: '#f8fafc'}} />
-                  <Bar dataKey="quantity" fill="#8d6e63" radius={[8, 8, 0, 0]} barSize={60} />
-                </BarChart>
-              </ResponsiveContainer>
-           </div>
+        {/* Row 2: Secondary Stats */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm lg:col-span-2">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm flex items-center gap-2">
+                  <BarChart3 className="text-brown-600" /> Flux de Production vs Ventes (Qté)
+                </h3>
+            </div>
+            <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyData.map((d, i) => ({
+                    name: d.name,
+                    Produit: productions.filter(p => new Date(p.date).getFullYear() === globalYear && new Date(p.date).getMonth() === i).reduce((s,p) => s+p.quantite, 0),
+                    Vendu: ventes.filter(v => new Date(v.date).getFullYear() === globalYear && new Date(v.date).getMonth() === i).reduce((s,v) => s+v.quantite, 0)
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#64748b'}} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
+                    <RechartsTooltip cursor={{fill: '#f8fafc'}} />
+                    <Legend />
+                    <Bar dataKey="Produit" fill="#d7ccc8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Vendu" fill="#8d6e63" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-brown-900 p-6 rounded-[2.5rem] shadow-xl text-white flex flex-col justify-between">
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-brown-300">Récapitulatif Global ({globalYear})</h4>
+              <div className="space-y-6 mt-4">
+                <div>
+                  <p className="text-[10px] font-bold text-brown-400 uppercase">Revenus Cumulés</p>
+                  <p className="text-2xl font-black">{formats.price(ventes.filter(v => new Date(v.date).getFullYear() === globalYear).reduce((s,v) => s+v.total, 0))}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-brown-400 uppercase">Investissements Totaux</p>
+                  <p className="text-2xl font-black text-red-300">
+                    {formats.price(
+                      depenses.filter(v => new Date(v.date).getFullYear() === globalYear).reduce((s,d) => s+d.montant, 0) +
+                      productions.filter(v => new Date(v.date).getFullYear() === globalYear).reduce((s,p) => s+p.total, 0)
+                    )}
+                  </p>
+                </div>
+                <div className="pt-4 border-t border-white/10">
+                  <p className="text-[10px] font-bold text-dmn-green-400 uppercase">Bénéfice Virtuel</p>
+                  <p className="text-3xl font-black text-dmn-green-400">
+                    {formats.price(
+                      ventes.filter(v => new Date(v.date).getFullYear() === globalYear).reduce((s,v) => s+v.total, 0) -
+                      (depenses.filter(v => new Date(v.date).getFullYear() === globalYear).reduce((s,d) => s+d.montant, 0) +
+                       productions.filter(v => new Date(v.date).getFullYear() === globalYear).reduce((s,p) => s+p.total, 0))
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -270,12 +412,19 @@ export function CafeModule({
                 Number(d.get('qty')), 
                 Number(d.get('prix')), 
                 d.get('mode') as ModePaiement,
-                d.get('type') as any
+                d.get('type') as any,
+                d.get('vendeur') as string
               );
               (e.target as any).reset();
-            }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+            }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4">
               <input name="qty" type="number" placeholder="Quantité" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-600/20" required />
               <input name="prix" type="number" placeholder="Prix U." defaultValue={250} className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-600/20" required />
+              <select name="vendeur" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-600/20">
+                <option value="">Vendeur (Optionnel)</option>
+                {sellers.filter(s => s.active).map(s => (
+                  <option key={s.id} value={s.id}>{s.nom}</option>
+                ))}
+              </select>
               <select name="type" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-600/20">
                 <option value="Sur place">Sur place</option>
                 <option value="Commande">Commande</option>
@@ -591,139 +740,299 @@ export function CafeModule({
     );
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Module Title */}
-      <div className="bg-brown-50 border border-brown-100 p-6 rounded-3xl mb-6">
-        <h2 className="text-2xl font-black text-brown-900 flex items-center gap-3">
-          <Coffee size={32} /> Module Café
-        </h2>
-        <p className="text-brown-600 font-medium text-sm mt-1">Gestion de production et vente de café</p>
+  const renderVendeurs = () => {
+    return (
+      <div className="space-y-6">
+        {isAdmin && (
+          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+            <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm mb-4 flex items-center gap-2">
+              <UserPlus className="text-blue-500" /> Ajouter un Vendeur
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const d = new FormData(e.currentTarget);
+              handleAddSeller(d.get('nom') as string, d.get('tel') as string);
+              (e.target as any).reset();
+            }} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <input name="nom" placeholder="Nom Complet" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
+              <input name="tel" placeholder="Téléphone" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" />
+              <button type="submit" className="bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition-all">
+                Enregistrer
+              </button>
+            </form>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {sellers.map(s => {
+            const sellerSales = ventes.filter(v => v.vendeurId === s.id);
+            const totalPerf = sellerSales.reduce((sum, v) => sum + v.total, 0);
+            return (
+              <div key={s.id} className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                    <UsersIcon size={24} />
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => handleDeleteSeller(s.id)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+                <h4 className="text-lg font-black text-gray-900">{s.nom}</h4>
+                <p className="text-xs font-bold text-gray-400 mt-1">{s.telephone || 'Pas de numéro'}</p>
+                <div className="mt-6 pt-6 border-t border-gray-50 space-y-3">
+                  <div className="flex justify-between text-xs font-black uppercase tracking-widest">
+                    <span className="text-gray-400">Total Ventes</span>
+                    <span className="text-emerald-600">{formats.price(totalPerf)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-black uppercase tracking-widest">
+                    <span className="text-gray-400">Transactions</span>
+                    <span className="text-gray-900">{sellerSales.length}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+    );
+  };
 
-      {/* Header Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm col-span-2 lg:col-span-1">
-          <div className="flex justify-between items-start mb-2">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-2xl">
-              <TrendingUp size={24} />
-            </div>
+  const renderCommandes = () => {
+    return (
+      <div className="space-y-6">
+        {canSell && (
+          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+            <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm mb-4 flex items-center gap-2">
+              <ShoppingBag className="text-amber-500" /> Nouvelle Commande Directe
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const d = new FormData(e.currentTarget);
+              handleAddOrder(d.get('nom') as string, Number(d.get('qty')), Number(d.get('prix')), d.get('mode') as ModePaiement);
+              (e.target as any).reset();
+            }} className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+              <input name="nom" placeholder="Nom Client" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none sm:col-span-1" required />
+              <input name="qty" type="number" placeholder="Quantité" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
+              <input name="prix" type="number" placeholder="Prix U." defaultValue={250} className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
+              <select name="mode" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none">
+                <option value="ESPÈCES">Espèces</option>
+                <option value="WAVE">Wave</option>
+                <option value="OM">Orange Money</option>
+              </select>
+              <button type="submit" className="bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-amber-700 transition-all">
+                Commander
+              </button>
+            </form>
           </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Revenus ({filterPeriod})</p>
-          <div className="flex items-baseline gap-1">
-            <h3 className="text-xl font-black text-gray-900">{formats.price(totalVentesFiltered)}</h3>
-          </div>
-        </div>
+        )}
 
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm col-span-2 lg:col-span-1">
-          <div className="flex justify-between items-start mb-2">
-            <div className="p-2 bg-red-50 text-red-600 rounded-2xl">
-              <TrendingDown size={24} />
-            </div>
-          </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Dépenses ({filterPeriod})</p>
-          <div className="flex items-baseline gap-1">
-            <h3 className="text-xl font-black text-gray-900">{formats.price(totalDepensesFiltered + totalProductionCoutFiltered)}</h3>
-          </div>
-        </div>
+        <div className="grid grid-cols-1 gap-4">
+          {orders.sort((a,b) => b.date - a.date).map(order => (
+            <div key={order.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+              <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className={`p-4 rounded-2xl ${
+                  order.statut === 'livree' ? 'bg-emerald-50 text-emerald-600' :
+                  order.statut === 'validee' ? 'bg-blue-50 text-blue-600' :
+                  order.statut === 'annulee' ? 'bg-red-50 text-red-600' :
+                  'bg-amber-50 text-amber-600 animate-pulse'
+                }`}>
+                  <Truck size={24} />
+                </div>
+                <div>
+                  <h4 className="text-lg font-black text-gray-900">{order.clientNom || 'Client Anonyme'}</h4>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    {formats.date(order.date)} • {order.quantite} Unités • {formats.price(order.total)}
+                  </p>
+                </div>
+              </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm col-span-2 lg:col-span-1">
-          <div className="flex justify-between items-start mb-2">
-            <div className={`p-2 rounded-2xl ${beneficeNetFiltered >= 0 ? 'bg-dmn-green-50 text-dmn-green-600' : 'bg-red-50 text-red-600'}`}>
-              <Wallet size={24} />
-            </div>
-          </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bénéfice Net ({filterPeriod})</p>
-          <div className="flex items-baseline gap-1">
-            <h3 className={`text-xl font-black ${beneficeNetFiltered >= 0 ? 'text-dmn-green-800' : 'text-red-700'}`}>{formats.price(beneficeNetFiltered)}</h3>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm col-span-2 lg:col-span-1">
-          <div className="flex justify-between items-start mb-2">
-            <div className="p-2 bg-amber-50 text-amber-600 rounded-2xl">
-              <Package size={24} />
-            </div>
-          </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Stock Actuel (Total)</p>
-          <div className="flex items-baseline gap-1">
-            <h3 className="text-xl font-black text-gray-900">{currentStock}</h3>
-            <span className="text-[10px] font-bold text-gray-500">Unités</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm ring-2 ring-brown-600/20 flex flex-col justify-between col-span-2 lg:col-span-1">
-          <div>
-            <div className="flex justify-between items-start mb-2">
-              <div className="p-2 bg-brown-50 text-brown-600 rounded-2xl">
-                <ArrowRightLeft size={24} />
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+                {order.statut === 'en_attente' && (
+                  <button onClick={() => handleUpdateOrderStatus(order.id, 'validee')} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest">Valider</button>
+                )}
+                {order.statut === 'validee' && (
+                  <button onClick={() => handleUpdateOrderStatus(order.id, 'livree')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest">Livrer (Créer Vente)</button>
+                )}
+                {order.statut !== 'livree' && order.statut !== 'annulee' && (
+                  <button onClick={() => handleUpdateOrderStatus(order.id, 'annulee')} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest">Annuler</button>
+                )}
+                <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                  order.statut === 'livree' ? 'bg-emerald-600 text-white' :
+                  order.statut === 'annulee' ? 'bg-gray-200 text-gray-600' :
+                  'hidden'
+                }`}>
+                  {order.statut}
+                </span>
               </div>
             </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Solde Dispo (Global)</p>
-            <div className="flex items-baseline gap-1">
-              <h3 className="text-xl font-black text-brown-800">{formats.price(soldeDisponible)}</h3>
-            </div>
-          </div>
-          {isAdmin && soldeDisponible > 0 && (
-            <button 
-              onClick={() => onTransferToCaisse(soldeDisponible)}
-              className="mt-4 w-full py-2 bg-brown-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brown-700 transition-all shadow-lg shadow-brown-600/20 flex items-center justify-center gap-2"
-            >
-              <Wallet size={14} /> Transférer
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white p-3 rounded-[2rem] shadow-sm border border-gray-100 flex justify-between items-center overflow-x-auto no-scrollbar mb-6 gap-4">
-        <div className="flex gap-2">
-          {[
-            { id: 'stats', label: 'Tableau de bord', icon: BarChart3 },
-            { id: 'ventes', label: 'Ventes', icon: TrendingUp },
-            { id: 'production', label: 'Productions', icon: Coffee },
-            { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
-            { id: 'stock', label: 'État du Stock', icon: Package },
-            { id: 'historique', label: 'Historique', icon: History }
-          ].map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id as any)}
-              className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group whitespace-nowrap ${
-                activeTab === t.id 
-                  ? 'bg-brown-600 text-white shadow-md shadow-brown-600/20 ring-4 ring-brown-600/10' 
-                  : 'bg-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-transparent hover:border-gray-200'
-              }`}
-            >
-              <t.icon size={20} className={activeTab === t.id ? 'stroke-[2.5px]' : 'stroke-[2px] group-hover:scale-110 transition-transform text-gray-400 group-hover:text-brown-600'} />
-              <span>{t.label}</span>
-            </button>
           ))}
         </div>
-        
-        <div className="flex items-center gap-2 px-2">
-          <Filter size={16} className="text-gray-400" />
-          <select 
-            value={filterPeriod} 
-            onChange={(e) => setFilterPeriod(e.target.value as any)}
-            className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 focus:outline-none"
-          >
-            <option value="Mois">Ce mois</option>
-            <option value="Trimestre">Ce trimestre</option>
-            <option value="Année">Cette année</option>
-          </select>
+      </div>
+    );
+  };
+
+  const renderClients = () => {
+    // Derive clients from sales and orders
+    const clientsData = useMemo(() => {
+      const map = new Map<string, {nom: string, total: number, count: number, last: number}>();
+      ventes.forEach(v => {
+        if (v.clientId) {
+           // If we had a client management system... but we can also use clientNom from orders as a base.
+        }
+      });
+      orders.forEach(o => {
+        const nom = o.clientNom || 'Anonyme';
+        const current = map.get(nom) || {nom, total: 0, count: 0, last: 0};
+        current.total += o.total;
+        current.count += 1;
+        current.last = Math.max(current.last, o.date);
+        map.set(nom, current);
+      });
+      return Array.from(map.values()).sort((a,b) => b.total - a.total);
+    }, [ventes, orders]);
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {clientsData.map(client => (
+          <div key={client.nom} className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                <Star size={24} />
+              </div>
+              <div>
+                <h4 className="text-lg font-black text-gray-900">{client.nom}</h4>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dernier achat: {formats.date(client.last)}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-between items-end">
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Dépense Totale</p>
+                <p className="text-2xl font-black text-dmn-green-600">{formats.price(client.total)}</p>
+              </div>
+              <div className="text-right">
+                 <p className="text-xs font-black text-gray-900">{client.count}</p>
+                 <p className="text-[10px] font-bold text-gray-400">Commandes</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-6xl mx-auto space-y-10"
+    >
+      {/* 🧭 PREMIUM NAVIGATION */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-8 sm:p-10 rounded-[3.5rem] shadow-soft border border-gray-100">
+        <div className="space-y-2">
+          <h2 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tighter">Module Café</h2>
+          <p className="text-[10px] font-black text-orange-900 uppercase tracking-[0.4em] flex items-center gap-2">
+            <Coffee size={14} className="text-dmn-gold" /> Intelligence Production & Ventes ({filterPeriod})
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+          <div className="flex bg-gray-100 p-1.5 rounded-[2rem] flex-1 lg:flex-none overflow-x-auto no-scrollbar">
+            {[
+              { id: 'stats', label: 'Dashboard', icon: BarChart3 },
+              { id: 'ventes', label: 'Ventes', icon: TrendingUp },
+              { id: 'commandes', label: 'Commandes', icon: ShoppingBag },
+              { id: 'production', label: 'Prods', icon: Coffee },
+              { id: 'vendeurs', label: 'Vendeurs', icon: UsersIcon },
+              { id: 'clients', label: 'Clients', icon: Star },
+              { id: 'depenses', label: 'Charges', icon: TrendingDown },
+              { id: 'stock', label: 'Stock', icon: Package },
+              { id: 'historique', label: 'Logs', icon: History }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  activeTab === tab.id ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <tab.icon size={12} className={activeTab === tab.id ? 'text-orange-600' : ''} />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-2xl">
+            <Filter size={14} className="text-gray-400" />
+            <select 
+              value={filterPeriod} 
+              onChange={(e) => setFilterPeriod(e.target.value as any)}
+              className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-gray-700 focus:ring-0 cursor-pointer"
+            >
+              <option value="Mois">Mois</option>
+              <option value="Trimestre">Trimestre</option>
+              <option value="Année">Année</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="bg-gray-50/50 min-h-[400px]">
-        {activeTab === 'stats' && renderStats()}
-        {activeTab === 'ventes' && renderVentes()}
-        {activeTab === 'production' && renderProduction()}
-        {activeTab === 'depenses' && renderDepenses()}
-        {activeTab === 'stock' && renderStock()}
-        {activeTab === 'historique' && renderHistorique()}
+      {/* 🚀 QUICK STAT BAR */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Revenus</p>
+           <p className="text-xl font-black text-dmn-green-600">{formats.price(totalVentesFiltered)}</p>
+        </div>
+        <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Dépenses</p>
+           <p className="text-xl font-black text-red-500">{formats.price(totalDepensesFiltered + totalProductionCoutFiltered)}</p>
+        </div>
+        <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Bénéfice</p>
+           <p className={`text-xl font-black ${beneficeNetFiltered >= 0 ? 'text-dmn-green-600' : 'text-red-500'}`}>{formats.price(beneficeNetFiltered)}</p>
+        </div>
+        <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Stock</p>
+           <p className="text-xl font-black text-gray-900">{currentStock} <span className="text-[10px] opacity-40">uts</span></p>
+        </div>
+        <div className="bg-gray-900 p-6 rounded-[2.5rem] text-white relative overflow-hidden group flex flex-col justify-between">
+           <div>
+              <p className="text-[9px] font-black text-dmn-gold uppercase tracking-widest mb-1">Caisse Café</p>
+              <p className="text-xl font-black text-dmn-gold">{formats.price(soldeDisponible)}</p>
+           </div>
+           {isAdmin && soldeDisponible > 0 && (
+             <button 
+               onClick={() => onTransferToCaisse(soldeDisponible)}
+               className="mt-2 w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1 border border-white/10"
+             >
+               <Wallet size={12} /> Virer
+             </button>
+           )}
+        </div>
       </div>
-    </div>
+
+      {/* 📊 DYNAMIC CONTENT */}
+           <AnimatePresence mode="wait">
+        <motion.div
+           key={activeTab}
+           initial={{ opacity: 0, x: 20 }}
+           animate={{ opacity: 1, x: 0 }}
+           exit={{ opacity: 0, x: -20 }}
+           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+           className="min-h-[400px]"
+        >
+          {activeTab === 'stats' && renderStats()}
+          {activeTab === 'ventes' && renderVentes()}
+          {activeTab === 'vendeurs' && renderVendeurs()}
+          {activeTab === 'commandes' && renderCommandes()}
+          {activeTab === 'clients' && renderClients()}
+          {activeTab === 'production' && renderProduction()}
+          {activeTab === 'depenses' && renderDepenses()}
+          {activeTab === 'stock' && renderStock()}
+          {activeTab === 'historique' && renderHistorique()}
+        </motion.div>
+      </AnimatePresence>
+    </motion.div>
   );
 }

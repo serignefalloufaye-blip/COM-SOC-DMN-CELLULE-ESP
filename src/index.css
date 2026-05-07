@@ -25,19 +25,24 @@
   --color-brown-900: #3e2723;
   --color-dmn-bg: #f8fafc;
   
-  --shadow-premium: 0 20px 50px rgba(0, 0, 0, 0.08);
-  --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.04);
+  --shadow-premium: 0 25px 60px -12px rgba(0, 0, 0, 0.12);
+  --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.03);
+  --shadow-gold: 0 20px 40px -10px rgba(217, 119, 6, 0.3);
+  --shadow-green: 0 20px 40px -10px rgba(5, 150, 105, 0.3);
 }
 
 @layer utilities {
   .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/20;
+    @apply bg-white/80 backdrop-blur-2xl border border-white/40 shadow-soft;
   }
   .glass-dark {
-    @apply bg-black/40 backdrop-blur-xl border border-white/10;
+    @apply bg-dmn-green-900/90 backdrop-blur-2xl border border-white/10;
   }
   .premium-card {
-    @apply bg-white rounded-[2.5rem] border border-gray-100 shadow-soft hover:shadow-premium transition-all duration-500;
+    @apply bg-white rounded-[2.5rem] border border-gray-100 shadow-soft hover:shadow-premium transition-all duration-700 ease-in-out;
+  }
+  .interactive-button {
+    @apply active:scale-95 transition-all duration-200 ease-out hover:brightness-110 shadow-sm active:brightness-90;
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -46,12 +51,41 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  .shimmer {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 body {
   background-color: #f8fafc;
+  color: #1e293b;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar for Desktop */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
 }
 
 /* Animations iOS Style */
