@@ -9,7 +9,6 @@ const MESSAGES = [
   "La discipline dans la gestion est une forme de respect",
   "La transparence est une responsabilité", // From user prompt
   "Le travail est une adoration", // From user prompt
-  "Système de Gestion – Daara M."
 ];
 
 export const RotatingMessages = () => {
