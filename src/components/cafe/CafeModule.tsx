@@ -862,7 +862,7 @@ export function CafeModule({
                    <button onClick={() => { setEditingItem(p); setEditingType('production'); }} className="p-2 text-gray-300 hover:text-amber-600 transition-colors">
                       <Edit2 size={14} />
                    </button>
-                   <button onClick={() => handleDelete('cafe_productions', p.id)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_productions', p.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
                       <Trash2 size={14} />
                    </button>
                 </div>
@@ -1001,7 +1001,7 @@ export function CafeModule({
                           <button onClick={() => { setEditingItem(v); setEditingType('vente'); }} className="p-1 text-gray-300 hover:text-amber-500">
                              <Edit2 size={14} />
                           </button>
-                          <button onClick={() => handleDelete('cafe_ventes', v.id)} className="p-1 text-gray-300 hover:text-red-500">
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_ventes', v.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
                              <Trash2 size={14} />
                           </button>
                        </div>
@@ -1052,7 +1052,7 @@ export function CafeModule({
                    <button onClick={() => { setEditingItem(d); setEditingType('depense'); }} className="p-1 px-2 text-gray-300 hover:text-amber-500 border border-transparent hover:border-gray-100 rounded-lg">
                       <Edit2 size={14} />
                    </button>
-                   <button onClick={() => handleDelete('cafe_depenses', d.id)} className="p-1 px-2 text-gray-300 hover:text-red-500 border border-transparent hover:border-gray-100 rounded-lg">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_depenses', d.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
                       <Trash2 size={14} />
                    </button>
                 </div>
@@ -1114,14 +1114,17 @@ export function CafeModule({
                     <button onClick={() => { setEditingItem(item); setEditingType(item._type); }} className="p-2 text-gray-300 hover:text-amber-500">
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={() => handleDelete({
-                      'production': 'cafe_productions',
-                      'vente': 'cafe_ventes',
-                      'depense': 'cafe_depenses',
-                      'distribution': 'cafe_distributions',
-                      'versement': 'cafe_versements'
-                    }[item._type as string] || '', item.id)} className="p-2 text-gray-300 hover:text-red-500">
-                      <Trash2 size={14} />
+                    <button onClick={(e) => { 
+                      e.stopPropagation();
+                      handleDelete({
+                        'production': 'cafe_productions',
+                        'vente': 'cafe_ventes',
+                        'depense': 'cafe_depenses',
+                        'distribution': 'cafe_distributions',
+                        'versement': 'cafe_versements'
+                      }[item._type as string] || '', item.id)
+                    }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-white rounded-xl transition-all">
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </div>
@@ -1288,8 +1291,8 @@ export function CafeModule({
                         <button onClick={() => { setEditingItem(item); setEditingType(isVersement ? 'versement' : 'distribution'); }} className="p-1 text-gray-300 hover:text-amber-500">
                            <Edit2 size={12} />
                         </button>
-                        <button onClick={() => handleDelete(isVersement ? 'cafe_versements' : 'cafe_distributions', item.id)} className="p-1 text-gray-300 hover:text-red-500">
-                           <Trash2 size={12} />
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(isVersement ? 'cafe_versements' : 'cafe_distributions', item.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
+                           <Trash2 size={16} />
                         </button>
                      </div>
                   </div>
@@ -1483,7 +1486,87 @@ export function CafeModule({
     );
   };
 
-  const renderStockView = () => (
+  const renderStockView = () => {
+    if (isOnlySeller) {
+      // Calculer précisément le stock du revendeur identifié
+      const myDistributions = distributions.filter(d => d.celluleId === identifiedSellerId);
+      const myVentes = ventes.filter(v => v.vendeurId === identifiedSellerId);
+      
+      const rec1k = myDistributions.filter(d => d.typeCafe === '1kg').reduce((s, d) => s + d.quantite, 0);
+      const rec500 = myDistributions.filter(d => d.typeCafe === '500g').reduce((s, d) => s + d.quantite, 0);
+      
+      const sold1k = myVentes.filter(v => v.typeCafe === '1kg').reduce((s, d) => s + d.quantite, 0);
+      const sold500 = myVentes.filter(v => v.typeCafe === '500g').reduce((s, d) => s + d.quantite, 0);
+      
+      const s1k = rec1k - sold1k;
+      const s500 = rec500 - sold500;
+
+      return (
+        <div className="space-y-8 animate-in fade-in zoom-in duration-500 px-4">
+           <div className="bg-white p-8 md:p-12 rounded-[3.5rem] border border-gray-100 shadow-sm text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-12 opacity-[0.03] rotate-12">
+                 <Package size={180} />
+              </div>
+              
+              <div className="relative z-10 text-center">
+                <div className="w-20 h-20 bg-brown-50 mx-auto rounded-3xl flex items-center justify-center mb-6 border-2 border-white shadow-xl">
+                   <Package className="text-brown-600" size={32} />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900 uppercase tracking-widest mb-2">Mon Inventaire Réel</h3>
+                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest bg-amber-50 px-4 py-1.5 rounded-full inline-block">
+                  {identifiedSeller?.nom} • Cellule {identifiedSeller?.cellule}
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16">
+                   <div className="bg-gray-50/50 p-10 rounded-[3rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl hover:-translate-y-1">
+                      <p className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Sachets 1 KG</p>
+                      <p className={`text-6xl font-black ${s1k < 3 ? 'text-red-500' : 'text-gray-900'}`}>{s1k}</p>
+                      <div className="mt-8 flex justify-between items-center bg-white px-6 py-3 rounded-2xl border border-gray-100 shadow-sm">
+                         <div className="text-left">
+                            <p className="text-[9px] font-black text-gray-400 uppercase">Reçu</p>
+                            <p className="text-xs font-black text-emerald-600">+{rec1k}</p>
+                         </div>
+                         <div className="w-px h-6 bg-gray-100" />
+                         <div className="text-right">
+                            <p className="text-[9px] font-black text-gray-400 uppercase">Vendu</p>
+                            <p className="text-xs font-black text-red-500">-{sold1k}</p>
+                         </div>
+                      </div>
+                   </div>
+                   
+                   <div className="bg-gray-50/50 p-10 rounded-[3rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl hover:-translate-y-1">
+                      <p className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Sachets 500 G</p>
+                      <p className={`text-6xl font-black ${s500 < 3 ? 'text-red-500' : 'text-gray-900'}`}>{s500}</p>
+                      <div className="mt-8 flex justify-between items-center bg-white px-6 py-3 rounded-2xl border border-gray-100 shadow-sm">
+                         <div className="text-left">
+                            <p className="text-[9px] font-black text-gray-400 uppercase">Reçu</p>
+                            <p className="text-xs font-black text-emerald-600">+{rec500}</p>
+                         </div>
+                         <div className="w-px h-6 bg-gray-100" />
+                         <div className="text-right">
+                            <p className="text-[9px] font-black text-gray-400 uppercase">Vendu</p>
+                            <p className="text-xs font-black text-red-500">-{sold500}</p>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+                { (s1k < 3 || s500 < 3) && (
+                  <div className="mt-12 p-6 bg-red-50 rounded-[2rem] border border-red-100 flex flex-col md:flex-row items-center justify-center gap-4 group">
+                     <AlertCircle className="text-red-500 animate-bounce" size={24} />
+                     <div className="text-center md:text-left">
+                        <p className="text-xs font-black text-red-700 uppercase tracking-widest">Alerte de Stock Faible</p>
+                        <p className="text-[10px] font-bold text-red-600 leading-relaxed uppercase">Veuillez contacter l'administrateur pour une recharge rapide.</p>
+                     </div>
+                  </div>
+                )}
+              </div>
+           </div>
+        </div>
+      );
+    }
+
+    return (
     <div className="space-y-12">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
          {[
@@ -1552,15 +1635,15 @@ export function CafeModule({
                    </div>
                    <div className="text-right w-full md:w-1/4 flex items-center justify-end gap-4">
                       <div>
-                        <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Responsable</p>
-                        <p className="text-xs font-bold text-gray-600">{s.telephone || 'Non spécifié'}</p>
+                         <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Responsable</p>
+                         <p className="text-xs font-bold text-gray-600">{s.telephone || 'Non spécifié'}</p>
                       </div>
                       <div className="flex gap-1">
-                         <button onClick={() => { setEditingItem(s); setEditingType('seller'); }} className="p-2 text-gray-300 hover:text-amber-500">
-                            <Edit2 size={14} />
+                         <button onClick={(e) => { e.stopPropagation(); setEditingItem(s); setEditingType('seller'); }} className="p-3 text-gray-300 hover:text-amber-600 hover:bg-white rounded-xl transition-all">
+                            <Edit2 size={16} />
                          </button>
-                         <button onClick={() => handleDelete('cafe_sellers', s.id)} className="p-2 text-gray-300 hover:text-red-500">
-                            <Trash2 size={14} />
+                         <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_sellers', s.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-white rounded-xl transition-all">
+                            <Trash2 size={16} />
                          </button>
                       </div>
                    </div>
@@ -1569,9 +1652,9 @@ export function CafeModule({
             })}
           </div>
        </div>
-
-     </div>
-  );
+    </div>
+    );
+  };
 
   const renderEditModal = () => {
     if (!editingItem || !editingType) return null;
