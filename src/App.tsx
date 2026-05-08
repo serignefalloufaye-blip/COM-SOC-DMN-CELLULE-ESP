@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
-  CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key,
+  CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key, QrCode, Share2,
   Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu, Loader2
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
@@ -186,6 +187,8 @@ export default function App() {
 
   const [isDetteModalOpen, setIsDetteModalOpen] = useState(false);
   const [editingDette, setEditingDette] = useState<Partial<Dette>>({});
+
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -2918,6 +2921,13 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsQRModalOpen(true)}
+            className="w-10 h-10 flex items-center justify-center bg-dmn-green-50 hover:bg-dmn-green-100 text-dmn-green-600 rounded-xl transition-all active:scale-90 border border-dmn-green-100 shadow-sm"
+            title="Partager l'application"
+          >
+            <QrCode size={18} />
+          </button>
           {userRole && userRole !== 'visitor' && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-dmn-green-50 rounded-full border border-dmn-green-100">
                <Shield size={12} className="text-dmn-green-600" />
@@ -3378,6 +3388,70 @@ export default function App() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {isQRModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative border border-gray-100"
+          >
+            <button 
+              onClick={() => setIsQRModalOpen(false)} 
+              className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="text-center space-y-6">
+              <div className="w-16 h-16 bg-dmn-green-50 rounded-2xl flex items-center justify-center mx-auto text-dmn-green-600 mb-2">
+                <Share2 size={32} />
+              </div>
+              
+              <div className="space-y-1">
+                <h3 className="text-2xl font-heading font-black text-dmn-green-900">Partager l'App</h3>
+                <p className="text-dmn-green-600 text-xs font-bold uppercase tracking-widest">Commission Sociale DMN</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-3xl shadow-premium border border-gray-100 inline-block mx-auto">
+                <QRCodeSVG 
+                  value={window.location.href}
+                  size={200}
+                  level="H"
+                  includeMargin={true}
+                  imageSettings={{
+                    src: appSettings.logoUrl || "logo.png",
+                    x: undefined,
+                    y: undefined,
+                    height: 40,
+                    width: 40,
+                    excavate: true,
+                  }}
+                />
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-gray-500 text-xs font-medium leading-relaxed">
+                  Scannez ce QR code avec votre téléphone pour accéder instantanément à l'application.
+                </p>
+                
+                <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      showToast('Lien copié dans le presse-papier !');
+                    }}
+                    className="w-full py-4 bg-dmn-green-50 text-dmn-green-700 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-dmn-green-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    Copier le lien
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
 
