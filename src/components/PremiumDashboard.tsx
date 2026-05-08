@@ -6,7 +6,7 @@ import {
 import { MOIS } from '../data';
 import { 
   Building2, TrendingUp, TrendingDown, Users, AlertCircle, 
-  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3, Shield, Star
+  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3, Shield, Star, MessageCircle
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -127,10 +127,8 @@ export function PremiumDashboard({
   const globalTotRecettes = useMemo(() => recettes.reduce((s, r) => s + r.montant, 0), [recettes]);
   
   const globalTotIncome = useMemo(() => {
-    const base = globalTotCotisations + globalTotRecettes;
-    const unpaid = dettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
-    return base + unpaid;
-  }, [globalTotCotisations, globalTotRecettes, dettes]);
+    return globalTotCotisations + globalTotRecettes;
+  }, [globalTotCotisations, globalTotRecettes]);
 
   const globalTotExpenses = useMemo(() => depenses.reduce((s, d) => s + d.montant, 0), [depenses]);
   const soldeGlobal = globalTotIncome - globalTotExpenses;
@@ -168,6 +166,22 @@ export function PremiumDashboard({
         }
     }
     return isEnRetard ? 'En retard' : 'À jour';
+  };
+
+  const generatePaymentMessage = () => {
+    const paidMembers = membres.filter(m => getMembreStatus(m.id) === 'À jour');
+    const totalMembers = membres.length;
+    const percentage = Math.round((paidMembers.length / totalMembers) * 100);
+    
+    let message = `Mensualité mois de ${globalMonth || MOIS[new Date().getMonth()]} ${globalYear} `;
+    paidMembers.forEach((m, index) => {
+        message += `${index + 1}- ${m.prenom.toUpperCase()} ${m.nom.toUpperCase()}  `;
+    });
+    message += `Total : ${paidMembers.length} membres sur ${totalMembers} (${percentage}%) Daara Madjmahoune Noreyni UCAD - Commission Sociale Cellule ESP.`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(message);
+    alert('Message copié dans le presse-papier !');
   };
 
   const membresActifs = membres.filter(m => getMembreStatus(m.id) === 'À jour').length;
@@ -255,6 +269,12 @@ export function PremiumDashboard({
               <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Système de Gestion DMN
             </p>
           </div>
+          <button 
+              onClick={generatePaymentMessage}
+              className="bg-dmn-green-600 hover:bg-dmn-green-700 text-white text-xs font-bold py-2 px-4 rounded-xl flex items-center gap-2"
+          >
+              <MessageCircle size={14} /> Partager Message
+          </button>
         </div>
         
         {smartInsights.length > 0 && (
