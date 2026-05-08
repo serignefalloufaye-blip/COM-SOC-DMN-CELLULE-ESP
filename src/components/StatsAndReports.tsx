@@ -41,7 +41,7 @@ export function StatsAndReports({
   cafeProductions, cafeVentes, cafeDepenses,
   membres, showToast, userRole
 }: StatsAndReportsProps) {
-  const defaultTab = ['admin', 'caisse', 'lecteur'].includes(userRole) ? 'caisse' : userRole === 'tickets' ? 'tickets' : 'cafe';
+  const defaultTab = ['admin', 'caisse'].includes(userRole) ? 'caisse' : userRole === 'tickets' ? 'tickets' : 'cafe';
   const [filterPeriod, setFilterPeriod] = useState<'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel'>('annuel');
   const [selectedMonth, setSelectedMonth] = useState<string>(globalMonth);
   const [selectedQuarter, setSelectedQuarter] = useState<number>(1);
@@ -298,16 +298,16 @@ export function StatsAndReports({
           <div className="flex gap-3 w-full lg:w-auto">
             <button 
               onClick={generatePDF}
-              className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-dmn-green-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest interactive-button shadow-green"
+              className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 h-[54px] rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-[0_8px_16px_-6px_rgba(37,99,235,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(37,99,235,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
             >
-              <Download size={18} /> Rapport PDF
+              <Download size={18} strokeWidth={2.5} /> Exporter PDF
             </button>
             <button 
               onClick={generateExcel}
-              className="bg-gray-100 text-gray-700 p-4 rounded-2xl interactive-button border border-gray-200"
+              className="w-[54px] h-[54px] flex items-center justify-center bg-gray-100 text-gray-700 rounded-2xl hover:bg-gray-200 shadow-sm hover:shadow active:scale-95 transition-all outline-none"
               title="Exporter Excel"
             >
-              <Table size={18} />
+              <Table size={18} strokeWidth={2.5} />
             </button>
           </div>
         </div>
@@ -342,9 +342,9 @@ export function StatsAndReports({
       {/* 🧭 NAVIGATION TABS */}
       <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-1">
         {[
-          { id: 'caisse', label: 'Caisse Sociale', icon: Wallet, color: 'dmn-green', isVisible: ['admin', 'caisse', 'lecteur'].includes(userRole) },
-          { id: 'tickets', label: 'Tickets & Repas', icon: Ticket, color: 'amber', isVisible: ['admin', 'tickets', 'lecteur'].includes(userRole) },
-          { id: 'cafe', label: 'Module Café', icon: Coffee, color: 'orange', isVisible: ['admin', 'cafe', 'lecteur'].includes(userRole) }
+          { id: 'caisse', label: 'Caisse Sociale', icon: Wallet, color: 'dmn-green', isVisible: userRole === 'admin' || userRole === 'caisse' },
+          { id: 'tickets', label: 'Tickets & Repas', icon: Ticket, color: 'amber', isVisible: userRole === 'admin' || userRole === 'tickets' },
+          { id: 'cafe', label: 'Module Café', icon: Coffee, color: 'orange', isVisible: userRole === 'admin' || userRole === 'cafe' }
         ].filter(t => t.isVisible).map(tab => (
           <button
             key={tab.id}

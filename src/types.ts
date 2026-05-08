@@ -2,6 +2,7 @@ export interface Membre {
   id: string;
   prenom: string;
   nom: string;
+  email?: string;
   telephone?: string;
   statut?: 'Boursier' | 'Non Boursier' | 'Professionnel' | 'Autre';
   moisIntegration?: string;
@@ -185,16 +186,16 @@ export interface CafeClient {
 
 export interface CafeOrder {
   id: string;
-  clientId?: string;
-  clientNom?: string;
-  vendeurId?: string;
-  quantite: number;
-  prixUnitaire: number;
-  total: number;
-  statut: 'en_attente' | 'validee' | 'livree' | 'annulee';
   date: number;
-  mode: ModePaiement;
+  sellerId?: string;
+  sellerName?: string;
+  cellule?: string;
+  quantite: number;
+  typeCafe: '1kg' | '500g' | string;
+  status: 'EN_ATTENTE' | 'VALIDÉ' | 'ANNULÉ';
   createdAt: number;
+  validatedAt?: number;
+  validatedBy?: string;
 }
 
 export interface CafeDepense {

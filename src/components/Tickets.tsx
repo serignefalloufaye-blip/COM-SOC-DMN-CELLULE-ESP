@@ -277,7 +277,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             Total Tickets : {(convPD * 50) + (convRepas * 100)} FCFA
           </div>
 
-          <button type="submit" className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold transition-all shadow-lg active:scale-95">
+          <button type="submit" className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">
             Convertir
           </button>
         </form>
@@ -342,7 +342,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             </div>
           </div>
 
-          <button type="submit" className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95">
+          <button type="submit" className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(249,115,22,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(249,115,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">
             Valider la sortie de stock
           </button>
         </form>

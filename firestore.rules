@@ -10,6 +10,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.email == "serignefalloufaye@esp.sn" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
@@ -94,7 +95,12 @@ service cloud.firestore {
     }
 
     function isValidSettings(data) {
-      return data.logoUrl is string && data.logoUrl.size() < 1048576; // 1MB limit for Base64
+      return data.get('logoUrl', '') is string && data.get('logoUrl', '').size() < 1048576;
+    }
+
+    function isValidCafePriceConfig(data) {
+      return data.get('prices', {}) is map && 
+             data.get('lastUpdated', 0) is number;
     }
 
     function isValidTicketCollecte(data) {
@@ -207,7 +213,10 @@ service cloud.firestore {
     // Rules
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidSettings(request.resource.data);
+      allow write: if isAdmin() && (
+        (settingId == 'app' && isValidSettings(request.resource.data)) ||
+        (settingId == 'cafe_prices' && isValidCafePriceConfig(request.resource.data))
+      );
     }
 
     match /membres/{membreId} {
@@ -291,63 +300,63 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeProduction(request.resource.data);
       allow update: if isCafe() && isValidCafeProduction(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_ventes/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeVente(request.resource.data);
       allow update: if isCafe() && isValidCafeVente(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_depenses/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeDepense(request.resource.data);
       allow update: if isCafe() && isValidCafeDepense(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_transferts/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeTransfert(request.resource.data);
       allow update: if isCafe() && isValidCafeTransfert(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_distributions/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeDistribution(request.resource.data);
       allow update: if isCafe() && isValidCafeDistribution(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_versements/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeVersement(request.resource.data);
       allow update: if isCafe() && isValidCafeVersement(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_sellers/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeSeller(request.resource.data);
       allow update: if isCafe() && isValidCafeSeller(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_clients/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeClient(request.resource.data);
       allow update: if isCafe() && isValidCafeClient(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
 
     match /cafe_orders/{id} {
       allow read: if isAuthenticated();
       allow create: if isCafe() && isValidCafeOrder(request.resource.data);
       allow update: if isCafe() && isValidCafeOrder(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isCafe();
     }
     
     match /audit_logs/{id} {

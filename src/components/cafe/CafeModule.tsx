@@ -11,15 +11,19 @@ import {
   User, ClipboardList, Info, Edit2, X, Check, Download,
   Trophy, Medal, Star, TrendingUp as UpIcon, PieChart as PieChartIcon
 } from 'lucide-react';
+import { MOIS } from '../../data';
 import { 
   CafeProduction, CafeVente, CafeDepense, CafeTransfert, ModePaiement,
   CafeSeller, CafeOrder, CafeDistribution, CafeVersement,
-  CafePriceConfig, AppUser
+  CafePriceConfig, AppUser, CafeClient
 } from '../../types';
 import { db, auth } from '../../firebase';
 import { hasPermission } from '../../utils/permissions';
-import { collection, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../utils/firestoreErrorHandler';
 import { simpleDate } from '../../utils/date';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface CafeModuleProps {
   productions: CafeProduction[];
@@ -29,18 +33,21 @@ interface CafeModuleProps {
   distributions: CafeDistribution[];
   versements: CafeVersement[];
   sellers: CafeSeller[];
+  clients: CafeClient[];
   priceConfig: CafePriceConfig | null;
   userRole: string;
   globalYear: number;
+  globalMonth: string | null;
   showToast: (message: string, type?: 'success' | 'error') => void;
+  onTransferToCaisse?: (amount: number) => void;
 }
 
 type TabType = 'tableau' | 'production' | 'logistique' | 'ventes' | 'depenses' | 'stock' | 'stats' | 'historique';
 
 export function CafeModule({ 
   productions, ventes, depenses, transferts, distributions,
-  versements, sellers, priceConfig,
-  userRole, globalYear, showToast 
+  versements, sellers, clients, priceConfig,
+  userRole, globalYear, globalMonth, showToast, onTransferToCaisse 
 }: CafeModuleProps) {
   const [activeTab, setActiveTab] = useState<TabType>('tableau');
   const [searchHistory, setSearchHistory] = useState('');
@@ -50,6 +57,14 @@ export function CafeModule({
   const [viewingSellerId, setViewingSellerId] = useState<string | null>(null);
   const [unlockedSellerIds, setUnlockedSellerIds] = useState<string[]>([]);
   const [pinEntry, setPinEntry] = useState('');
+  
+  // Real-time calculation state
+  const [saleQty, setSaleQty] = useState<number>(0);
+  const [distQty, setDistQty] = useState<number>(0);
+  const [prodQty, setProdQty] = useState<number>(0);
+  const [prodCost, setProdCost] = useState<number>(0);
+  const [selectedVersementSellerId, setSelectedVersementSellerId] = useState<string>('');
+  const [selectedDistFormat, setSelectedDistFormat] = useState<'1kg' | '500g'>('1kg');
   
   // Edit State
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -75,9 +90,10 @@ export function CafeModule({
   const isViewingSellerSpace = !!effectiveViewingSellerId;
   const isSellerUnlocked = isAdmin || isCafeManager || unlockedSellerIds.includes(effectiveViewingSellerId);
 
-  const canProduce = hasPermission(userRole as any, 'cafe.production.create') && !isOnlySeller;
+  const canProduce = hasPermission(userRole as any, 'cafe.production.create') && (isAdmin || isCafeManager);
   const canSell = hasPermission(userRole as any, 'cafe.sales.create');
-  const canExpense = hasPermission(userRole as any, 'cafe.expenses.create') && !isOnlySeller;
+  const canExpense = hasPermission(userRole as any, 'cafe.expenses.create') && (isAdmin || isCafeManager);
+  const canManageSellers = isAdmin || isCafeManager;
 
   // --- Logic Daara ---
   
@@ -112,25 +128,80 @@ export function CafeModule({
   const stockCirculant1kg = totalDist1kg - cellVendue1kg;
   const stockCirculant500g = totalDist500g - cellVendue500g;
 
+  // 2. Computed Summaries (Filtered by year AND month if selected)
   const filteredVentes = useMemo(() => {
-    let subset = ventes.filter(v => new Date(v.date).getFullYear() === globalYear);
+    let subset = ventes.filter(v => {
+      if (!v.date) return false;
+      const d = new Date(v.date);
+      const matchYear = d.getFullYear() === globalYear;
+      const matchMonth = !globalMonth || d.getMonth() === MOIS.indexOf(globalMonth);
+      return matchYear && matchMonth;
+    });
     if (isOnlySeller) subset = subset.filter(v => v.vendeurId === identifiedSellerId);
     return subset;
-  }, [ventes, globalYear, isOnlySeller, identifiedSellerId]);
+  }, [ventes, globalYear, globalMonth, isOnlySeller, identifiedSellerId]);
 
-  const filteredDepenses = useMemo(() => depenses.filter(d => new Date(d.date).getFullYear() === globalYear), [depenses, globalYear]);
-  const filteredProdEntries = useMemo(() => productions.filter(p => new Date(p.date).getFullYear() === globalYear), [productions, globalYear]);
-
-  const totalVentes = useMemo(() => filteredVentes.reduce((s, v) => s + v.total, 0), [filteredVentes]);
-  const totalDepenses = useMemo(() => filteredDepenses.reduce((s, d) => s + d.montant, 0), [filteredDepenses]);
+  const filteredDepenses = useMemo(() => depenses.filter(d => {
+    if (!d.date) return false;
+    const dt = new Date(d.date);
+    const matchYear = dt.getFullYear() === globalYear;
+    const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+    return matchYear && matchMonth;
+  }), [depenses, globalYear, globalMonth]);
   
-  // -- F. Ranking and Performance
+  const filteredProdEntries = useMemo(() => productions.filter(p => {
+    if (!p.date) return false;
+    const dt = new Date(p.date);
+    const matchYear = dt.getFullYear() === globalYear;
+    const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+    return matchYear && matchMonth;
+  }), [productions, globalYear, globalMonth]);
+  
+  const filteredVersements = useMemo(() => {
+    let subset = versements.filter(v => {
+      if (!v.date) return false;
+      const dt = new Date(v.date);
+      const matchYear = dt.getFullYear() === globalYear;
+      const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+      return matchYear && matchMonth;
+    });
+    if (isOnlySeller) subset = subset.filter(v => v.vendeurId === identifiedSellerId);
+    return subset;
+  }, [versements, globalYear, globalMonth, isOnlySeller, identifiedSellerId]);
+
+  const filteredDistributions = useMemo(() => {
+    let subset = distributions.filter(d => {
+      if (!d.date) return false;
+      const dt = new Date(d.date);
+      const matchYear = dt.getFullYear() === globalYear;
+      const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+      return matchYear && matchMonth;
+    });
+    if (isOnlySeller) subset = subset.filter(d => d.celluleId === identifiedSellerId);
+    return subset;
+  }, [distributions, globalYear, globalMonth, isOnlySeller, identifiedSellerId]);
+
+  // -- F. Global Totals (Cumulative for "La Caisse" - might be what user expects for 29800)
+  const globalTotalVentes = useMemo(() => ventes.reduce((s, v) => s + (v.total || 0), 0), [ventes]);
+  const globalTotalDepenses = useMemo(() => depenses.reduce((s, d) => s + (d.montant || 0), 0), [depenses]);
+  const globalTotalVersementsRecus = useMemo(() => versements.reduce((s, v) => s + (v.montant || 0), 0), [versements]);
+  const globalTotalRecettesDirectes = useMemo(() => ventes.filter(v => !v.vendeurId || v.vendeurId === 'null' || v.vendeurId === '').reduce((s, v) => s + (v.total || 0), 0), [ventes]);
+  
+  const globalEncashed = globalTotalRecettesDirectes + globalTotalVersementsRecus;
+  const globalSoldeReal = globalEncashed - globalTotalDepenses;
+  const globalTheoretiqueBalance = globalTotalVentes - globalTotalDepenses;
+
+  // -- G. Yearly KPI Data (Dashboard)
+  const totalVentes = useMemo(() => filteredVentes.reduce((s, v) => s + (v.total || 0), 0), [filteredVentes]);
+  const totalDepenses = useMemo(() => filteredDepenses.reduce((s, d) => s + (d.montant || 0), 0), [filteredDepenses]);
+  
+  // -- H. Ranking and Performance (Yearly)
   const sellerPerformance = useMemo(() => {
     return sellers.map(s => {
-      const sVentes = ventes.filter(v => v.vendeurId === s.id);
-      const sTotalVol = sVentes.reduce((sum, v) => sum + v.quantite, 0);
-      const sTotalVal = sVentes.reduce((sum, v) => sum + v.total, 0);
-      const sVersements = versements.filter(v => v.vendeurId === s.id).reduce((sum, v) => sum + v.montant, 0);
+      const sVentes = filteredVentes.filter(v => v.vendeurId === s.id);
+      const sTotalVol = sVentes.reduce((sum, v) => sum + (v.quantite || 0), 0);
+      const sTotalVal = sVentes.reduce((sum, v) => sum + (v.total || 0), 0);
+      const sVersements = filteredVersements.filter(v => v.vendeurId === s.id).reduce((sum, v) => sum + (v.montant || 0), 0);
       return {
         ...s,
         totalVol: sTotalVol,
@@ -139,10 +210,14 @@ export function CafeModule({
         dette: sTotalVal - sVersements
       };
     }).sort((a, b) => b.totalVal - a.totalVal);
-  }, [sellers, ventes, versements]);
+  }, [sellers, filteredVentes, filteredVersements]);
 
-  // "Bénéfice = Ventes - Dépenses" as per requested formula
-  const beneficeNet = totalVentes - totalDepenses;
+  // -- I. Sorted Data for Display (NEWEST FIRST and FILTERED BY YEAR)
+  const sortedVentes = useMemo(() => [...filteredVentes].sort((a,b) => (b.date || 0) - (a.date || 0)), [filteredVentes]);
+  const sortedDepenses = useMemo(() => [...filteredDepenses].sort((a,b) => (b.date || 0) - (a.date || 0)), [filteredDepenses]);
+  const sortedProductions = useMemo(() => [...filteredProdEntries].sort((a,b) => (b.date || 0) - (a.date || 0)), [filteredProdEntries]);
+  const sortedDistributions = useMemo(() => [...filteredDistributions].sort((a,b) => (b.date || 0) - (a.date || 0)), [filteredDistributions]);
+  const sortedVersements = useMemo(() => [...filteredVersements].sort((a,b) => (b.date || 0) - (a.date || 0)), [filteredVersements]);
 
   // 3. Formatters
   const formats = {
@@ -167,6 +242,32 @@ export function CafeModule({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    showToast("Export Excel réussi !", "success");
+  };
+
+  const exportToPDF = (data: any[], title: string) => {
+    try {
+      const doc = new jsPDF();
+      doc.text(title, 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 22);
+      
+      const tableColumn = Object.keys(data[0]);
+      const tableRows = data.map(item => Object.values(item));
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 30,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [5, 150, 105] }
+      });
+
+      doc.save(`${title}_${new Date().toLocaleDateString()}.pdf`);
+      showToast("Export PDF réussi !", "success");
+    } catch (err) {
+      showToast("Erreur lors de l'export PDF", "error");
+    }
   };
 
   // --- Actions ---
@@ -187,13 +288,15 @@ export function CafeModule({
         coutUnitaire: cost / qty,
         total: cost,
         typeCafe: format,
-        responsable: currentUser?.displayName || currentUser?.email || 'Inconnu',
+        responsable: currentUser?.displayName || currentUser?.email || 'Admin',
         remarque: remark,
         createdAt: Date.now()
       });
-      showToast("Production enregistrée");
+      showToast("Production enregistrée avec succès !", "success");
       (e.target as any).reset();
-    } catch (err) { showToast("Erreur", "error"); }
+    } catch (err) { 
+      showToast("Erreur lors de l'enregistrement de la production", "error"); 
+    }
   };
 
   const handleAddVente = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -240,12 +343,15 @@ export function CafeModule({
         typeVente: typeVente,
         vendeurId: sellerId || '',
         mode,
-        responsable: currentUser?.displayName || currentUser?.email || 'Inconnu',
+        responsable: currentUser?.displayName || currentUser?.email || 'Vendeur',
         createdAt: Date.now()
       });
-      showToast("Vente enregistrée");
+      showToast("Vente enregistrée avec succès ✅", "success");
+      setSaleQty(0);
       (e.target as any).reset();
-    } catch (err) { showToast("Erreur", "error"); }
+    } catch (err) { 
+      handleFirestoreError(err, OperationType.WRITE, 'cafe_ventes'); 
+    }
   };
 
   const handleAddSeller = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -266,11 +372,14 @@ export function CafeModule({
         email,
         codeAcces,
         active: true,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        stockActuel: 0 // Initialize empty stock
       });
-      showToast("Revendeur enregistré");
+      showToast("Nouveau revendeur ajouté !", "success");
       (e.target as any).reset();
-    } catch (err) { showToast("Erreur", "error"); }
+    } catch (err) { 
+      showToast("Erreur lors de la création du revendeur", "error"); 
+    }
   };
 
   const handleAddDistribution = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -296,12 +405,15 @@ export function CafeModule({
         typeCafe: format,
         prixUnitaire: price,
         total: qty * price,
-        responsable: currentUser?.displayName || currentUser?.email || 'Inconnu',
+        responsable: currentUser?.displayName || currentUser?.email || 'Manager',
         createdAt: Date.now()
       });
-      showToast("Distribution effectuée");
+      showToast("Stock distribué avec succès ! ✅", "success");
+      setDistQty(0);
       (e.target as any).reset();
-    } catch (err) { showToast("Erreur", "error"); }
+    } catch (err) { 
+      handleFirestoreError(err, OperationType.WRITE, 'cafe_distributions');
+    }
   };
 
   const handleAddDepense = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -318,33 +430,41 @@ export function CafeModule({
         montant: amount,
         motif: motif,
         categorie: type,
-        responsable: currentUser?.displayName || currentUser?.email || 'Inconnu',
+        responsable: currentUser?.displayName || currentUser?.email || 'Manager',
         createdAt: Date.now()
       });
-      showToast("Dépense enregistrée");
+      showToast("Dépense enregistrée avec succès", "success");
       (e.target as any).reset();
-    } catch (err) { showToast("Erreur", "error"); }
+    } catch (err) { 
+      showToast("Erreur lors de l'enregistrement de la dépense", "error"); 
+    }
   };
 
   const handleUpdatePrices = async (newPrices: any) => {
     if (!canProduce) return;
     try {
-      const { setDoc } = await import('firebase/firestore');
       await setDoc(doc(db, 'settings', 'cafe_prices'), {
         prices: newPrices,
         lastUpdated: Date.now()
       });
-      showToast("Prix mis à jour");
-    } catch (e) { showToast("Erreur de mise à jour", "error"); }
+      showToast("Configuration des prix mise à jour !", "success");
+    } catch (e) { 
+      handleFirestoreError(e, OperationType.WRITE, 'settings/cafe_prices');
+    }
   };
 
   const handleDelete = async (collectionName: string, id: string) => {
+    if (!isAdmin && !isCafeManager) {
+      showToast("Seul l'administrateur ou le gérant peut supprimer des données", "error");
+      return;
+    }
+
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet élément ?")) return;
     try {
       await deleteDoc(doc(db, collectionName, id));
-      showToast("Élément supprimé");
+      showToast("Élément supprimé avec succès", "success");
     } catch (err) {
-      showToast("Erreur lors de la suppression", "error");
+      handleFirestoreError(err, OperationType.DELETE, collectionName);
     }
   };
 
@@ -408,7 +528,7 @@ export function CafeModule({
 
       if (collRef) {
         await updateDoc(doc(db, collRef, editingItem.id), updates);
-        showToast("Élément mis à jour");
+        showToast("Élément mis à jour avec succès ✅", "success");
         setEditingItem(null);
         setEditingType(null);
       }
@@ -704,24 +824,30 @@ export function CafeModule({
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Production Totale', val: totalProd1kg + totalProd500g, unit: 'Uts', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Total Ventes', val: formats.price(totalVentes), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'Total Dépenses', val: formats.price(totalDepenses), icon: TrendingDown, color: 'text-red-500', bg: 'bg-red-50' },
-            { label: 'Bénéfice Net', val: formats.price(beneficeNet), icon: Wallet, color: 'text-brown-600', bg: 'bg-brown-50' }
+            { label: 'Revenue Annuel', val: formats.price(totalVentes), icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Dépenses Annuelles', val: formats.price(totalDepenses), icon: TrendingDown, color: 'text-red-500', bg: 'bg-red-50' },
+            { label: 'Bénéfice Théorique', val: formats.price(globalTheoretiqueBalance), icon: PieChartIcon, color: 'text-amber-600', bg: 'bg-amber-50', sub: 'Historique Global' },
+            { label: 'SOLDE CAISSE RÉEL', val: formats.price(globalSoldeReal), icon: Wallet, color: 'text-emerald-700', bg: 'bg-emerald-50', sub: 'Tous Versements - Dépenses' }
           ].map((kpi, i) => (
-            <div key={i} className={`p-6 rounded-[2.2rem] border border-gray-100 shadow-sm ${kpi.bg}`}>
-              <div className="flex justify-between items-start mb-4">
+            <div key={i} className={`p-6 rounded-[2.2rem] border border-gray-100 shadow-sm ${kpi.bg} relative overflow-hidden group`}>
+              <div className="flex justify-between items-start mb-4 relative z-10">
                 <div className={`p-3 rounded-2xl bg-white shadow-sm ${kpi.color}`}>
                   <kpi.icon size={20} />
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">{kpi.label}</p>
                   <p className={`text-xl font-black ${kpi.color}`}>{kpi.val}</p>
+                  {kpi.sub && <p className="text-[8px] font-bold text-gray-400 italic mt-0.5">{kpi.sub}</p>}
                 </div>
               </div>
-              <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full ${kpi.color.replace('text-', 'bg-')} opacity-20 w-3/4`} />
+              <div className="h-1 w-full bg-black/5 rounded-full overflow-hidden relative z-10">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: '85%' }}
+                  className={`h-full ${kpi.color.replace('text-', 'bg-')} opacity-40`} 
+                />
               </div>
+              {i === 3 && <div className="absolute -bottom-4 -right-4 text-emerald-100 opacity-20 pointer-events-none transform -rotate-12"><Wallet size={120} /></div>}
             </div>
           ))}
         </div>
@@ -790,7 +916,7 @@ export function CafeModule({
             </div>
             <button 
               onClick={() => setActiveTab('stats')}
-              className="w-full mt-8 py-3 rounded-2xl bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all"
+              className="w-full mt-8 py-3 rounded-2xl bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all active:scale-95 outline-none"
             >
               Voir le classement complet
             </button>
@@ -835,21 +961,41 @@ export function CafeModule({
            <Plus className="text-blue-500" /> Enregistrer une production
         </h3>
         <form onSubmit={handleAddProduction} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-           <select name="format" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
+           <select name="format" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" required>
               <option value="1kg">Format 1 Kg</option>
               <option value="500g">Format 500 g</option>
            </select>
-           <input name="qty" type="number" placeholder="Quantité (Uts)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" min="1" required />
-           <input name="cost" type="number" placeholder="Coût Total (F)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" min="0" required />
-           <button type="submit" className="bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+           <input 
+             name="qty" 
+             type="number" 
+             placeholder="Quantité (Uts)" 
+             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" 
+             min="1" 
+             onChange={(e) => setProdQty(Number(e.target.value))}
+             required 
+           />
+           <input 
+             name="cost" 
+             type="number" 
+             placeholder="Coût Total (F)" 
+             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" 
+             min="0" 
+             onChange={(e) => setProdCost(Number(e.target.value))}
+             required 
+           />
+           <button type="submit" className="bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 shadow-[0_8px_16px_-6px_rgba(37,99,235,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(37,99,235,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-[48px]">
              <Package size={16} /> Valider Prod.
            </button>
-           <textarea name="remark" placeholder="Note / Responsable..." className="md:col-span-4 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-medium focus:outline-none h-20" />
+           <div className="md:col-span-4 flex items-center justify-between px-6 py-3 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] font-black uppercase text-blue-600">
+             <span>Coût Unitaire Estimé:</span>
+             <span className="text-sm">{formats.price(prodQty > 0 ? prodCost / prodQty : 0)}</span>
+           </div>
+           <textarea name="remark" placeholder="Note / Responsable..." className="md:col-span-4 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 ring-blue-500/10 h-20" />
         </form>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredProdEntries.map(p => (
+        {sortedProductions.map(p => (
           <div key={p.id} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center text-center sm:text-left">
              <div className="flex-1">
                 <p className="text-[10px] font-bold text-gray-400 mb-1">{formats.date(p.date)}</p>
@@ -862,7 +1008,7 @@ export function CafeModule({
                    <button onClick={() => { setEditingItem(p); setEditingType('production'); }} className="p-2 text-gray-300 hover:text-amber-600 transition-colors">
                       <Edit2 size={14} />
                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_productions', p.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_productions', p.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95">
                       <Trash2 size={14} />
                    </button>
                 </div>
@@ -899,7 +1045,7 @@ export function CafeModule({
                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Prix Format 500 g</label>
                  <input name="p500" type="number" defaultValue={priceConfig?.prices['500g']?.price || 1300} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black focus:outline-none focus:ring-2 ring-amber-500/20" required />
               </div>
-              <button type="submit" className="bg-amber-500 text-brown-900 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-white transition-all h-14 mt-auto">
+              <button type="submit" className="bg-amber-500 text-brown-900 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-white shadow-[0_8px_16px_-6px_rgba(245,158,11,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(245,158,11,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none h-14 mt-auto">
                  Mettre à jour les prix
               </button>
            </form>
@@ -916,14 +1062,14 @@ export function CafeModule({
         </h3>
         <form onSubmit={handleAddVente} className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 gap-4">
             {!isOnlySeller ? (
-              <select name="sellerId" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none">
+              <select name="sellerId" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10">
                 <option value="">Vente Directe (Stock Daara)</option>
                 {sellers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
               </select>
             ) : (
               <input type="hidden" name="sellerId" value={identifiedSellerId} />
             )}
-           <select name="type" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none">
+           <select name="type" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10">
               <option value="sur place">Sur place</option>
               <option value="commande">Commande</option>
            </select>
@@ -931,43 +1077,71 @@ export function CafeModule({
              name="format" 
              value={selectedFormat}
              onChange={(e) => setSelectedFormat(e.target.value as any)}
-             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" 
+             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" 
              required
            >
               <option value="1kg">Format 1 Kg</option>
               <option value="500g">Format 500 g</option>
            </select>
-           <input name="qty" type="number" placeholder="Quantité" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" min="1" required />
-           <select name="mode" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
+           <input 
+             name="qty" 
+             type="number" 
+             placeholder="Quantité" 
+             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" 
+             min="1" 
+             onChange={(e) => setSaleQty(Number(e.target.value))}
+             required 
+           />
+           <select name="mode" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" required>
               <option value="ESPÈCES">Espèces</option>
               <option value="WAVE">Wave</option>
               <option value="OM">OM</option>
            </select>
-           <div className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black text-gray-400 flex items-center justify-center">
-             {formats.price(priceConfig?.prices?.[selectedFormat]?.price || (selectedFormat === '1kg' ? 2500 : 1300))}
+           <div className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black text-gray-400 flex flex-col items-center justify-center">
+             <span className="text-[8px] uppercase">Total Estimé</span>
+             <span>{formats.price((priceConfig?.prices?.[selectedFormat]?.price || (selectedFormat === '1kg' ? 2500 : 1300)) * (saleQty || 0))}</span>
            </div>
-           <button type="submit" className="bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 h-12">
-              Valider
+           <button type="submit" className="bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-full min-h-[48px]">
+              Valider Vente
            </button>
         </form>
       </div>
 
-      {isOnlySeller && (
+      {/* Versement Form - Only for Admins/Managers (Sellers only declare, but here we prefer manager to record) */}
+      {(isAdmin || isCafeManager) && (
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm border-l-4 border-l-emerald-500">
           <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
              <Wallet className="text-emerald-500" /> Enregistrer un Versement
           </h3>
           <form onSubmit={handleAddVersement} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-             <input type="hidden" name="sellerId" value={identifiedSellerId} />
-             <input name="amount" type="number" placeholder="Montant Versé (F)" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
-             <select name="mode" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
-                <option value="ESPÈCES">Espèces</option>
-                <option value="WAVE">Wave</option>
-                <option value="OM">OM</option>
+             <select 
+               name="sellerId" 
+               className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" 
+               required
+               onChange={(e) => setSelectedVersementSellerId(e.target.value)}
+             >
+                <option value="">Sélectionner une Cellule</option>
+                {sellers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
              </select>
-             <button type="submit" className="w-full bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 h-12">
-               Valider le Versement
-             </button>
+             <input name="amount" type="number" placeholder="Montant Versé (F)" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
+             <div className="flex gap-2">
+               <select name="mode" className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
+                  <option value="ESPÈCES">Espèces</option>
+                  <option value="WAVE">Wave</option>
+                  <option value="OM">OM</option>
+               </select>
+               <button type="submit" className="bg-emerald-600 text-white px-6 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2">
+                 OK
+               </button>
+             </div>
+             {selectedVersementSellerId && (
+               <div className="md:col-span-3 px-6 py-2 bg-emerald-50 rounded-xl border border-emerald-100 flex justify-between items-center animate-in fade-in slide-in-from-top-1">
+                 <span className="text-[10px] font-black text-emerald-600 uppercase">RESTE À VERSER ESTIMÉ (DETTE):</span>
+                 <span className="text-sm font-black text-emerald-900">
+                    {formats.price(sellerPerformance.find(s => s.id === selectedVersementSellerId)?.dette || 0)}
+                 </span>
+               </div>
+             )}
           </form>
         </div>
       )}
@@ -985,7 +1159,7 @@ export function CafeModule({
                </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-               {filteredVentes.map(v => {
+               {sortedVentes.map(v => {
                  const seller = sellers.find(s => s.id === v.vendeurId);
                  return (
                   <tr key={v.id} className="text-sm">
@@ -1001,7 +1175,7 @@ export function CafeModule({
                           <button onClick={() => { setEditingItem(v); setEditingType('vente'); }} className="p-1 text-gray-300 hover:text-amber-500">
                              <Edit2 size={14} />
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_ventes', v.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_ventes', v.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95">
                              <Trash2 size={14} />
                           </button>
                        </div>
@@ -1022,22 +1196,22 @@ export function CafeModule({
            <Plus className="text-red-500" /> Nouvelle Dépense
         </h3>
         <form onSubmit={handleAddDepense} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-           <input name="motif" placeholder="Motif (ex: Achat emballage)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
-           <select name="type" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none">
+           <input name="motif" placeholder="Motif (ex: Achat emballage)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" required />
+           <select name="type" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10">
               <option value="matières premières">Matières premières</option>
               <option value="transport">Transport</option>
               <option value="emballage">Emballage</option>
               <option value="autres">Autres</option>
            </select>
-           <input name="amount" type="number" placeholder="Montant (F)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
-           <button type="submit" className="bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-red-600 transition-all">
-             Enregistrer Dépense
+           <input name="amount" type="number" placeholder="Montant (F)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" required />
+           <button type="submit" className="bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-red-600 shadow-[0_8px_16px_-6px_rgba(220,38,38,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(220,38,38,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none h-[48px]">
+             Valider Dépense
            </button>
         </form>
       </div>
 
       <div className="space-y-3">
-         {filteredDepenses.map(d => (
+         {sortedDepenses.map(d => (
            <div key={d.id} className="bg-white p-4 rounded-2xl border border-gray-100 flex justify-between items-center transition-all">
              <div className="flex items-center gap-4">
                 <div className="p-2 bg-red-50 text-red-600 rounded-xl"><TrendingDown size={18} /></div>
@@ -1052,7 +1226,7 @@ export function CafeModule({
                    <button onClick={() => { setEditingItem(d); setEditingType('depense'); }} className="p-1 px-2 text-gray-300 hover:text-amber-500 border border-transparent hover:border-gray-100 rounded-lg">
                       <Edit2 size={14} />
                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_depenses', d.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_depenses', d.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95">
                       <Trash2 size={14} />
                    </button>
                 </div>
@@ -1064,13 +1238,13 @@ export function CafeModule({
   );
 
   const renderHistorique = () => {
-    // Merge all and sort
+    // Merge filtered and sort for specific year/month historical view (requested by user)
     const all = [
-      ...productions.map(p => ({ ...p, _type: 'production', _label: 'Production', _title: `Production ${p.quantite} uts (${p.typeCafe})`, _col: 'text-blue-600', _bg: 'bg-blue-50' })),
-      ...ventes.map(v => ({ ...v, _type: 'vente', _label: 'Vente', _title: `Vente ${v.quantite} uts (${v.typeCafe})`, _col: 'text-emerald-600', _bg: 'bg-emerald-50' })),
-      ...depenses.map(d => ({ ...d, _type: 'depense', _label: 'Dépense', _title: d.motif, _col: 'text-red-500', _bg: 'bg-red-50' })),
-      ...distributions.map(item => ({ ...item, _type: 'distribution', _label: 'Distribution', _title: `Distribution ${item.quantite} uts`, _col: 'text-amber-600', _bg: 'bg-amber-50' })),
-      ...versements.map(item => ({ ...item, _type: 'versement', _label: 'Versement', _title: `Versement de ${formats.price(item.montant)}`, _col: 'text-emerald-600', _bg: 'bg-emerald-50' }))
+      ...filteredProdEntries.map(p => ({ ...p, _type: 'production', _label: 'Production', _title: `Production ${p.quantite} uts (${p.typeCafe})`, _col: 'text-blue-600', _bg: 'bg-blue-50' })),
+      ...filteredVentes.map(v => ({ ...v, _type: 'vente', _label: 'Vente', _title: `Vente ${v.quantite} uts (${v.typeCafe})`, _col: 'text-emerald-600', _bg: 'bg-emerald-50', total: v.total })),
+      ...filteredDepenses.map(d => ({ ...d, _type: 'depense', _label: 'Dépense', _title: d.motif, _col: 'text-red-500', _bg: 'bg-red-50', total: d.montant })),
+      ...filteredDistributions.map(item => ({ ...item, _type: 'distribution', _label: 'Distribution', _title: `Distribution ${item.quantite} uts`, _col: 'text-amber-600', _bg: 'bg-amber-50', total: item.total })),
+      ...filteredVersements.map(item => ({ ...item, _type: 'versement', _label: 'Versement', _title: `Versement de ${formats.price(item.montant)}`, _col: 'text-emerald-600', _bg: 'bg-emerald-50', total: item.montant }))
     ].sort((a,b) => (b.date || 0) - (a.date || 0));
 
     const filtered = all.filter((item: any) => {
@@ -1078,7 +1252,7 @@ export function CafeModule({
                           (item.responsable && item.responsable.toLowerCase().includes(searchHistory.toLowerCase()));
       const matchSeller = !isViewingSellerSpace || (item.vendeurId === effectiveViewingSellerId || item.celluleId === effectiveViewingSellerId);
       return matchSearch && matchSeller;
-    }).slice(0, 50);
+    }).slice(0, 100);
 
     return (
       <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
@@ -1111,7 +1285,7 @@ export function CafeModule({
                     {item._type === 'vente' || item._type === 'versement' ? '+' : '-'}{formats.price(item.total || item.montant)}
                   </p>
                   <div className="flex gap-1">
-                    <button onClick={() => { setEditingItem(item); setEditingType(item._type); }} className="p-2 text-gray-300 hover:text-amber-500">
+                    <button onClick={() => { setEditingItem(item); setEditingType(item._type); }} className="p-2 text-gray-400 hover:text-orange-500 transition-colors active:scale-95">
                       <Edit2 size={14} />
                     </button>
                     <button onClick={(e) => { 
@@ -1123,7 +1297,7 @@ export function CafeModule({
                         'distribution': 'cafe_distributions',
                         'versement': 'cafe_versements'
                       }[item._type as string] || '', item.id)
-                    }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-white rounded-xl transition-all">
+                    }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95">
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -1149,12 +1323,14 @@ export function CafeModule({
         vendeurId: sellerId,
         montant: amount,
         mode,
-        responsable: currentUser?.displayName || currentUser?.email || 'Inconnu',
+        responsable: currentUser?.displayName || currentUser?.email || 'Manager',
         createdAt: Date.now()
       });
-      showToast("Versement enregistré");
+      showToast("Versement enregistré avec succès !", "success");
       (e.target as any).reset();
-    } catch (err) { showToast("Erreur", "error"); }
+    } catch (err) { 
+      handleFirestoreError(err, OperationType.WRITE, 'cafe_versements');
+    }
   };
 
   const renderLogistique = () => (
@@ -1182,14 +1358,14 @@ export function CafeModule({
                         <p className="text-[10px] font-bold text-gray-400 italic">{s.cellule} {s.codeAcces && `• Code: ${s.codeAcces}`}</p>
                      </div>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button onClick={() => { setEditingItem(s); setEditingType('seller'); }} className="p-2 text-gray-400 hover:text-amber-600">
-                        <Edit2 size={14} />
-                     </button>
-                     <button onClick={() => handleDelete('cafe_sellers', s.id)} className="p-2 text-gray-400 hover:text-red-500">
-                        <Trash2 size={14} />
-                     </button>
-                  </div>
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+             <button onClick={() => { setEditingItem(s); setEditingType('seller'); }} className="p-2 text-gray-400 hover:text-amber-600 transition-all active:scale-95 outline-none">
+                <Edit2 size={14} />
+             </button>
+             <button onClick={() => handleDelete('cafe_sellers', s.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95 outline-none">
+                <Trash2 size={14} />
+             </button>
+          </div>
                </div>
             ))}
          </div>
@@ -1200,18 +1376,18 @@ export function CafeModule({
            <User className="text-amber-600" /> Nouveau Revendeur (Cellule)
         </h3>
         <form onSubmit={handleAddSeller} className="grid grid-cols-1 md:grid-cols-6 gap-4">
-           <input name="nom" placeholder="Prénom & Nom" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
-           <select name="cellule" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
+           <input name="nom" placeholder="Prénom & Nom" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required />
+           <select name="cellule" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required>
               <option value="ESP">ESP</option>
               <option value="CAMPUS">CAMPUS</option>
               <option value="PARCELLE">PARCELLE</option>
               <option value="AUTRES">AUTRES</option>
            </select>
-           <input name="telephone" placeholder="Téléphone" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
-           <input name="email" type="email" placeholder="Email Connexion" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" />
-           <input name="codeAcces" placeholder="Code (4 chiffres)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" maxLength={4} />
-           <button type="submit" className="bg-brown-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-brown-700 transition-all">
-             Ajouter
+           <input name="telephone" placeholder="Téléphone" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required />
+           <input name="email" type="email" placeholder="Email Connexion" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" />
+           <input name="codeAcces" placeholder="Code (4 chiffres)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" maxLength={4} />
+           <button type="submit" className="bg-brown-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-brown-700 shadow-[0_8px_16px_-6px_rgba(120,53,15,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(120,53,15,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none h-[48px]">
+             Enregistrer
            </button>
         </form>
       </div>
@@ -1227,13 +1403,33 @@ export function CafeModule({
                 {sellers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.nom} ({s.cellule})</option>)}
              </select>
              <div className="grid grid-cols-2 gap-4">
-               <select name="format" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
+               <select 
+                 name="format" 
+                 value={selectedDistFormat}
+                 onChange={(e) => setSelectedDistFormat(e.target.value as any)}
+                 className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" 
+                 required
+               >
                   <option value="1kg">Format 1 Kg</option>
                   <option value="500g">Format 500 g</option>
                </select>
-               <input name="qty" type="number" placeholder="Quantité" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" min="1" required />
+               <input 
+                 name="qty" 
+                 type="number" 
+                 placeholder="Quantité" 
+                 className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" 
+                 min="1" 
+                 onChange={(e) => setDistQty(Number(e.target.value))}
+                 required 
+               />
              </div>
-             <button type="submit" className="w-full bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-amber-700 transition-all flex items-center justify-center gap-2 h-12">
+             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex justify-between items-center px-6">
+                <span className="text-[10px] font-black text-gray-400">VALEUR ESTIMÉE</span>
+                <span className="text-sm font-black text-amber-600">
+                    {formats.price((priceConfig?.prices?.[selectedDistFormat]?.price || (selectedDistFormat === '1kg' ? 2500 : 1300)) * (distQty || 0))}
+                </span>
+             </div>
+             <button type="submit" className="w-full bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-amber-700 shadow-[0_8px_16px_-6px_rgba(217,119,6,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(217,119,6,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-12">
                <Tag size={16} /> Effectuer Transfert
              </button>
           </form>
@@ -1256,7 +1452,7 @@ export function CafeModule({
                     <option value="OM">OM</option>
                  </select>
               </div>
-              <button type="submit" className="w-full bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 h-12">
+              <button type="submit" className="w-full bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-12">
                 <TrendingUp size={16} /> Valider Versement
               </button>
            </form>
@@ -1266,7 +1462,7 @@ export function CafeModule({
       <div className="space-y-4">
          <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Journal Logistique & Financier</h4>
          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           {[...distributions, ...versements].sort((a,b) => (b.date || 0) - (a.date || 0)).slice(0, 10).map((item: any) => {
+           {[...sortedDistributions, ...sortedVersements].sort((a,b) => (b.date || 0) - (a.date || 0)).slice(0, 10).map((item: any) => {
              const seller = sellers.find(s => s.id === (item.celluleId || item.vendeurId));
              const isVersement = !!item.montant;
              return (
@@ -1291,7 +1487,7 @@ export function CafeModule({
                         <button onClick={() => { setEditingItem(item); setEditingType(isVersement ? 'versement' : 'distribution'); }} className="p-1 text-gray-300 hover:text-amber-500">
                            <Edit2 size={12} />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(isVersement ? 'cafe_versements' : 'cafe_distributions', item.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-gray-50 rounded-xl transition-all">
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(isVersement ? 'cafe_versements' : 'cafe_distributions', item.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95">
                            <Trash2 size={16} />
                         </button>
                      </div>
@@ -1398,19 +1594,34 @@ export function CafeModule({
                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Classement des Cellules</h3>
                  <p className="text-[10px] font-bold text-gray-400 uppercase mt-1">Meilleures performances commerciales</p>
               </div>
-              <button 
-                onClick={() => exportToCSV(sellerPerformance.map(s => ({
-                  Nom: s.nom,
-                  Cellule: s.cellule,
-                  Unites_Vendues: s.totalVol,
-                  Chiffre_Affaire: s.totalVal,
-                  Versements: s.versements,
-                  Recette_Dette: s.dette
-                })), 'Classement_Cellules')}
-                className="p-3 rounded-2xl bg-gray-50 text-gray-900 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
-              >
-                <Download size={14} /> Export Excel
-              </button>
+              <div className="flex gap-2">
+                 <button 
+                  onClick={() => exportToCSV(sellerPerformance.map(s => ({
+                    Nom: s.nom,
+                    Cellule: s.cellule,
+                    Unites_Vendues: s.totalVol,
+                    Chiffre_Affaire: s.totalVal,
+                    Versements: s.versements,
+                    Recette_Dette: s.dette
+                  })), 'Classement_Cellules')}
+                  className="p-3 rounded-2xl bg-gray-50 text-gray-900 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                >
+                  <Download size={14} /> Excel
+                </button>
+                <button 
+                  onClick={() => exportToPDF(sellerPerformance.map(s => ({
+                    Nom: s.nom,
+                    Cellule: s.cellule,
+                    Ventes: s.totalVol,
+                    CA: s.totalVal,
+                    Versements: s.versements,
+                    Dette: s.dette
+                  })), 'Classement_Café_Cellules')}
+                  className="p-3 rounded-2xl bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                >
+                  <Download size={14} /> PDF
+                </button>
+              </div>
            </div>
            <div className="overflow-x-auto">
              <table className="w-full text-left">
@@ -1642,7 +1853,7 @@ export function CafeModule({
                          <button onClick={(e) => { e.stopPropagation(); setEditingItem(s); setEditingType('seller'); }} className="p-3 text-gray-300 hover:text-amber-600 hover:bg-white rounded-xl transition-all">
                             <Edit2 size={16} />
                          </button>
-                         <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_sellers', s.id); }} className="p-3 text-gray-300 hover:text-red-500 hover:bg-white rounded-xl transition-all">
+                         <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_sellers', s.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95">
                             <Trash2 size={16} />
                          </button>
                       </div>
@@ -1849,7 +2060,7 @@ export function CafeModule({
                 )}
 
                 <div className="pt-4">
-                   <button type="submit" className="w-full bg-amber-600 text-white rounded-2xl py-4 font-black uppercase tracking-widest text-[11px] shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-all flex items-center justify-center gap-2">
+                   <button type="submit" className="w-full bg-amber-600 text-white rounded-2xl py-4 font-black uppercase tracking-widest text-[11px] shadow-lg shadow-amber-600/20 hover:bg-amber-700 shadow-[0_8px_16px_-6px_rgba(217,119,6,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(217,119,6,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2">
                       <Check size={18} /> Enregistrer les modifications
                    </button>
                 </div>
@@ -1874,7 +2085,7 @@ export function CafeModule({
       return allTabs.filter(t => ['tableau', 'ventes', 'stock', 'historique'].includes(t.id));
     }
     return allTabs;
-  }, [isOnlySeller]);
+  }, [isOnlySeller, isViewingSellerSpace]);
 
   useEffect(() => {
     if (isOnlySeller && !['tableau', 'ventes', 'stock', 'historique'].includes(activeTab)) {
@@ -1910,17 +2121,23 @@ export function CafeModule({
       </div>
 
       {/* 🚀 QUICK ACTIONS (MOBILE FIRST) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:hidden px-2">
-         <button onClick={() => setActiveTab('production')} className="bg-blue-600 text-white p-4 rounded-3xl flex flex-col items-center gap-2">
-            <Plus size={20} /> <span className="text-[10px] font-black uppercase">Production</span>
-         </button>
-         <button onClick={() => setActiveTab('ventes')} className="bg-emerald-600 text-white p-4 rounded-3xl flex flex-col items-center gap-2">
-            <TrendingUp size={20} /> <span className="text-[10px] font-black uppercase">Vente</span>
-         </button>
-         <button onClick={() => setActiveTab('depenses')} className="bg-red-500 text-white p-4 rounded-3xl flex flex-col items-center gap-2">
-            <TrendingDown size={20} /> <span className="text-[10px] font-black uppercase">Dépense</span>
-         </button>
-      </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:hidden px-2">
+           {canProduce && (
+             <button onClick={() => setActiveTab('production')} className="bg-blue-600 text-white p-4 rounded-3xl flex flex-col items-center gap-2 active:scale-95 transition-all outline-none">
+                <Plus size={20} /> <span className="text-[10px] font-black uppercase">Production</span>
+             </button>
+           )}
+           {canSell && (
+             <button onClick={() => setActiveTab('ventes')} className="bg-emerald-600 text-white p-4 rounded-3xl flex flex-col items-center gap-2 active:scale-95 transition-all outline-none">
+                <TrendingUp size={20} /> <span className="text-[10px] font-black uppercase">Vente</span>
+             </button>
+           )}
+           {canExpense && (
+             <button onClick={() => setActiveTab('depenses')} className="bg-red-500 text-white p-4 rounded-3xl flex flex-col items-center gap-2 active:scale-95 transition-all outline-none">
+                <TrendingDown size={20} /> <span className="text-[10px] font-black uppercase">Dépense</span>
+             </button>
+           )}
+        </div>
 
       {/* 📖 CONTENT */}
       <AnimatePresence mode="wait">

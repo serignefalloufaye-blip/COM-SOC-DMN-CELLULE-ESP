@@ -249,14 +249,14 @@ export function UserRoles({
                         }`}>
                           {ROLES.find(r => r.value === code.role)?.label}
                         </span>
-                        <button onClick={() => deleteCode(code.id!)} className="text-gray-300 hover:text-red-500 transition-colors">
+                        <button onClick={() => deleteCode(code.id!)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                           <Trash2 size={16} />
                         </button>
                       </div>
                       <p className="text-2xl font-black text-gray-900 font-mono tracking-[0.2em] mb-6">{code.code}</p>
                       <button 
                         onClick={() => copyCode(code.id!, code.code)}
-                        className="w-full py-4 bg-white border border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-900 hover:shadow-sm transition-all flex items-center justify-center gap-2"
+                        className="w-full py-4 bg-white border border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-900 hover:shadow-sm active:scale-95 transition-all outline-none flex items-center justify-center gap-2"
                       >
                         {copiedId === code.id ? <Check size={14} className="text-dmn-green-600" /> : <Copy size={14} />}
                         {copiedId === code.id ? 'Copié' : 'Copier'}
@@ -336,7 +336,7 @@ export function UserRoles({
                     {isAdmin && user.email !== currentUserEmail && user.email !== 'serignefalloufaye@esp.sn' && (
                       <button 
                         onClick={() => handleDeleteUser(user)}
-                        className="mt-10 w-full flex items-center justify-center gap-3 py-4 text-red-500 bg-red-50/50 hover:bg-red-50 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                        className="mt-10 w-full flex items-center justify-center gap-3 py-4 text-red-600 bg-red-50 hover:bg-red-100 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all outline-none"
                       >
                         <Trash2 size={16} /> Révoquer l'accès
                       </button>

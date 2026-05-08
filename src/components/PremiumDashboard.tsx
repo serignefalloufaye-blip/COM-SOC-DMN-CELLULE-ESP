@@ -31,12 +31,12 @@ interface PremiumDashboardProps {
   cafeDepenses: CafeDepense[];
   cafeSellers?: CafeSeller[];
   cafeClients?: CafeClient[];
-  cafeOrders?: CafeOrder[];
   globalYear: number;
   globalMonth: string;
   globalMode: string;
   logoUrl?: string;
   userRole?: UserRole | 'visitor' | null;
+  currentUser?: any;
   onLogoUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onQuickAction?: (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => void;
 }
@@ -65,8 +65,8 @@ export function PremiumDashboard({
   membres, cotisations, depenses, recettes, dettes,
   ticketCollectes, ticketConversions, ticketDistributions,
   cafeProductions, cafeVentes, cafeDepenses,
-  cafeSellers = [], cafeClients = [], cafeOrders = [],
-  globalYear, globalMonth, logoUrl, userRole, onLogoUpload,
+  cafeSellers = [], cafeClients = [],
+  globalYear, globalMonth, logoUrl, userRole, currentUser, onLogoUpload,
   onQuickAction
 }: PremiumDashboardProps) {
 
@@ -79,9 +79,10 @@ export function PremiumDashboard({
       return { ...s, total: sales.reduce((sum, v) => sum + v.total, 0), count: sales.length };
     }).sort((a,b) => b.total - a.total).slice(0, 3);
 
-    const clientActivity = cafeOrders.reduce((acc: any, o) => {
-       const nom = o.clientNom || 'Anonyme';
-       acc[nom] = (acc[nom] || 0) + o.total;
+    const clientActivity = cafeVentes.reduce((acc: any, v) => {
+       const client = cafeClients.find(c => c.id === v.clientId);
+       const nom = client?.nom || 'Anonyme';
+       acc[nom] = (acc[nom] || 0) + v.total;
        return acc;
     }, {});
     
@@ -91,13 +92,16 @@ export function PremiumDashboard({
       .slice(0, 3);
 
     return { topSellers, topClients };
-  }, [cafeSellers, cafeVentes, cafeOrders]);
+  }, [cafeSellers, cafeVentes]);
 
   // --- LOGIC CALCULATIONS ---
   const formattedRole = userRole === 'visitor' ? null : userRole;
-  const isCaisse = hasPermission(formattedRole, 'caisse.read');
-  const isCafe = hasPermission(formattedRole, 'cafe.production.read');
-  const isTickets = hasPermission(formattedRole, 'tickets.read');
+  const isAdmin = userRole === 'admin';
+  const isCaisse = userRole === 'caisse' || hasPermission(formattedRole, 'caisse.read');
+  const isCafe = userRole === 'cafe' || hasPermission(formattedRole, 'cafe.production.read');
+  const isTickets = userRole === 'tickets' || hasPermission(formattedRole, 'tickets.read');
+  const isRevendeur = !isAdmin && !isCafe && Boolean(cafeSellers.some(s => s.email && currentUser?.email && s.email.toLowerCase() === currentUser.email.toLowerCase()));
+  const isMembreSimple = !isAdmin && !isCaisse && !isCafe && !isTickets && !isRevendeur && Boolean(currentUser?.email);
   const isStats = hasPermission(formattedRole, 'stats.read');
 
   const filteredCafeVentes = useMemo(() => cafeVentes.filter(v => new Date(v.date).getFullYear() === globalYear), [cafeVentes, globalYear]);
@@ -168,6 +172,12 @@ export function PremiumDashboard({
 
   const membresActifs = membres.filter(m => getMembreStatus(m.id) === 'À jour').length;
 
+  const myMembre = useMemo(() => membres.find(m => m.email && currentUser?.email && m.email.toLowerCase() === currentUser.email.toLowerCase()), [membres, currentUser]);
+  const mySeller = useMemo(() => cafeSellers.find(s => s.email && currentUser?.email && s.email.toLowerCase() === currentUser.email.toLowerCase()), [cafeSellers, currentUser]);
+  const sellerQtySold = mySeller ? cafeVentes.filter(v => v.vendeurId === mySeller.id).reduce((s, v) => s + v.quantite, 0) : 0;
+  const sellerRevenue = mySeller ? cafeVentes.filter(v => v.vendeurId === mySeller.id).reduce((s, v) => s + v.total, 0) : 0;
+  const sellerStock = mySeller ? (mySeller.stockActuel || 0) : 0;
+
   const evolutionSoldeData = MOIS.map(m => {
     const moisCot = annualCotisations.filter(c => c.mois === m).reduce((s, c) => s + c.montant, 0);
     const moisRec = annualRecettes.filter(c => c.mois === m).reduce((s, c) => s + c.montant, 0);
@@ -186,6 +196,18 @@ export function PremiumDashboard({
   }
   if (isCafe) {
     historyItems.push(...cafeVentes.map(v => ({ date: v.createdAt || v.date, label: `Vente Café (${v.quantite})`, amount: v.total, type: 'cafe', icon: Coffee })));
+  }
+
+  // Personal history for regular members
+  if (isMembreSimple && currentUser?.email) {
+    if (myMembre) {
+      historyItems.push(...cotisations.filter(c => c.mId === myMembre.id).map(c => ({ date: c.createdAt || 0, label: `Ma cotisation (${c.mois} ${c.annee})`, amount: c.montant, type: 'in', icon: Wallet })));
+      historyItems.push(...ticketDistributions.filter(d => d.mId === myMembre.id).map(d => ({ date: d.createdAt || 0, label: `Mes tickets (${d.petitDej || 0} PD, ${d.repas || 0} R)`, amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, type: 'ticket', icon: Ticket })));
+    }
+  }
+  
+  if (isRevendeur && mySeller) {
+    historyItems.push(...cafeVentes.filter(v => v.vendeurId === mySeller.id).map(v => ({ date: v.createdAt || v.date, label: `Mes ventes CAFE (${v.quantite})`, amount: v.total, type: 'cafe', icon: Coffee })));
   }
 
   const history = historyItems.sort((a, b) => b.date - a.date);
@@ -311,11 +333,16 @@ export function PremiumDashboard({
       {/* 📊 KPI GRID */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 px-1">
         {[
-          { label: 'Membres Actifs', value: membresActifs, color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: Users, sub: `${membres.length} total` },
-          { label: 'Dettes', value: formatPrice(totDettesEnAttente), color: 'text-red-500', bg: 'bg-red-50', icon: AlertCircle, sub: 'À recouvrer' },
-          { label: 'Repas', value: stockRepas, color: 'text-amber-600', bg: 'bg-amber-50', icon: Ticket, sub: 'En stock' },
-          { label: 'Café', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités dispo' }
-        ].map((item, i) => (
+          { show: isAdmin || isCaisse || isStats, label: 'Cotisations Annuelles', value: formatPrice(annualCotisations.reduce((s, c) => s + c.montant, 0)) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `${globalYear}` },
+          { show: isAdmin || isCaisse || isStats, label: 'Membres Actifs', value: membresActifs, color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: Users, sub: `${membres.length} total` },
+          { show: isAdmin || isCaisse || isStats, label: 'Dettes / Retards', value: formatPrice(totDettesEnAttente) + ' F', color: 'text-red-500', bg: 'bg-red-50', icon: AlertCircle, sub: 'À recouvrer' },
+          { show: isAdmin || isTickets, label: 'Repas', value: stockRepas, color: 'text-amber-600', bg: 'bg-amber-50', icon: Ticket, sub: 'En stock' },
+          { show: isAdmin || isCafe, label: 'Café (Global)', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités dispo' },
+          { show: isRevendeur, label: 'Mon Stock', value: sellerStock, color: 'text-orange-600', bg: 'bg-orange-50', icon: Package, sub: 'Unités' },
+          { show: isRevendeur, label: 'Mes Ventes', value: formatPrice(sellerRevenue) + ' F', color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: TrendingUp, sub: `${sellerQtySold} vendus` },
+          { show: isMembreSimple && myMembre, label: 'Mon Statut', value: myMembre ? getMembreStatus(myMembre.id) : '-', color: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'text-dmn-green-600' : 'text-red-500', bg: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'bg-dmn-green-50' : 'bg-red-50', icon: Shield, sub: 'Cotisations' },
+          { show: isMembreSimple && myMembre, label: 'Mes Cotisations', value: formatPrice(myMembre ? cotisations.filter(c => c.mId === myMembre.id && c.annee === globalYear).reduce((s, c) => s + c.montant, 0) : 0) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `En ${globalYear}` },
+        ].filter(item => item.show).map((item, i) => (
           <motion.div
             key={i}
             variants={itemVariants}
@@ -387,7 +414,7 @@ export function PremiumDashboard({
         <div className="absolute inset-0 bg-gradient-to-r from-dmn-green-900/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
         <div className="flex gap-2 sm:gap-6 overflow-x-auto no-scrollbar py-1">
            {[
-             { id: 'membre', label: 'Inscrire Membre', icon: Users, color: 'bg-dmn-green-500', perm: ['admin', 'caisse'] },
+             { id: 'membre', label: 'Inscrire Membre', icon: Users, color: 'bg-dmn-green-500', perm: ['admin'] },
              { id: 'ticket', label: 'Distribuer Tickets', icon: Ticket, color: 'bg-amber-500', perm: ['admin', 'tickets'] },
              { id: 'cafe', label: 'Action Café', icon: Coffee, color: 'bg-orange-500', perm: ['admin', 'cafe'] },
              { id: 'rapport', label: 'Générer Rapport', icon: BarChart3, color: 'bg-blue-500', perm: ['admin', 'caisse'] }
@@ -395,7 +422,7 @@ export function PremiumDashboard({
              <button 
                key={action.id}
                onClick={() => onQuickAction?.(action.id as any)}
-               className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 transition-all group/btn whitespace-nowrap"
+               className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 active:scale-95 outline-none transition-all group/btn whitespace-nowrap"
              >
                <div className={`p-2.5 ${action.color} text-black font-black rounded-xl group-hover/btn:scale-110 transition-transform`}>
                   <action.icon size={18} />
@@ -486,7 +513,7 @@ export function PremiumDashboard({
 
            <button 
              onClick={() => onQuickAction?.('rapport')}
-             className="w-full mt-10 py-4 bg-white/10 hover:bg-white/20 transition-all rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest border border-white/10"
+             className="w-full mt-10 py-4 bg-white/10 hover:bg-white/20 active:scale-95 outline-none transition-all rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest border border-white/10"
            >
               Analyses détaillées <ArrowRight size={14} />
            </button>
@@ -500,7 +527,7 @@ export function PremiumDashboard({
           <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-3">
              Flux d'activités <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-shimmer"></div>
           </h3>
-          <button className="text-[10px] font-black text-dmn-green-600 hover:text-dmn-green-700 transition-colors uppercase tracking-widest flex items-center gap-1">
+          <button className="text-[10px] font-black text-dmn-green-600 hover:text-dmn-green-700 active:scale-95 outline-none transition-all uppercase tracking-widest flex items-center gap-1">
              Historique complet <ChevronRight size={14} />
           </button>
         </div>

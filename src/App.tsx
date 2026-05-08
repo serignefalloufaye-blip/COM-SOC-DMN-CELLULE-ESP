@@ -109,9 +109,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [financeSubTab, setFinanceSubTab] = useState<'saisie' | 'cotisations' | 'recettes' | 'depenses' | 'dettes' | 'rapports'>('cotisations');
   
-  const isCaisse = hasPermission(userRole, 'caisse.read');
-  const isTickets = hasPermission(userRole, 'tickets.read');
-  const isCafe = hasPermission(userRole, 'cafe.production.read');
+  const isCaisse = userRole === 'caisse' || hasPermission(userRole, 'caisse.read');
+  const isTickets = userRole === 'tickets' || hasPermission(userRole, 'tickets.read');
+  const isCafe = userRole === 'cafe' || hasPermission(userRole, 'cafe.production.read');
   const isAdmin = userRole === 'admin';
 
   const [membreSubTab, setMembreSubTab] = useState<'liste' | 'annuel' | 'retards'>('liste');
@@ -132,8 +132,47 @@ export default function App() {
   const [cafeVersements, setCafeVersements] = useState<CafeVersement[]>([]);
   const [cafeSellers, setCafeSellers] = useState<CafeSeller[]>([]);
   const [cafeClients, setCafeClients] = useState<CafeClient[]>([]);
-  const [cafeOrders, setCafeOrders] = useState<CafeOrder[]>([]);
   const [cafePriceConfig, setCafePriceConfig] = useState<CafePriceConfig | null>(null);
+
+  const isRevendeur = useMemo(() => {
+    if (!user || isAdmin || userRole === 'cafe') return false;
+    const userEmail = user.email?.toLowerCase().trim();
+    return cafeSellers.some(s => 
+      s.active && (
+        (s.email && s.email.toLowerCase().trim() === userEmail) || 
+        (s.codeAcces && s.codeAcces === user.uid)
+      )
+    );
+  }, [cafeSellers, user, userRole, isAdmin]);
+
+  const navigationTabs = useMemo(() => {
+    const ALL_TABS = [
+      { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
+      { id: 'finance', label: 'Caisse', icon: Wallet },
+      { id: 'tickets', label: 'Tickets', icon: Ticket },
+      { id: 'cafe', label: 'Café', icon: Coffee },
+      { id: 'membres', label: 'Membres', icon: Users },
+      { id: 'rapports', label: 'Rapports', icon: TrendingUp },
+      { id: 'roles', label: 'Profil', icon: Shield },
+    ];
+    if (isAdmin) return ALL_TABS;
+    if (userRole === 'caisse') return ALL_TABS.filter(t => ['dashboard', 'finance', 'membres', 'rapports', 'roles'].includes(t.id));
+    if (userRole === 'cafe') return ALL_TABS.filter(t => ['dashboard', 'cafe', 'roles'].includes(t.id));
+    if (userRole === 'tickets') return ALL_TABS.filter(t => ['dashboard', 'tickets', 'roles'].includes(t.id));
+    if (isRevendeur) return ALL_TABS.filter(t => ['dashboard', 'cafe'].includes(t.id));
+    if (userRole === 'lecteur' || userRole === 'visitor') return ALL_TABS.filter(t => ['dashboard'].includes(t.id));
+    return ALL_TABS.filter(t => ['dashboard'].includes(t.id));
+  }, [userRole, isAdmin, isRevendeur]);
+
+  useEffect(() => {
+    if (userRole && isAuthReady) {
+      if (!navigationTabs.find(t => t.id === activeTab)) {
+        showToast("👉 Accès non autorisé", 'error');
+        setActiveTab(navigationTabs[0].id as Tab);
+      }
+    }
+  }, [userRole, isAuthReady, navigationTabs, activeTab]);
+
   const [appSettings, setAppSettings] = useState<{ logoUrl?: string }>({});
   
   const [isMembreModalOpen, setIsMembreModalOpen] = useState(false);
@@ -236,24 +275,32 @@ export default function App() {
 
   const filteredDepenses = useMemo(() => {
     return depenses.filter(d => {
-      const matchYear = d.annee === globalYear;
-      const matchMonth = !globalMonth || d.mois === globalMonth;
+      const dbDate = d.date ? new Date(d.date) : new Date(d.createdAt || Date.now());
+      const itemAnnee = d.annee || dbDate.getFullYear();
+      const itemMois = (d.mois || ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'][dbDate.getMonth()]).toLowerCase();
+
+      const matchYear = itemAnnee === globalYear;
+      const matchMonth = !globalMonth || itemMois === globalMonth.toLowerCase();
       return matchYear && matchMonth;
     });
   }, [depenses, globalYear, globalMonth]);
 
   const filteredRecettes = useMemo(() => {
     return recettes.filter(r => {
-      const matchYear = r.annee === globalYear;
-      const matchMonth = !globalMonth || r.mois === globalMonth;
+      const dbDate = r.date ? new Date(r.date) : new Date(r.createdAt || Date.now());
+      const itemAnnee = r.annee || dbDate.getFullYear();
+      const itemMois = (r.mois || ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'][dbDate.getMonth()]).toLowerCase();
+      
+      const matchYear = itemAnnee === globalYear;
+      const matchMonth = !globalMonth || itemMois === globalMonth.toLowerCase();
       const matchMode = !globalMode || r.mode === globalMode;
       return matchYear && matchMonth && matchMode;
     });
   }, [recettes, globalYear, globalMonth, globalMode]);
 
-  const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
-  const annualDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear), [depenses, globalYear]);
-  const annualRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear), [recettes, globalYear]);
+  const annualCotisations = useMemo(() => cotisations.filter(c => (c.annee || new Date(c.date || c.createdAt || Date.now()).getFullYear()) === globalYear), [cotisations, globalYear]);
+  const annualDepenses = useMemo(() => depenses.filter(d => (d.annee || new Date(d.date || d.createdAt || Date.now()).getFullYear()) === globalYear), [depenses, globalYear]);
+  const annualRecettes = useMemo(() => recettes.filter(r => (r.annee || new Date(r.date || r.createdAt || Date.now()).getFullYear()) === globalYear), [recettes, globalYear]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -358,10 +405,6 @@ export default function App() {
       setCafeClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeClient)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_clients'));
 
-    const unsubCafeOrders = onSnapshot(collection(db, 'cafe_orders'), (snapshot) => {
-      setCafeOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeOrder)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_orders'));
-
     const unsubUsers = userRole === 'admin' 
       ? onSnapshot(collection(db, 'users'), (snapshot) => {
           setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as AppUser)));
@@ -387,7 +430,7 @@ export default function App() {
       unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); 
       unsubTicketCollectes(); unsubTicketConversions(); unsubTicketDistributions();
       unsubCafeProductions(); unsubCafeVentes(); unsubCafeDepenses(); unsubCafeTransferts();
-      unsubCafeDistributions(); unsubCafeVersements(); unsubCafeSellers(); unsubCafeClients(); unsubCafeOrders();
+      unsubCafeDistributions(); unsubCafeVersements(); unsubCafeSellers(); unsubCafeClients();
       unsubUsers(); unsubCafePriceConfig();
     };
   }, [isAuthReady, user, userRole]);
@@ -1313,9 +1356,9 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-3">
             <button 
               onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
-              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+              className="bg-white text-dmn-green-900 border-none px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-gray-100 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 outline-none"
             >
-              <Plus size={14} /> Recette
+              <Plus size={14} strokeWidth={2.5} /> Recette
             </button>
             {globalMonth && <span className="hidden sm:inline-block bg-dmn-green-800/50 border border-dmn-green-700 px-3 py-1.5 rounded-lg text-xs font-medium">Mois : {globalMonth}</span>}
           </div>
@@ -1668,7 +1711,7 @@ export default function App() {
             {isCaisse && (
               <button 
                 onClick={() => { setEditingMembre(null); setIsMembreModalOpen(true); }}
-                className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+                className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
               >
                 <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
               </button>
@@ -1710,11 +1753,11 @@ export default function App() {
                         <button onClick={() => setSelectedMemberProfile(m)} className="p-2 bg-dmn-green-50 text-dmn-green-600 rounded-lg hover:bg-dmn-green-100 transition-colors" title="Profil">
                           <Users size={16} />
                         </button>
-                        <button onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
+                        <button onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                           <Edit2 size={16} />
                         </button>
                         {isAdmin && (
-                          <button onClick={() => handleDeleteMembre(m.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                          <button onClick={() => handleDeleteMembre(m.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                             <Trash2 size={16} />
                           </button>
                         )}
@@ -1752,14 +1795,14 @@ export default function App() {
                 <div className="grid grid-cols-3 gap-2">
                   <button 
                     onClick={() => { openAddCot(m.id, undefined, globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
-                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-dmn-green-50 hover:bg-dmn-green-100 rounded-2xl text-dmn-green-700 transition-all border border-dmn-green-100/50"
+                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-dmn-green-50 hover:bg-dmn-green-100 rounded-2xl text-dmn-green-700 active:scale-95 transition-all outline-none border border-dmn-green-100/50"
                   >
                     <CreditCard size={18} />
                     <span className="text-[9px] font-black uppercase tracking-wider">Cotiser</span>
                   </button>
                   <button 
                     onClick={() => setSelectedMemberHistory(m)}
-                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-blue-50 hover:bg-blue-100 rounded-2xl text-blue-700 transition-all border border-blue-100/50"
+                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-blue-50 hover:bg-blue-100 rounded-2xl text-blue-700 active:scale-95 transition-all outline-none border border-blue-100/50"
                   >
                     <History size={18} />
                     <span className="text-[9px] font-black uppercase tracking-wider">Historique</span>
@@ -1767,7 +1810,7 @@ export default function App() {
                   {(isAdmin || isCaisse) ? (
                     <button 
                       onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }}
-                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-amber-50 hover:bg-amber-100 rounded-2xl text-amber-700 transition-all border border-amber-100/50"
+                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-orange-50 hover:bg-orange-100 rounded-2xl text-orange-700 active:scale-95 transition-all outline-none border border-orange-100/50"
                     >
                       <Edit2 size={18} />
                       <span className="text-[9px] font-black uppercase tracking-wider">Modifier</span>
@@ -1781,7 +1824,7 @@ export default function App() {
                   {isAdmin && (
                     <button 
                       onClick={() => handleDeleteMembre(m.id)}
-                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-700 transition-all border border-red-100/50"
+                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-700 active:scale-95 transition-all outline-none border border-red-100/50"
                     >
                       <Trash2 size={18} />
                       <span className="text-[9px] font-black uppercase tracking-wider">Supprimer</span>
@@ -1877,7 +1920,7 @@ export default function App() {
             {(isAdmin || isCaisse) && (
               <button 
                 onClick={() => openAddCot(undefined, undefined, globalYear)}
-                className="flex-1 sm:flex-none bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
+                className="flex-1 sm:flex-none h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
               >
                 <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
               </button>
@@ -1928,11 +1971,11 @@ export default function App() {
                   <td className="px-6 py-4"><Badge mode={c.mode} date={c.createdAt || c.updatedAt} /></td>
                   {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 flex justify-center gap-2">
-                      <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
+                      <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                         <Edit2 size={16} />
                       </button>
                       {isAdmin && (
-                        <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                        <button onClick={() => handleDeleteCotisation(c.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                           <Trash2 size={16} />
                         </button>
                       )}
@@ -1970,11 +2013,11 @@ export default function App() {
                   <p className="text-lg font-black text-dmn-green-600">{formatPrice(c.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
                   {(isAdmin || isCaisse) && (
                     <div className="flex gap-2">
-                       <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                       <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                         <Edit2 size={16} />
                       </button>
                       {isAdmin && (
-                        <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                        <button onClick={() => handleDeleteCotisation(c.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                           <Trash2 size={16} />
                         </button>
                       )}
@@ -1998,10 +2041,14 @@ export default function App() {
   };
 
   const renderDettes = () => {
-    const filteredDettes = dettes.filter(d => 
-      (globalYear ? d.annee === globalYear : true) &&
-      (globalMonth ? d.mois === globalMonth : true)
-    ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const filteredDettes = dettes.filter(d => {
+      const dbDate = d.date ? new Date(d.date) : new Date(d.createdAt || Date.now());
+      const itemAnnee = d.annee || dbDate.getFullYear();
+      const itemMois = (d.mois || ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'][dbDate.getMonth()]).toLowerCase();
+      
+      return (globalYear ? itemAnnee === globalYear : true) &&
+             (globalMonth ? itemMois === globalMonth.toLowerCase() : true);
+    }).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     return (
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
@@ -2010,7 +2057,7 @@ export default function App() {
           {(isAdmin || isCaisse) && (
             <button 
               onClick={() => { setEditingDette({ annee: globalYear, montant: 0, mois: globalMonth || MOIS[currentMonthIndex] }); setIsDetteModalOpen(true); }}
-              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+              className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
             >
               <Plus size={16} /> Ajouter une Dette
             </button>
@@ -2052,11 +2099,11 @@ export default function App() {
                   {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2">
-                        <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
+                        <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                           <Edit2 size={16} />
                         </button>
                         {isAdmin && (
-                          <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                          <button onClick={() => handleDeleteDette(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                             <Trash2 size={16} />
                           </button>
                         )}
@@ -2106,11 +2153,11 @@ export default function App() {
                 <p className={`text-lg font-black ${d.estPayee ? 'text-emerald-600' : 'text-red-600'}`}>{formatPrice(d.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
                 {isCaisse && (
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                    <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                       <Edit2 size={16} />
                     </button>
                     {isAdmin && (
-                      <button onClick={() => handleDeleteDette(d.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                      <button onClick={() => handleDeleteDette(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                         <Trash2 size={16} />
                       </button>
                     )}
@@ -2138,7 +2185,7 @@ export default function App() {
           {isCaisse && (
             <button 
               onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
-              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+              className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
             >
               <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
             </button>
@@ -2166,11 +2213,11 @@ export default function App() {
                   <td className="px-6 py-4"><Badge mode={r.mode} date={r.createdAt || r.updatedAt} /></td>
                   {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 flex justify-center gap-2">
-                      <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
+                      <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                         <Edit2 size={16} />
                       </button>
                       {isAdmin && (
-                        <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                        <button onClick={() => handleDeleteRecette(r.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                           <Trash2 size={16} />
                         </button>
                       )}
@@ -2206,11 +2253,11 @@ export default function App() {
                 <p className="text-lg font-black text-emerald-600">{formatPrice(r.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
                 {isCaisse && (
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                    <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                       <Edit2 size={16} />
                     </button>
                     {isAdmin && (
-                      <button onClick={() => handleDeleteRecette(r.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                      <button onClick={() => handleDeleteRecette(r.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                         <Trash2 size={16} />
                       </button>
                     )}
@@ -2507,7 +2554,7 @@ export default function App() {
           {(isAdmin || isCaisse) && (
             <button 
               onClick={() => { setEditingDepense({ annee: globalYear, montant: 0 }); setIsDepenseModalOpen(true); }}
-              className="bg-dmn-gold-light hover:bg-dmn-gold text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center gap-2"
+              className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
             >
               <Plus size={16} /> Ajouter
             </button>
@@ -2536,11 +2583,11 @@ export default function App() {
                   {(isAdmin || isCaisse) && (
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2">
-                        <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors">
+                        <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                           <Edit2 size={16} />
                         </button>
                         {isAdmin && (
-                          <button onClick={() => handleDeleteDepense(d.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                          <button onClick={() => handleDeleteDepense(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                             <Trash2 size={16} />
                           </button>
                         )}
@@ -2579,10 +2626,10 @@ export default function App() {
                 <p className="text-lg font-black text-red-600">{formatPrice(d.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
                 {userRole === 'admin' && (
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors">
+                    <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => handleDeleteDepense(d.id)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                    <button onClick={() => handleDeleteDepense(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -3004,9 +3051,9 @@ export default function App() {
               recettes={recettes} dettes={dettes} 
               ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
               cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
-              cafeSellers={cafeSellers} cafeClients={cafeClients} cafeOrders={cafeOrders}
+              cafeSellers={cafeSellers} cafeClients={cafeClients}
               globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
-              logoUrl={appSettings.logoUrl} userRole={userRole} onLogoUpload={handleLogoUpload}
+              logoUrl={appSettings.logoUrl} userRole={userRole} currentUser={user} onLogoUpload={handleLogoUpload}
               onQuickAction={handleQuickAction}
             />
           </>
@@ -3053,7 +3100,6 @@ export default function App() {
             versements={cafeVersements}
             sellers={cafeSellers}
             clients={cafeClients}
-            orders={cafeOrders}
             priceConfig={cafePriceConfig}
             userRole={userRole || 'lecteur'}
             globalYear={globalYear}
@@ -3083,15 +3129,7 @@ export default function App() {
 
       {/* Desktop Navigation */}
       <nav className="hidden sm:flex max-w-7xl mx-auto px-6 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-[136px] z-[80] bg-white/80 backdrop-blur-md border-b border-gray-100">
-        {[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
-          { id: 'finance', label: 'Caisse & Rapports', icon: Wallet, roles: ['admin', 'caisse'] },
-          { id: 'tickets', label: 'Tickets Resto', icon: Ticket, roles: ['admin', 'tickets'] },
-          { id: 'cafe', label: 'Café ☕', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
-          { id: 'membres', label: 'Membres', icon: Users, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
-          { id: 'rapports', label: 'Rapports & Stats', icon: TrendingUp, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
-          { id: 'roles', label: 'Profil & Rôles', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
-        ].filter(tab => tab.roles.includes(userRole as any)).map(tab => (
+        {navigationTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as Tab)}
@@ -3114,14 +3152,7 @@ export default function App() {
           animate={{ y: 0, opacity: 1 }}
           className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2.5rem] h-[72px] flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-[92%]"
         >
-          {[
-            { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur', 'visitor'] },
-            { id: 'finance', label: 'Caisse', icon: Wallet, roles: ['admin', 'caisse'] },
-            { id: 'tickets', label: 'Tickets', icon: Ticket, roles: ['admin', 'tickets'] },
-            { id: 'cafe', label: 'Café', icon: Coffee, roles: ['admin', 'cafe', 'lecteur'] },
-            { id: 'rapports', label: 'Rapports', icon: TrendingUp, roles: ['admin', 'caisse', 'tickets', 'cafe'] },
-            { id: 'roles', label: 'Profil', icon: Shield, roles: ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'] },
-          ].filter(tab => tab.roles.includes(userRole as any || 'visitor')).map(tab => (
+          {navigationTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as Tab)}
@@ -3211,8 +3242,8 @@ export default function App() {
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsMembreModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
-                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
+                <button type="button" onClick={() => setIsMembreModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
+                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
               </div>
             </form>
           </div>
@@ -3250,8 +3281,8 @@ export default function App() {
               </div>
               <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsCotModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
-                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
+                <button type="button" onClick={() => setIsCotModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
+                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
               </div>
             </form>
           </div>
@@ -3278,8 +3309,8 @@ export default function App() {
               </div>
               <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsDepenseModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
-                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
+                <button type="button" onClick={() => setIsDepenseModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
+                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
               </div>
             </form>
           </div>
@@ -3314,8 +3345,8 @@ export default function App() {
               </div>
               <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsRecetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
-                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
+                <button type="button" onClick={() => setIsRecetteModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
+                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
               </div>
             </form>
           </div>
@@ -3342,8 +3373,8 @@ export default function App() {
               </div>
               <AdminDateInput userRole={userRole} />
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsDetteModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">Annuler</button>
-                <button type="submit" className="px-5 py-2.5 bg-dmn-green-600 text-white rounded-xl text-sm font-semibold hover:bg-dmn-green-700 transition-all shadow-sm hover:shadow-md active:scale-95">Enregistrer</button>
+                <button type="button" onClick={() => setIsDetteModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
+                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
               </div>
             </form>
           </div>
