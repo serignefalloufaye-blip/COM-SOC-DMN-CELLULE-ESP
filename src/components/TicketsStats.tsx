@@ -235,7 +235,7 @@ export function TicketsStats({ membres, collectes, conversions, distributions }:
         </div>
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center">
           <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Contributeurs</p>
-          <p className="text-xl font-black text-gray-800">{membresContributeurs} 👥</p>
+          <p className="text-xl font-black text-gray-800">{membresContributeurs} membres</p>
         </div>
       </div>
 

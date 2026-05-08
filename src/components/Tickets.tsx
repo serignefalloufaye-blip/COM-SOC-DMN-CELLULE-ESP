@@ -34,9 +34,10 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   // New state for announcement
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
   const [announcementRooms, setAnnouncementRooms] = useState({
-    goorYalla: '43G et 47B',
-    sokhnaYi: '59B et 66G'
+    'goorYalla': '43G et 47B',
+    'sokhnaYi': '59B et 66G'
   });
+
 
   // Calculate global numbers
   const totalArgentCollecte = collectes.filter(c => c.type === 'argent').reduce((s, c) => s + (c.montantArgent || 0), 0);
@@ -92,7 +93,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       showToast("Accès refusé. Vous n'avez pas le droit de supprimer.", 'error');
       return;
     }
-    if (!window.confirm("Voulez-vous vraiment annuler cette collecte ?")) return;
+    // Suppression de la confirmation pour plus de fluidité selon la demande utilisateur
     try {
       await deleteDoc(doc(db, 'tickets_collectes', colId));
       showToast('Collecte annulée !');
@@ -107,7 +108,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       showToast("Accès refusé", 'error');
       return;
     }
-    if (!window.confirm(`Voulez-vous vraiment supprimer cette ${type.toLowerCase()} ?`)) return;
+    if (type !== 'Collecte' && !window.confirm(`Voulez-vous vraiment annuler cette ${type.toLowerCase()} ?`)) return;
     try {
       const collectionName = 
         type === 'Collecte' ? 'tickets_collectes' : 
@@ -122,24 +123,25 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   };
 
   const handleSendReminder = (m: Membre, platform: 'whatsapp' | 'sms') => {
-    const message = `*COMMISSION SOCIALE DMN - CELLULE ESP*
+    const message = `*COMMISION SOCIALE DAARA MADJMAHOUNE NOREYNI CELLULE ESP*
 
-Assalamou halaykoum Mbokk talibé,
+Assalamou halaykoum cher membre,
 
-Nous venons par ce message vous rappeler la collecte des *Tickets Restos* (500 FCFA) pour le compte de ce mois.
+Ceci est un rappel concernant la collecte de la contribution pour les *Tickets Restauration* (500 FCFA) au titre du mois en cours.
 
-Votre contribution est essentielle pour le bon fonctionnement de notre cellule.
+Votre participation est précieuse et contribue directement au soutien des membres de notre communauté.
 
-*Modalités de paiement :*
-- Par Wave ou Orange Money au : *78 277 70 11*
+*Modalités de règlement :*
+- Via Wave ou Orange Money au : *78 277 70 11*
+- Ou en espèces auprès du responsable.
 
-Barakallahou fikoune.`;
+Barakallahou fikoum.`;
     
     // SMS message without markdown (stars) for basic compatibility
-    const smsMessage = `COMMISSION SOCIALE DMN - CELLULE ESP
-Assalamou halaykoum Mbokk talibé,
-Rappel collecte Tickets Restos (500F). Contribution par Wave/OM au 782777011.
-Barakallahou fikoune.`;
+    const smsMessage = `COMMISION SOCIALE DAARA MADJMAHOUNE NOREYNI CELLULE ESP 
+Rappel : Collecte Tickets Restauration (500F).
+Paiement via Wave/OM au 782777011 ou en espèces.
+Barakallahou fikoum.`;
 
     const phone = m.telephone?.replace(/\s/g, '');
     if (!phone) {
@@ -583,7 +585,7 @@ Barakallahou fikoune.`;
       animate={{ opacity: 1, y: 0 }}
       className="max-w-6xl mx-auto space-y-10 pb-40 px-4 sm:px-6"
     >
-      {/* 🧭 PREMIUM NAVIGATION */}
+      {/* NAVIGATION SECONDAIRE */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-10 rounded-[3rem] shadow-soft border border-gray-100/80">
         <div className="space-y-3">
           <h2 className="text-3xl sm:text-4xl fintech-heading">Gestion Tickets Resto</h2>
@@ -612,7 +614,7 @@ Barakallahou fikoune.`;
         </div>
       </div>
 
-      {/* 🚀 QUICK STAT BAR */}
+      {/* STATISTIQUES RAPIDES */}
       {activeTab !== 'statistiques' && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="premium-card p-10 relative overflow-hidden group">
@@ -638,7 +640,7 @@ Barakallahou fikoune.`;
         </div>
       )}
 
-      {/* 📊 DYNAMIC CONTENT */}
+      {/* CONTENU DYNAMIQUE */}
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
@@ -685,14 +687,14 @@ function AnnouncementModal({
   setRooms: React.Dispatch<React.SetStateAction<{ goorYalla: string, sokhnaYi: string }>>,
   showToast: (m: string, t?: 'success' | 'error') => void
 }) {
-  const getMessage = () => `TICKETS RESTO DISPONIBLES À NOUVEAU
+  const getMessage = () => `🚨🚨 TICKETS RESTO DISPONIBLES À NOUVEAU 🍽️🍽️
 
-La Commission Sociale du DMN - Cellule ESP informe tous les membres que les TICKETS RESTO (repas et petits déjeuners) sont à nouveau disponible 
+La Commission Sociale du DMN Cellule ESP informe tous les membres que les TICKETS RESTO (repas 🍛 et petits déjeuners ☕) sont à nouveau disponible 
 Disponibilité actuelle :
 
-- Goor Yalla : ${rooms.goorYalla}
+- ✅ Goor Yalla : ${rooms.goorYalla}
 
-- Sokhna yi  : ${rooms.sokhnaYi}
+- ✅ Sokhna yi  : ${rooms.sokhnaYi}
 
 
 Pour plus d'information contactez 

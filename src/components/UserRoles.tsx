@@ -210,7 +210,7 @@ export function UserRoles({
             animate={{ opacity: 1 }}
             className="space-y-16"
           >
-            {/* 🔑 ACCESS CODES SECTION */}
+            {/* ACCES CODES SECTION */}
             {isAdmin && (
               <div className="bg-white rounded-[3.5rem] border border-gray-100 shadow-soft p-10">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
@@ -273,7 +273,7 @@ export function UserRoles({
               </div>
             )}
 
-            {/* 👤 TEAM SECTION */}
+            {/* TEAM SECTION */}
             <div className="space-y-10">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>

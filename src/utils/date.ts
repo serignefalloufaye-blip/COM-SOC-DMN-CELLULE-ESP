@@ -30,6 +30,20 @@ export const MOIS = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
 ];
 
+export const formatMoisPreposition = (mois: string) => {
+  if (!mois) return '';
+  // Normalize to Title Case (e.g., MAI -> Mai, AVRIL -> Avril)
+  const normalizedMois = mois.charAt(0).toUpperCase() + mois.slice(1).toLowerCase();
+  
+  const firstChar = normalizedMois.charAt(0).toLowerCase();
+  const voyelles = ['a', 'e', 'i', 'o', 'u', 'y', 'é', 'è', 'ê', 'à', 'â', 'î', 'ô', 'û'];
+  
+  if (voyelles.includes(firstChar)) {
+    return `d'${normalizedMois}`;
+  }
+  return `de ${normalizedMois}`;
+};
+
 export const getAutoDateData = (customDateVal?: string | Date | null) => {
   const dt = customDateVal ? new Date(customDateVal) : new Date();
   return {

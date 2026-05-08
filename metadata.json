@@ -1,5 +1,5 @@
 {
-  "name": "COM SOC DMN CELLULE ESP",
-  "description": "Application de gestion de caisse pour la Commission Sociale du Daara Madjmahoune Noreyni – UCAD ESP. Suivi des cotisations, dépenses et transparence financière.",
+  "name": "Daara Madjmahoune Noreyni - Gestion",
+  "description": "Plateforme professionnelle de gestion financière et opérationnelle pour le Daara Madjmahoune Noreyni (UCAD ESP). Gestion de la caisse sociale, des tickets restauration, du café et rapports certifiés.",
   "requestFramePermissions": []
 }

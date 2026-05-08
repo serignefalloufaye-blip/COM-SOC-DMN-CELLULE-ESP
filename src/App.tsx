@@ -16,7 +16,7 @@ import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollec
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
-import { getAutoDateData, relativeDate, formalizeDate, simpleDate } from './utils/date';
+import { getAutoDateData, relativeDate, formalizeDate, simpleDate, formatMoisPreposition } from './utils/date';
 import { User } from 'firebase/auth';
 
 import { useDebounce } from './utils/useDebounce';
@@ -168,7 +168,7 @@ export default function App() {
   useEffect(() => {
     if (userRole && isAuthReady) {
       if (!navigationTabs.find(t => t.id === activeTab)) {
-        showToast("👉 Accès non autorisé", 'error');
+        showToast("Accès non autorisé", 'error');
         setActiveTab(navigationTabs[0].id as Tab);
       }
     }
@@ -306,137 +306,177 @@ export default function App() {
   const annualRecettes = useMemo(() => recettes.filter(r => (r.annee || new Date(r.date || r.createdAt || Date.now()).getFullYear()) === globalYear), [recettes, globalYear]);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       console.log("Auth state changed:", currentUser ? currentUser.email : "No user");
       setUser(currentUser);
-      if (currentUser) {
-        try {
-          const userDoc = await getDocFromServer(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            setUserRole(userDoc.data().role);
-          } else {
-            const isDefaultAdmin = currentUser.email === 'serignefalloufaye@esp.sn';
-            const initialRole: UserRole = isDefaultAdmin ? 'admin' : 'lecteur';
-            const newUser: AppUser = {
-              uid: currentUser.uid,
-              email: currentUser.email || '',
-              nom: currentUser.displayName || currentUser.email?.split('@')[0] || 'Utilisateur',
-              role: initialRole,
-              createdAt: Date.now()
-            };
-            await setDoc(doc(db, 'users', currentUser.uid), newUser);
-            setUserRole(initialRole);
-          }
-        } catch (error: any) {
-          console.error("Firestore initialization error:", error);
-          showToast(`Erreur d'accès aux données : ${error.message}`, 'error');
-          setUserRole('lecteur');
-        }
-      } else {
+      if (!currentUser) {
         setUserRole(null);
+        setIsLoading(false);
+        setIsAuthReady(true);
       }
-      setIsLoading(false);
-      setIsAuthReady(true);
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!isAuthReady || !user || !userRole) return;
+    if (!user) return;
     
-    // Member data
-    const unsubMembres = onSnapshot(collection(db, 'membres'), (snapshot) => {
-      setMembres(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Membre)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'membres'));
-    const unsubCotisations = onSnapshot(collection(db, 'cotisations'), (snapshot) => {
-      setCotisations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Cotisation)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cotisations'));
-    const unsubDepenses = onSnapshot(collection(db, 'depenses'), (snapshot) => {
-      setDepenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Depense)));
+    // Listen to user document for role changes
+    const unsubUserDoc = onSnapshot(doc(db, 'users', user.uid), async (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        console.log("User role updated:", data.role);
+        setUserRole(data.role as UserRole);
+      } else {
+        // Create user doc if it doesn't exist (e.g. first login)
+        console.log("Creating user doc for:", user.email);
+        const isDefaultAdmin = user.email === 'serignefalloufaye@esp.sn';
+        const initialRole: UserRole = isDefaultAdmin ? 'admin' : 'lecteur';
+        const newUser: AppUser = {
+          uid: user.uid,
+          email: user.email || '',
+          nom: user.displayName || user.email?.split('@')[0] || 'Utilisateur',
+          role: initialRole,
+          createdAt: Date.now()
+        };
+        try {
+          await setDoc(doc(db, 'users', user.uid), newUser);
+        } catch (e) {
+          console.error("Error creating user doc:", e);
+        }
+      }
+      setIsAuthReady(true);
       setIsLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'depenses');
+       console.error("User doc fetch error:", error);
+       setUserRole('lecteur');
+       setIsAuthReady(true);
+       setIsLoading(false);
     });
-    const unsubRecettes = onSnapshot(collection(db, 'recettes'), (snapshot) => {
-      setRecettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recette)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'recettes'));
-    const unsubDettes = onSnapshot(collection(db, 'dettes'), (snapshot) => {
-      setDettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dette)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'dettes'));
+    
+    return () => unsubUserDoc();
+  }, [user]);
 
-    const unsubTicketCollectes = onSnapshot(collection(db, 'tickets_collectes'), (snapshot) => {
-      setTicketCollectes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketCollecte)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_collectes'));
+  useEffect(() => {
+    if (!isAuthReady || !user || !userRole) return;
+    
+    const unsubs: (() => void)[] = [];
+    console.log(`Starting data listeners for role: ${userRole}`);
 
-    const unsubTicketConversions = onSnapshot(collection(db, 'tickets_conversions'), (snapshot) => {
-      setTicketConversions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketConversion)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_conversions'));
-
-    const unsubTicketDistributions = onSnapshot(collection(db, 'tickets_distributions'), (snapshot) => {
-      setTicketDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketDistribution)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_distributions'));
-
-    const unsubCafeProductions = onSnapshot(collection(db, 'cafe_productions'), (snapshot) => {
-      setCafeProductions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeProduction)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_productions'));
-
-    const unsubCafeVentes = onSnapshot(collection(db, 'cafe_ventes'), (snapshot) => {
-      setCafeVentes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeVente)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_ventes'));
-
-    const unsubCafeDepenses = onSnapshot(collection(db, 'cafe_depenses'), (snapshot) => {
-      setCafeDepenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeDepense)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_depenses'));
-
-    const unsubCafeTransferts = onSnapshot(collection(db, 'cafe_transferts'), (snapshot) => {
-      setCafeTransferts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeTransfert)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_transferts'));
-
-    const unsubCafeDistributions = onSnapshot(collection(db, 'cafe_distributions'), (snapshot) => {
-      setCafeDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeDistribution)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_distributions'));
-
-    const unsubCafeVersements = onSnapshot(collection(db, 'cafe_versements'), (snapshot) => {
-      setCafeVersements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeVersement)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_versements'));
-
-    const unsubCafeSellers = onSnapshot(collection(db, 'cafe_sellers'), (snapshot) => {
-      setCafeSellers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeSeller)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_sellers'));
-
-    const unsubCafeClients = onSnapshot(collection(db, 'cafe_clients'), (snapshot) => {
-      setCafeClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeClient)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_clients'));
-
-    const unsubUsers = userRole === 'admin' 
-      ? onSnapshot(collection(db, 'users'), (snapshot) => {
-          setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as AppUser)));
-        }, (error) => handleFirestoreError(error, OperationType.GET, 'users'))
-      : () => {};
-
-    const unsubCafePriceConfig = onSnapshot(doc(db, 'settings', 'cafe_prices'), (snapshot) => {
-      if (snapshot.exists()) {
-        setCafePriceConfig({ id: snapshot.id, ...snapshot.data() } as CafePriceConfig);
-      } else {
-        setCafePriceConfig({
-          id: 'cafe_prices',
-          prices: {
-            '1kg': { cost: 1500, price: 2500 },
-            '500g': { cost: 800, price: 1300 }
-          },
-          lastUpdated: Date.now()
-        });
-      }
+    // Members data - needed by almost all roles for display/selection
+    const unsubMembres = onSnapshot(collection(db, 'membres'), (snapshot) => {
+      setMembres(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Membre)));
+    }, (error) => {
+      console.warn("Membres fetch restricted or failed:", error.message);
+      // Don't toast for every restricted load to avoid spamming if role changed
     });
+    unsubs.push(unsubMembres);
 
-    return () => { 
-      unsubMembres(); unsubCotisations(); unsubDepenses(); unsubRecettes(); unsubDettes(); 
-      unsubTicketCollectes(); unsubTicketConversions(); unsubTicketDistributions();
-      unsubCafeProductions(); unsubCafeVentes(); unsubCafeDepenses(); unsubCafeTransferts();
-      unsubCafeDistributions(); unsubCafeVersements(); unsubCafeSellers(); unsubCafeClients();
-      unsubUsers(); unsubCafePriceConfig();
+    // Finance data (Caisse, Finance, Stats)
+    if (isAdmin || isCaisse || userRole === 'lecteur') {
+      const unsubCotisations = onSnapshot(collection(db, 'cotisations'), (snapshot) => {
+        setCotisations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Cotisation)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cotisations'));
+      unsubs.push(unsubCotisations);
+
+      const unsubDepenses = onSnapshot(collection(db, 'depenses'), (snapshot) => {
+        setDepenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Depense)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'depenses'));
+      unsubs.push(unsubDepenses);
+
+      const unsubRecettes = onSnapshot(collection(db, 'recettes'), (snapshot) => {
+        setRecettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recette)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'recettes'));
+      unsubs.push(unsubRecettes);
+
+      const unsubDettes = onSnapshot(collection(db, 'dettes'), (snapshot) => {
+        setDettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dette)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'dettes'));
+      unsubs.push(unsubDettes);
+    }
+
+    // Ticket data
+    if (isAdmin || isTickets || userRole === 'lecteur') {
+      const unsubTicketCollectes = onSnapshot(collection(db, 'tickets_collectes'), (snapshot) => {
+        setTicketCollectes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketCollecte)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_collectes'));
+      unsubs.push(unsubTicketCollectes);
+
+      const unsubTicketConversions = onSnapshot(collection(db, 'tickets_conversions'), (snapshot) => {
+        setTicketConversions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketConversion)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_conversions'));
+      unsubs.push(unsubTicketConversions);
+
+      const unsubTicketDistributions = onSnapshot(collection(db, 'tickets_distributions'), (snapshot) => {
+        setTicketDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketDistribution)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'tickets_distributions'));
+      unsubs.push(unsubTicketDistributions);
+    }
+
+    // Cafe data
+    if (isAdmin || isCafe || isRevendeur || userRole === 'lecteur') {
+      const unsubCafeProductions = onSnapshot(collection(db, 'cafe_productions'), (snapshot) => {
+        setCafeProductions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeProduction)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_productions'));
+      unsubs.push(unsubCafeProductions);
+
+      const unsubCafeVentes = onSnapshot(collection(db, 'cafe_ventes'), (snapshot) => {
+        setCafeVentes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeVente)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_ventes'));
+      unsubs.push(unsubCafeVentes);
+
+      const unsubCafeDepenses = onSnapshot(collection(db, 'cafe_depenses'), (snapshot) => {
+        setCafeDepenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeDepense)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_depenses'));
+      unsubs.push(unsubCafeDepenses);
+
+      const unsubCafeTransferts = onSnapshot(collection(db, 'cafe_transferts'), (snapshot) => {
+        setCafeTransferts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeTransfert)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_transferts'));
+      unsubs.push(unsubCafeTransferts);
+
+      const unsubCafeDistributions = onSnapshot(collection(db, 'cafe_distributions'), (snapshot) => {
+        setCafeDistributions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeDistribution)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_distributions'));
+      unsubs.push(unsubCafeDistributions);
+
+      const unsubCafeVersements = onSnapshot(collection(db, 'cafe_versements'), (snapshot) => {
+        setCafeVersements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeVersement)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_versements'));
+      unsubs.push(unsubCafeVersements);
+
+      const unsubCafeSellers = onSnapshot(collection(db, 'cafe_sellers'), (snapshot) => {
+        setCafeSellers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeSeller)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_sellers'));
+      unsubs.push(unsubCafeSellers);
+
+      const unsubCafeClients = onSnapshot(collection(db, 'cafe_clients'), (snapshot) => {
+        setCafeClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeClient)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_clients'));
+      unsubs.push(unsubCafeClients);
+
+      const unsubCafePriceConfig = onSnapshot(doc(db, 'settings', 'cafe_prices'), (snapshot) => {
+        if (snapshot.exists()) {
+          setCafePriceConfig({ id: snapshot.id, ...snapshot.data() } as CafePriceConfig);
+        }
+      });
+      unsubs.push(unsubCafePriceConfig);
+    }
+
+    // Admin only data
+    if (isAdmin) {
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        setAllUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as AppUser)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
+      unsubs.push(unsubUsers);
+    }
+
+    return () => {
+      console.log("Cleaning up data listeners");
+      unsubs.forEach(u => u());
     };
-  }, [isAuthReady, user, userRole]);
+  }, [isAuthReady, user, userRole, isAdmin, isCaisse, isTickets, isCafe, isRevendeur]);
+
 
   useEffect(() => {
     const unsubSettings = onSnapshot(doc(db, 'settings', 'app'), (snapshot) => {
@@ -612,7 +652,7 @@ export default function App() {
       } else {
         const existing = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === annee);
         if (existing && existing.montant > 0) {
-          showToast(`Ce membre a déjà payé pour ${mois} ${annee}`, 'error');
+          showToast(`Ce membre a déjà payé pour le ${formatMoisPreposition(mois)} ${annee}`, 'error');
           return;
         } else if (existing) {
           await updateDoc(doc(db, 'cotisations', existing.id), { montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
@@ -1498,7 +1538,7 @@ export default function App() {
                                   isSelected ? 'bg-dmn-gold text-white border-dmn-gold shadow-md transform scale-105 font-bold' :
                                   'bg-white text-gray-500 border-gray-200 hover:border-dmn-green-300 hover:text-dmn-green-600'
                                 }`}
-                                title={isPaid ? `Payé: ${existingCot.montant}F (${existingCot.mode}) - Clic pour options` : `Sélectionner ${mois}`}
+                                title={isPaid ? `Payé: ${existingCot.montant}F (${existingCot.mode}) - Clic pour options` : `Sélectionner le ${formatMoisPreposition(mois)}`}
                               >
                                 {mois.substring(0, 4)} {isPaid ? '✓' : ''}
                               </button>
@@ -1872,11 +1912,11 @@ export default function App() {
       });
 
       if (sortedCots.length === 0) {
-        showToast(`Aucune cotisation pour le mois de ${monthToShare}.`, 'error');
+        showToast(`Aucune cotisation pour le ${formatMoisPreposition(monthToShare)}.`, 'error');
         return;
       }
 
-      let message = `Mensualité mois d’${monthToShare} ${globalYear}\n\n`;
+      let message = `Mensualité mois ${formatMoisPreposition(monthToShare)} ${globalYear}\n\n`;
       
       sortedCots.forEach((c, index) => {
         const m = getMembre(c.mId);
@@ -2350,15 +2390,15 @@ export default function App() {
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-          <div className="bg-dmn-green-900 text-white px-8 py-6 font-heading font-bold text-lg flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <AlertTriangle size={24} className="text-dmn-gold-light" /> 
-              Suivi des Retards de Paiement
-            </div>
-            <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
-              <Printer size={14} /> Imprimer
-            </button>
-          </div>
+      <div className="bg-dmn-green-900 text-white px-8 py-6 font-heading font-bold text-lg flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <AlertTriangle size={24} className="text-dmn-gold-light" strokeWidth={2.5} /> 
+          Suivi des Retards de Paiement
+        </div>
+        <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
+          <Printer size={14} /> Imprimer
+        </button>
+      </div>
           <div className="p-8">
             {/* Filtres */}
             <div className="flex flex-col md:flex-row gap-4 mb-8">
@@ -2434,14 +2474,14 @@ export default function App() {
                         <td className="px-6 py-4">
                           <div className="flex justify-center gap-2">
                             <a 
-                              href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum Mbokk talibé,\nRappel mensualité Commission Sociale (500F). Contribution par Wave/OM au 770952647.\nBarakallahou fikoune.`)}`}
+                              href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum,\nCeci est un rappel pour votre contribution sociale mensuelle au Daara. Votre soutien est précieux pour nos actions. Paiement possible via Wave/OM au 770952647.\nQu’Allah vous récompense.`)}`}
                               className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
                               title="Rappel SMS"
                             >
                               <Smartphone size={18} />
                             </a>
                             <a 
-                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokk talibé,\n\nNous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois.\n\nVotre contribution est essentielle pour soutenir nos actions sociales.\n\n*Modalités de paiement :*\n- Par Wave ou Orange Money au : *77 095 26 47*\n\nBarakallahou fikoune.`)}`}
+                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum,\n\nNous vous informons que la collecte de la mensualité est ouverte pour le mois en cours.\n\nVotre contribution est précieuse pour nos actions sociales au sein de l'UCAD.\n\n*Modalités de règlement :*\n- Wave ou Orange Money : *77 095 26 47*\n\nQu'Allah vous récompense pour votre engagement.`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
@@ -2513,14 +2553,14 @@ export default function App() {
                         </button>
                       )}
                       <a 
-                        href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum Mbokk talibé,\nRappel mensualité Commission Sociale (500F). Contribution par Wave/OM au 770952647.\nBarakallahou fikoune.`)}`}
+                        href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum,\nNous vous rappelons votre contribution mensuelle (500F ou plus). Paiement par Wave/OM au 770952647.\nQu’Allah vous récompense.`)}`}
                         className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
                         title="Rappel SMS"
                       >
                         <Smartphone size={20} />
                       </a>
                       <a 
-                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokk talibé,\n\nNous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois.\n\nVotre contribution est essentielle pour soutenir nos actions sociales.\n\n*Modalités de paiement :*\n- Par Wave ou Orange Money au : *77 095 26 47*\n\nBarakallahou fikoune.`)}`}
+                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum,\n\nNous vous informons que la collecte de la mensualité (500 FCFA ou plus) est ouverte pour le mois en cours.\n\nVotre contribution est précieuse pour nos actions sociales.\n\n*Modalités de règlement :*\n- Wave ou Orange Money : *77 095 26 47*\n\nQu'Allah vous récompense.`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-90 shadow-sm"

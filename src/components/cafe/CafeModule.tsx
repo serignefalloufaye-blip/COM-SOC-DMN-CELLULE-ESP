@@ -2096,7 +2096,7 @@ export function CafeModule({
   return (
     <div className="max-w-6xl mx-auto space-y-10 pb-10">
       {renderEditModal()}
-      {/* 🏛️ HEADER DAARA STYLE */}
+      {/* HEADER DAARA STYLE */}
       <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-soft flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
            <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3">
@@ -2120,7 +2120,7 @@ export function CafeModule({
         </div>
       </div>
 
-      {/* 🚀 QUICK ACTIONS (MOBILE FIRST) */}
+      {/* ACTIONS RAPIDES */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:hidden px-2">
            {canProduce && (
              <button onClick={() => setActiveTab('production')} className="bg-blue-600 text-white p-4 rounded-3xl flex flex-col items-center gap-2 active:scale-95 transition-all outline-none">
@@ -2139,7 +2139,7 @@ export function CafeModule({
            )}
         </div>
 
-      {/* 📖 CONTENT */}
+      {/* CONTENU PRINCIPAL */}
       <AnimatePresence mode="wait">
         <motion.div
            key={activeTab}

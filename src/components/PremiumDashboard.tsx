@@ -232,33 +232,33 @@ export function PremiumDashboard({
       initial="hidden"
       animate="show"
       variants={containerVariants}
-      className="max-w-5xl mx-auto space-y-10 pb-32 pt-4 sm:pt-12 px-4 sm:px-6"
+      className="max-w-5xl mx-auto space-y-6 sm:space-y-10 pb-32 pt-4 sm:pt-12 px-2 sm:px-6"
     >
-      {/* 🚀 WELCOME & LOGO */}
+      {/* WELCOME & LOGO */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-4">
-        <div className="flex items-center gap-6">
-          <div className="relative group">
-            <div className="absolute inset-0 bg-dmn-green-500/10 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="w-20 h-20 bg-white rounded-[2rem] p-1.5 shadow-soft border border-gray-100/80 overflow-hidden relative z-10 transition-transform group-hover:scale-105 duration-500">
+        <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-center sm:justify-start">
+          <div className="relative group shrink-0">
+            <div className="absolute inset-0 bg-dmn-green-500/10 rounded-[1.5rem] sm:rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-[1.5rem] sm:rounded-[2rem] p-1 sm:p-1.5 shadow-soft border border-gray-100/80 overflow-hidden relative z-10 transition-transform group-hover:scale-105 duration-500">
               {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1.5rem]" />
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1.2rem] sm:rounded-[1.5rem]" />
               ) : (
                 <div className="w-full h-full bg-dmn-green-50 flex items-center justify-center text-dmn-green-700">
-                  <Building2 size={36} strokeWidth={2.5} />
+                  <Building2 size={32} strokeWidth={2.5} />
                 </div>
               )}
             </div>
           </div>
-          <div>
-            <h1 className="text-2xl sm:text-4xl fintech-heading">Daara Madjmahoune Noreyni UCAD</h1>
-            <p className="text-[10px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.4em] mt-2 flex items-center gap-3">
-              <span className="w-2 h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Système de Gestion DMN
+          <div className="text-center sm:text-left">
+            <h1 className="text-xl sm:text-3xl lg:text-4xl fintech-heading leading-tight max-w-[250px] sm:max-w-none">Daara Madjmahoune Noreyni UCAD</h1>
+            <p className="text-[9px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.2em] sm:tracking-[0.4em] mt-1 sm:mt-2 flex items-center justify-center sm:justify-start gap-2 sm:gap-3">
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Système de Gestion DMN
             </p>
           </div>
         </div>
         
         {smartInsights.length > 0 && (
-          <div className="flex flex-col gap-2 w-full sm:w-auto">
+          <div className="hidden sm:flex flex-col gap-2">
             {smartInsights.map((insight, idx) => (
               <div key={idx} className="bg-white/50 backdrop-blur-sm border border-gray-100 py-2.5 px-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-right-4 duration-500 shadow-sm">
                 <insight.icon size={16} className={insight.color} />
@@ -269,58 +269,59 @@ export function PremiumDashboard({
         )}
       </div>
 
-      {/* 💳 MAIN WALLET CARD */}
+      {/* MAIN WALLET CARD */}
       {(isCaisse || isStats) && (
-      <motion.div variants={itemVariants} className="relative group">
+      <motion.div variants={itemVariants} className="relative group px-2 sm:px-0">
         <div className="absolute inset-x-0 -bottom-6 h-12 bg-dmn-green-900/10 blur-3xl rounded-full scale-95 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-        <div className="relative h-72 sm:h-80 w-full bg-dmn-green-900 rounded-[3.5rem] p-8 sm:p-10 shadow-2xl shadow-dmn-green-900/30 overflow-hidden transition-all duration-700 group-hover:translate-y-[-4px]">
+        <div className="relative h-64 sm:h-80 w-full bg-dmn-green-900 rounded-[2.5rem] sm:rounded-[3.5rem] p-6 sm:p-10 shadow-2xl shadow-dmn-green-900/30 overflow-hidden transition-all duration-700 group-hover:translate-y-[-4px]">
           {/* Background Elements */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-dmn-green-500/20 rounded-full blur-[120px] -mr-48 -mt-48 transition-transform group-hover:scale-110 duration-1000"></div>
-          <div className="absolute bottom-0 left-0 w-60 h-60 bg-dmn-gold/20 rounded-full blur-[100px] -ml-30 -mb-30 transition-transform group-hover:scale-110 duration-1000"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-dmn-green-500/20 rounded-full blur-[80px] sm:blur-[120px] -mr-32 -mt-32 sm:-mr-48 sm:-mt-48 transition-transform group-hover:scale-110 duration-1000"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 sm:w-60 h-60 bg-dmn-gold/20 rounded-full blur-[60px] sm:blur-[100px] -ml-20 -mb-20 sm:-ml-30 sm:-mb-30 transition-transform group-hover:scale-110 duration-1000"></div>
           
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
-              <div className="space-y-4">
+              <div className="space-y-2 sm:space-y-4">
                 <div className="flex items-center gap-3">
-                  <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">Solde Trésorerie Centrale</p>
-                  <Shield size={14} className="text-white/20" />
+                  <p className="text-white/40 text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.4em]">Solde Trésorerie Centrale</p>
+                  <Shield size={12} className="text-white/20 sm:block hidden" />
                 </div>
-                <div className="flex items-baseline gap-4">
-                  <span className="text-3xl font-heading font-black text-dmn-gold opacity-80 mb-2 tracking-tighter">FCFA</span>
-                  <h2 className="text-6xl sm:text-8xl fintech-kpi text-white drop-shadow-2xl">
+                <div className="flex items-baseline gap-2 sm:gap-4">
+                  <span className="text-xl sm:text-3xl font-heading font-black text-dmn-gold opacity-80 tracking-tighter">FCFA</span>
+                  <h2 className="text-4xl sm:text-7xl lg:text-8xl fintech-kpi text-white drop-shadow-2xl">
                     {formatPrice(soldeGlobal)}
                   </h2>
                 </div>
               </div>
-              <div className="p-4 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-lg ring-1 ring-white/20 hover:scale-110 transition-transform cursor-help" title="Identifiant Caisse">
-                <LayoutGrid size={28} className="text-dmn-gold-light" />
+              <div className="p-3 sm:p-4 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl sm:rounded-3xl shadow-lg ring-1 ring-white/20 hover:scale-110 transition-transform cursor-help">
+                <LayoutGrid size={20} className="text-dmn-gold-light sm:block hidden" />
+                <Zap size={20} className="text-dmn-gold-light sm:hidden" />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-8 sm:gap-16 max-w-sm">
-              <div className="space-y-2">
-                <p className="text-dmn-green-400/60 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                  <TrendingUp size={10} /> Flux Entrants
+            <div className="grid grid-cols-2 gap-4 sm:gap-16 max-w-sm">
+              <div className="space-y-1 sm:space-y-2">
+                <p className="text-dmn-green-400/60 text-[8px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 line-clamp-1">
+                  <TrendingUp size={10} /> Entrées
                 </p>
-                <p className="text-xl sm:text-2xl font-black text-white">{formatPrice(totEntrees)} <span className="text-xs text-white/40">F</span></p>
-                <div className="w-12 h-1 bg-dmn-green-500/30 rounded-full overflow-hidden">
+                <p className="text-lg sm:text-2xl font-black text-white">{formatPrice(totEntrees)} <span className="text-[10px] text-white/40">F</span></p>
+                <div className="w-8 sm:w-12 h-1 bg-dmn-green-500/30 rounded-full overflow-hidden">
                    <div className="h-full bg-dmn-green-400 w-2/3 shimmer"></div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <p className="text-red-400/60 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                  <TrendingDown size={10} /> Flux Sortants
+              <div className="space-y-1 sm:space-y-2">
+                <p className="text-red-400/60 text-[8px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 line-clamp-1">
+                  <TrendingDown size={10} /> Sorties
                 </p>
-                <p className="text-xl sm:text-2xl font-black text-white">{formatPrice(totDepenses)} <span className="text-xs text-white/40">F</span></p>
-                <div className="w-12 h-1 bg-red-500/30 rounded-full overflow-hidden">
+                <p className="text-lg sm:text-2xl font-black text-white">{formatPrice(totDepenses)} <span className="text-[10px] text-white/40">F</span></p>
+                <div className="w-8 sm:w-12 h-1 bg-red-500/30 rounded-full overflow-hidden">
                    <div className="h-full bg-red-400 w-1/3"></div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-between items-center border-t border-white/10 pt-6">
-              <p className="text-[11px] font-mono tracking-[0.4em] text-white/30 uppercase">VALID UNTIL {globalYear + 1}</p>
-              <div className="flex items-center gap-1">
+            <div className="flex justify-between items-center border-t border-white/10 pt-4 sm:pt-6">
+              <p className="text-[8px] sm:text-[11px] font-mono tracking-[0.2em] sm:tracking-[0.4em] text-white/30 uppercase line-clamp-1">VALID UNTIL {globalYear + 1}</p>
+              <div className="flex items-center gap-1 scale-75 sm:scale-100">
                  <div className="w-8 h-5 bg-white/10 rounded-md"></div>
                  <div className="w-8 h-5 bg-white/5 rounded-md"></div>
               </div>
@@ -330,15 +331,15 @@ export function PremiumDashboard({
       </motion.div>
       )}
 
-      {/* 📊 KPI GRID */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 px-1">
+      {/* KPI GRID */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 px-1">
         {[
-          { show: isAdmin || isCaisse || isStats, label: 'Cotisations Annuelles', value: formatPrice(annualCotisations.reduce((s, c) => s + c.montant, 0)) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `${globalYear}` },
+          { show: isAdmin || isCaisse || isStats, label: 'Cotis. Annuelles', value: formatPrice(annualCotisations.reduce((s, c) => s + c.montant, 0)) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `${globalYear}` },
           { show: isAdmin || isCaisse || isStats, label: 'Membres Actifs', value: membresActifs, color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: Users, sub: `${membres.length} total` },
-          { show: isAdmin || isCaisse || isStats, label: 'Dettes / Retards', value: formatPrice(totDettesEnAttente) + ' F', color: 'text-red-500', bg: 'bg-red-50', icon: AlertCircle, sub: 'À recouvrer' },
+          { show: isAdmin || isCaisse || isStats, label: 'Dettes / Attentes', value: formatPrice(totDettesEnAttente) + ' F', color: 'text-red-500', bg: 'bg-red-50', icon: AlertCircle, sub: 'À recouvrer' },
           { show: isAdmin || isTickets, label: 'Repas', value: stockRepas, color: 'text-amber-600', bg: 'bg-amber-50', icon: Ticket, sub: 'En stock' },
           { show: isAdmin || isCafe, label: 'Café (Global)', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités dispo' },
-          { show: isRevendeur, label: 'Mon Stock', value: sellerStock, color: 'text-orange-600', bg: 'bg-orange-50', icon: Package, sub: 'Unités' },
+          { show: isRevendeur, label: 'Mon Stock', value: sellerStock, color: 'text-purple-600', bg: 'bg-purple-50', icon: Package, sub: 'Unités' },
           { show: isRevendeur, label: 'Mes Ventes', value: formatPrice(sellerRevenue) + ' F', color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: TrendingUp, sub: `${sellerQtySold} vendus` },
           { show: isMembreSimple && myMembre, label: 'Mon Statut', value: myMembre ? getMembreStatus(myMembre.id) : '-', color: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'text-dmn-green-600' : 'text-red-500', bg: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'bg-dmn-green-50' : 'bg-red-50', icon: Shield, sub: 'Cotisations' },
           { show: isMembreSimple && myMembre, label: 'Mes Cotisations', value: formatPrice(myMembre ? cotisations.filter(c => c.mId === myMembre.id && c.annee === globalYear).reduce((s, c) => s + c.montant, 0) : 0) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `En ${globalYear}` },
@@ -347,21 +348,21 @@ export function PremiumDashboard({
             key={i}
             variants={itemVariants}
             whileHover={{ y: -5 }}
-            className={`premium-card p-5 flex flex-col justify-between h-32 relative overflow-hidden`}
+            className={`premium-card p-4 sm:p-5 flex flex-col justify-between h-28 sm:h-32 relative overflow-hidden`}
           >
-            <div className={`p-2 w-10 h-10 ${item.bg} ${item.color} rounded-xl flex items-center justify-center mb-2`}>
-              <item.icon size={20} />
+            <div className={`p-2 w-9 h-9 sm:w-10 sm:h-10 ${item.bg} ${item.color} rounded-xl flex items-center justify-center mb-1 sm:mb-2`}>
+              <item.icon size={18} />
             </div>
             <div>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{item.label}</p>
-              <h4 className={`text-lg font-black ${item.color} leading-none mt-1`}>{item.value}</h4>
-              <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-tighter opacity-60">{item.sub}</p>
+              <p className="text-[8px] sm:text-[9px] font-black text-gray-400 uppercase tracking-widest line-clamp-1">{item.label}</p>
+              <h4 className={`text-sm sm:text-lg font-black ${item.color} leading-none mt-1`}>{item.value}</h4>
+              <p className="text-[7px] sm:text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-tighter opacity-60 leading-none">{item.sub}</p>
             </div>
           </motion.div>
         ))}
       </div>
 
-      {/* 🏆 COMMERCIAL INSIGHTS */}
+      {/* COMMERCIAL INSIGHTS */}
       {isCafe && (
         <motion.section variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm">
@@ -409,7 +410,7 @@ export function PremiumDashboard({
         </motion.section>
       )}
 
-      {/* 🚀 QUICK ACTIONS (Floating Style) */}
+      {/* QUICK ACTIONS (Floating Style) */}
       <motion.div variants={itemVariants} className="bg-gray-900 rounded-[3rem] p-4 flex items-center justify-between shadow-2xl relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-r from-dmn-green-900/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
         <div className="flex gap-2 sm:gap-6 overflow-x-auto no-scrollbar py-1">
@@ -433,7 +434,7 @@ export function PremiumDashboard({
         </div>
       </motion.div>
 
-      {/* 📊 ANALYTICS SECTION */}
+      {/* ANALYTICS SECTION */}
       {(isCaisse || isStats) && (
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 premium-card p-8">
@@ -521,7 +522,7 @@ export function PremiumDashboard({
       </motion.div>
       )}
 
-      {/* 📋 ACTIVITY STREAM */}
+      {/* ACTIVITY STREAM */}
       <motion.section variants={itemVariants} className="space-y-6">
         <div className="flex justify-between items-center px-4">
           <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-3">
