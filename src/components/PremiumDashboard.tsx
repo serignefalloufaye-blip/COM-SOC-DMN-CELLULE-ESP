@@ -172,16 +172,27 @@ export function PremiumDashboard({
     const paidMembers = membres.filter(m => getMembreStatus(m.id) === 'À jour');
     const totalMembers = membres.length;
     const percentage = Math.round((paidMembers.length / totalMembers) * 100);
+    const month = globalMonth || MOIS[new Date().getMonth()];
     
-    let message = `Mensualité mois de ${globalMonth || MOIS[new Date().getMonth()]} ${globalYear} `;
+    let message = `*COMMISSION SOCIALE DMN - CELLULE ESP*\n\n`;
+    message += `Assalamou halaykoum Mbokkou talibé,\n\n`;
+    message += `Nous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois (*${month} ${globalYear}*).\n`;
+    message += `Votre contribution est essentielle pour soutenir nos actions sociales.\n\n`;
+    
+    message += `*Situation des paiements :*\n`;
     paidMembers.forEach((m, index) => {
-        message += `${index + 1}- ${m.prenom.toUpperCase()} ${m.nom.toUpperCase()}  `;
+        message += `${index + 1}- ${m.prenom.toUpperCase()} ${m.nom.toUpperCase()}\n`;
     });
-    message += `Total : ${paidMembers.length} membres sur ${totalMembers} (${percentage}%) Daara Madjmahoune Noreyni UCAD - Commission Sociale Cellule ESP.`;
+    
+    message += `\n*Total : ${paidMembers.length} membres sur ${totalMembers} (${percentage}%)*\n\n`;
+    
+    message += `*Modalités de paiement :*\n`;
+    message += `- Par Wave ou Orange Money au : *77 095 26 47*\n\n`;
+    message += `Barakallahou fikoum.`;
     
     // Copy to clipboard
     navigator.clipboard.writeText(message);
-    alert('Message copié dans le presse-papier !');
+    alert('Message de rappel adapté et copié !');
   };
 
   const membresActifs = membres.filter(m => getMembreStatus(m.id) === 'À jour').length;
