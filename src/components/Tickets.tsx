@@ -6,7 +6,7 @@ import { hasPermission, logAudit } from '../utils/permissions';
 import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
 import { MOIS } from '../data';
 import { relativeDate } from '../utils/date';
-import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar, TrendingUp, TrendingDown, Clock, X, AlertCircle, CheckCircle2, Download, Table, Printer, BarChart3 } from 'lucide-react';
+import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar, TrendingUp, TrendingDown, Clock, X, AlertCircle, CheckCircle2, Download, Table, Printer, BarChart3, MessageCircle, Share2, Copy, Info, Smartphone } from 'lucide-react';
 import { TicketsStats } from './TicketsStats';
 import { useAdaptive } from '../hooks/useAdaptive';
 
@@ -30,6 +30,13 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
   const currentMonthIndex = new Date().getMonth();
   const currentMonthName = MOIS[currentMonthIndex];
   const effectiveMonth = globalMonth || currentMonthName;
+
+  // New state for announcement
+  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+  const [announcementRooms, setAnnouncementRooms] = useState({
+    goorYalla: '43G et 47B',
+    sokhnaYi: '59B et 66G'
+  });
 
   // Calculate global numbers
   const totalArgentCollecte = collectes.filter(c => c.type === 'argent').reduce((s, c) => s + (c.montantArgent || 0), 0);
@@ -80,17 +87,17 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
     }
   };
 
-  const handleAnnulerCollecte = async (mId: string) => {
+  const handleAnnulerCollecte = async (colId: string) => {
     if (!canDelete && userRole !== 'admin') {
       showToast("Accès refusé. Vous n'avez pas le droit de supprimer.", 'error');
       return;
     }
     if (!window.confirm("Voulez-vous vraiment annuler cette collecte ?")) return;
     try {
-      const colId = `${mId}_${globalYear}_${effectiveMonth}`;
       await deleteDoc(doc(db, 'tickets_collectes', colId));
       showToast('Collecte annulée !');
     } catch (e) {
+      console.error("Error cancelling collection:", e);
       showToast('Erreur lors de l\'annulation', 'error');
     }
   };
@@ -111,6 +118,47 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       showToast(`${type} annulée !`);
     } catch (e) {
       showToast('Erreur lors de l\'annulation', 'error');
+    }
+  };
+
+  const handleSendReminder = (m: Membre, platform: 'whatsapp' | 'sms') => {
+    const message = `*COMMISSION SOCIALE DMN - CELLULE ESP*
+
+Assalamou halaykoum Mbokk talibé,
+
+Nous venons par ce message vous rappeler la collecte des *Tickets Restos* (500 FCFA) pour le compte de ce mois.
+
+Votre contribution est essentielle pour le bon fonctionnement de notre cellule.
+
+*Modalités de paiement :*
+- Par Wave ou Orange Money au : *78 277 70 11*
+
+Barakallahou fikoune.`;
+    
+    // SMS message without markdown (stars) for basic compatibility
+    const smsMessage = `COMMISSION SOCIALE DMN - CELLULE ESP
+Assalamou halaykoum Mbokk talibé,
+Rappel collecte Tickets Restos (500F). Contribution par Wave/OM au 782777011.
+Barakallahou fikoune.`;
+
+    const phone = m.telephone?.replace(/\s/g, '');
+    if (!phone) {
+      navigator.clipboard.writeText(message);
+      showToast('Message de rappel copié ! (Pas de numéro trouvé)', 'success');
+      return;
+    }
+
+    const formattedPhone = phone.startsWith('+') ? phone : '+221' + phone;
+    const encodedMsg = platform === 'whatsapp' ? encodeURIComponent(message) : encodeURIComponent(smsMessage);
+
+    if (platform === 'whatsapp') {
+      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMsg}`;
+      window.open(whatsappUrl, '_blank');
+      showToast('Redirection WhatsApp...', 'success');
+    } else {
+      const smsUrl = `sms:${formattedPhone}?body=${encodedMsg}`;
+      window.location.href = smsUrl;
+      showToast('Ouverture SMS...', 'success');
     }
   };
 
@@ -140,7 +188,27 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             
             return (
               <div key={m.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative hover:shadow-md transition-all">
-                <h3 className="font-bold text-gray-900 text-lg">{m.prenom} {m.nom}</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-gray-900 text-lg">{m.prenom} {m.nom}</h3>
+                  {!collecteDuMois && (
+                    <div className="flex gap-1">
+                      <button 
+                        onClick={() => handleSendReminder(m, 'sms')}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-all"
+                        title="Rappel par SMS"
+                      >
+                        <Smartphone size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleSendReminder(m, 'whatsapp')}
+                        className="p-2 text-dmn-green-600 hover:bg-dmn-green-50 rounded-full transition-all"
+                        title="Rappel par WhatsApp"
+                      >
+                        <MessageCircle size={18} />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 
                 {collecteDuMois ? (
                   <div className="mt-4 p-4 rounded-xl bg-dmn-green-50 border border-dmn-green-100 flex justify-between items-center">
@@ -162,7 +230,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
                       )}
                     </div>
                     {isTickets && (
-                      <button onClick={() => handleAnnulerCollecte(m.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Annuler">
+                      <button onClick={() => handleAnnulerCollecte(collecteDuMois.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Annuler">
                         <Minus size={18} />
                       </button>
                     )}
@@ -230,6 +298,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       });
       setConvMontant(''); setConvPD(0); setConvRepas(0);
       showToast("Conversion réussie !");
+      setIsAnnouncementModalOpen(true);
     } catch (err) {
       showToast("Erreur lors de la conversion", "error");
     }
@@ -277,8 +346,16 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             Total Tickets : {(convPD * 50) + (convRepas * 100)} FCFA
           </div>
 
-          <button type="submit" className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">
+          <button type="submit" className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none mb-4">
             Convertir
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setIsAnnouncementModalOpen(true)}
+            className="w-full py-4 bg-dmn-green-50 text-dmn-green-700 rounded-xl font-bold border border-dmn-green-100 flex items-center justify-center gap-2 hover:bg-dmn-green-100 transition-all active:scale-95 mb-4"
+          >
+            <Share2 size={18} /> Annoncer la disponibilité
           </button>
         </form>
       </div>
@@ -583,7 +660,138 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
           {activeTab === 'historique' && renderHistorique()}
         </motion.div>
       </AnimatePresence>
+
+      <AnnouncementModal 
+        isOpen={isAnnouncementModalOpen} 
+        onClose={() => setIsAnnouncementModalOpen(false)}
+        rooms={announcementRooms}
+        setRooms={setAnnouncementRooms}
+        showToast={showToast}
+      />
     </motion.div>
+  );
+}
+
+function AnnouncementModal({ 
+  isOpen, 
+  onClose, 
+  rooms, 
+  setRooms,
+  showToast 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  rooms: { goorYalla: string, sokhnaYi: string },
+  setRooms: React.Dispatch<React.SetStateAction<{ goorYalla: string, sokhnaYi: string }>>,
+  showToast: (m: string, t?: 'success' | 'error') => void
+}) {
+  const getMessage = () => `TICKETS RESTO DISPONIBLES À NOUVEAU
+
+La Commission Sociale du DMN - Cellule ESP informe tous les membres que les TICKETS RESTO (repas et petits déjeuners) sont à nouveau disponible 
+Disponibilité actuelle :
+
+- Goor Yalla : ${rooms.goorYalla}
+
+- Sokhna yi  : ${rooms.sokhnaYi}
+
+
+Pour plus d'information contactez 
+782777011
+764531437`;
+
+  const handleShare = () => {
+    const text = getMessage();
+    const encoded = encodeURIComponent(text);
+    window.open(`https://wa.me/?text=${encoded}`, '_blank');
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(getMessage());
+    showToast("Message copié ! N'oubliez pas d'envoyer l'image d'accompagnement.", 'success');
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl relative border border-gray-100 max-h-[90vh] overflow-y-auto"
+          >
+            <button 
+              onClick={onClose} 
+              className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-dmn-green-50 rounded-2xl flex items-center justify-center mx-auto text-dmn-green-600 mb-4">
+                  <Share2 size={32} />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900">Annoncer la disponibilité</h3>
+                <p className="text-gray-500 text-sm mt-1">Générez le message pour le groupe Daara</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Chambres Goor Yalla</label>
+                    <input 
+                      type="text" 
+                      value={rooms.goorYalla} 
+                      onChange={e => setRooms(prev => ({ ...prev, goorYalla: e.target.value }))}
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm font-bold focus:ring-2 focus:ring-dmn-green-500/20 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Chambres Sokhna Yi</label>
+                    <input 
+                      type="text" 
+                      value={rooms.sokhnaYi} 
+                      onChange={e => setRooms(prev => ({ ...prev, sokhnaYi: e.target.value }))}
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm font-bold focus:ring-2 focus:ring-dmn-green-500/20 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Prévisualisation du message</p>
+                  <pre className="text-xs font-sans whitespace-pre-wrap leading-relaxed text-gray-700 max-h-60 overflow-y-auto custom-scrollbar">
+                    {getMessage()}
+                  </pre>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button 
+                    onClick={handleCopy}
+                    className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                  >
+                    <Copy size={16} /> Copier le texte
+                  </button>
+                  <button 
+                    onClick={handleShare}
+                    className="flex-1 py-4 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-dmn-green-600/20"
+                  >
+                    <MessageCircle size={16} /> Partager via WhatsApp
+                  </button>
+                </div>
+
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 items-start">
+                  <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-blue-800 font-medium leading-normal">
+                    Note: Une fois le message copié ou partagé, n'oubliez pas de joindre manuellement l'image "Commission Sociale" dans le groupe WhatsApp.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
 

@@ -4,7 +4,7 @@ import { db, auth } from '../firebase';
 
 export type Permission = 
   | 'caisse.read' | 'caisse.create' | 'caisse.update' | 'caisse.validate'
-  | 'tickets.read' | 'tickets.create' | 'tickets.update' | 'tickets.validate'
+  | 'tickets.read' | 'tickets.create' | 'tickets.update' | 'tickets.delete' | 'tickets.validate'
   | 'cafe.production.read' | 'cafe.production.create' | 'cafe.production.update'
   | 'cafe.stock.read' | 'cafe.stock.update'
   | 'cafe.sales.read' | 'cafe.sales.create'
@@ -30,6 +30,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tickets.read',
     'tickets.create',
     'tickets.update',
+    'tickets.delete',
     'tickets.validate',
     'members.read'
   ],

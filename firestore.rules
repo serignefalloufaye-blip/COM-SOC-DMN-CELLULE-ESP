@@ -279,21 +279,21 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isTickets() && isValidTicketCollecte(request.resource.data);
       allow update: if isTickets() && isValidTicketCollecte(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isTickets();
     }
 
     match /tickets_conversions/{id} {
       allow read: if isAuthenticated();
       allow create: if isTickets() && isValidTicketConversion(request.resource.data);
       allow update: if isTickets() && isValidTicketConversion(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isTickets();
     }
 
     match /tickets_distributions/{id} {
       allow read: if isAuthenticated();
       allow create: if isTickets() && isValidTicketDistribution(request.resource.data);
       allow update: if isTickets() && isValidTicketDistribution(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isTickets();
     }
 
     match /cafe_productions/{id} {

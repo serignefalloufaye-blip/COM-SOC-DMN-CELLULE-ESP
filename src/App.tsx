@@ -2434,20 +2434,20 @@ export default function App() {
                         <td className="px-6 py-4">
                           <div className="flex justify-center gap-2">
                             <a 
-                              href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                              href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum Mbokk talibé,\nRappel mensualité Commission Sociale (500F). Contribution par Wave/OM au 770952647.\nBarakallahou fikoune.`)}`}
                               className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
                               title="Rappel SMS"
                             >
-                              <MessageCircle size={18} />
+                              <Smartphone size={18} />
                             </a>
                             <a 
-                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokk talibé,\n\nNous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois.\n\nVotre contribution est essentielle pour soutenir nos actions sociales.\n\n*Modalités de paiement :*\n- Par Wave ou Orange Money au : *77 095 26 47*\n\nBarakallahou fikoune.`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
                               title="Rappel WhatsApp"
                             >
-                              <Smartphone size={18} />
+                              <MessageCircle size={18} />
                             </a>
                           </div>
                         </td>
@@ -2513,20 +2513,20 @@ export default function App() {
                         </button>
                       )}
                       <a 
-                        href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                        href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum Mbokk talibé,\nRappel mensualité Commission Sociale (500F). Contribution par Wave/OM au 770952647.\nBarakallahou fikoune.`)}`}
                         className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
                         title="Rappel SMS"
                       >
-                        <MessageCircle size={20} />
+                        <Smartphone size={20} />
                       </a>
                       <a 
-                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`Assalamu 'alaykoum ${m.prenom}, niogui ziar mbokou diléne fatali mensualité commission bi 500 FCFA ba lou way ame. Wave ou OM *77 095 26 47*. Jërëjëf!`)}`}
+                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokk talibé,\n\nNous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois.\n\nVotre contribution est essentielle pour soutenir nos actions sociales.\n\n*Modalités de paiement :*\n- Par Wave ou Orange Money au : *77 095 26 47*\n\nBarakallahou fikoune.`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
                         title="Rappel WhatsApp"
                       >
-                        <Smartphone size={20} />
+                        <MessageCircle size={20} />
                       </a>
                     </div>
                   </div>
