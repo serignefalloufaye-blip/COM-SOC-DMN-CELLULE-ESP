@@ -6,7 +6,7 @@ import {
 import { MOIS } from '../data';
 import { 
   Building2, TrendingUp, TrendingDown, Users, AlertCircle, 
-  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3, Shield, Star, MessageCircle
+  Ticket, Wallet, ArrowUpRight, ArrowDownRight, Package, Calendar, Activity, Edit2, Coffee, ArrowRight, ChevronRight, LayoutGrid, Zap, BarChart3, Shield, Star
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -168,33 +168,6 @@ export function PremiumDashboard({
     return isEnRetard ? 'En retard' : 'À jour';
   };
 
-  const generatePaymentMessage = () => {
-    const paidMembers = membres.filter(m => getMembreStatus(m.id) === 'À jour');
-    const totalMembers = membres.length;
-    const percentage = Math.round((paidMembers.length / totalMembers) * 100);
-    const month = globalMonth || MOIS[new Date().getMonth()];
-    
-    let message = `*COMMISSION SOCIALE DMN - CELLULE ESP*\n\n`;
-    message += `Assalamou halaykoum Mbokkou talibé,\n\n`;
-    message += `Nous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois (*${month} ${globalYear}*).\n`;
-    message += `Votre contribution est essentielle pour soutenir nos actions sociales.\n\n`;
-    
-    message += `*Situation des paiements :*\n`;
-    paidMembers.forEach((m, index) => {
-        message += `${index + 1}- ${m.prenom.toUpperCase()} ${m.nom.toUpperCase()}\n`;
-    });
-    
-    message += `\n*Total : ${paidMembers.length} membres sur ${totalMembers} (${percentage}%)*\n\n`;
-    
-    message += `*Modalités de paiement :*\n`;
-    message += `- Par Wave ou Orange Money au : *77 095 26 47*\n\n`;
-    message += `Barakallahou fikoum.`;
-    
-    // Copy to clipboard
-    navigator.clipboard.writeText(message);
-    alert('Message de rappel adapté et copié !');
-  };
-
   const membresActifs = membres.filter(m => getMembreStatus(m.id) === 'À jour').length;
 
   const myMembre = useMemo(() => membres.find(m => m.email && currentUser?.email && m.email.toLowerCase() === currentUser.email.toLowerCase()), [membres, currentUser]);
@@ -280,12 +253,6 @@ export function PremiumDashboard({
               <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Système de Gestion DMN
             </p>
           </div>
-          <button 
-              onClick={generatePaymentMessage}
-              className="bg-dmn-green-600 hover:bg-dmn-green-700 text-white text-xs font-bold py-2 px-4 rounded-xl flex items-center gap-2"
-          >
-              <MessageCircle size={14} /> Partager Message
-          </button>
         </div>
         
         {smartInsights.length > 0 && (

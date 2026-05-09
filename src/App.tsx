@@ -32,6 +32,7 @@ import { useAdaptive } from './hooks/useAdaptive';
 const Tickets = lazy(() => import('./components/Tickets').then(m => ({ default: m.Tickets })));
 const CafeModule = lazy(() => import('./components/cafe/CafeModule').then(m => ({ default: m.CafeModule })));
 const PremiumDashboard = lazy(() => import('./components/PremiumDashboard').then(m => ({ default: m.PremiumDashboard })));
+const LecteurDashboard = lazy(() => import('./components/LecteurDashboard').then(m => ({ default: m.LecteurDashboard })));
 const UserRoles = lazy(() => import('./components/UserRoles').then(m => ({ default: m.UserRoles })));
 const Annuel = lazy(() => import('./components/Annuel').then(m => ({ default: m.Annuel })));
 const StatsAndReports = lazy(() => import('./components/StatsAndReports').then(m => ({ default: m.StatsAndReports })));
@@ -145,6 +146,15 @@ export default function App() {
       )
     );
   }, [cafeSellers, user, userRole, isAdmin]);
+
+  const myMembre = useMemo(() => {
+    if (!user) return null;
+    return membres.find(m => 
+      (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase()) ||
+      (m.telephone && user.phoneNumber && m.telephone === user.phoneNumber) ||
+      (user.displayName && `${m.prenom} ${m.nom}`.toLowerCase() === user.displayName.toLowerCase())
+    ) || null;
+  }, [membres, user]);
 
   const navigationTabs = useMemo(() => {
     const ALL_TABS = [
@@ -1900,43 +1910,65 @@ export default function App() {
   };
 
   const renderCotisations = () => {
-    const shareWhatsAppList = () => {
-      const monthToShare = fMois || MOIS[new Date().getMonth()];
-      
-      const cots = cotisations.filter(c => c.annee === globalYear && c.mois === monthToShare && c.montant > 0);
-      
-      const sortedCots = [...cots].sort((a, b) => {
-        const dateA = a.createdAt || 0;
-        const dateB = b.createdAt || 0;
-        return dateA - dateB;
-      });
-
-      if (sortedCots.length === 0) {
-        showToast(`Aucune cotisation pour le ${formatMoisPreposition(monthToShare)}.`, 'error');
-        return;
+    const getMembreStatus = (mId: string, monthToCheck: string) => {
+      const membre = membres.find(m => m.id === mId);
+      let startMonthIndex = 0;
+      if (membre && membre.anneeIntegration && membre.moisIntegration) {
+        if (membre.anneeIntegration > globalYear) return "Non membre";
+        if (membre.anneeIntegration === globalYear) {
+          startMonthIndex = MOIS.indexOf(membre.moisIntegration);
+        }
       }
+      const targetMonthIndex = MOIS.indexOf(monthToCheck);
+      let isEnRetard = false;
+      for (let i = startMonthIndex; i <= targetMonthIndex; i++) {
+          const month = MOIS[i];
+          if (!cotisations.some(c => c.mId === mId && c.mois === month && c.annee === globalYear && c.montant > 0)) {
+              isEnRetard = true;
+              break;
+          }
+      }
+      return isEnRetard ? 'En retard' : 'À jour';
+    };
 
-      let message = `Mensualité mois ${formatMoisPreposition(monthToShare)} ${globalYear}\n\n`;
-      
-      sortedCots.forEach((c, index) => {
-        const m = getMembre(c.mId);
-        message += `${index + 1}- ${m.prenom} ${m.nom} ✅\n`;
-      });
-
-      const totalMembres = membres.length;
-      const percentage = totalMembres > 0 ? Math.round((sortedCots.length / totalMembres) * 100) : 0;
-
-      message += `\nTotal : ${sortedCots.length} membre(s) sur ${totalMembres} (${percentage}%)\n`;
-      message += `Daara Madjmahoune Noreyni UCAD - Commission Sociale\n`;
-      message += `La transparence est une responsabilité`;
+    const shareWhatsAppRappel = () => {
+      const monthToShare = fMois || MOIS[new Date().getMonth()];
+      let message = `*COMMISSION SOCIALE DMN - CELLULE ESP*\n\n`;
+      message += `Assalamou halaykoum Mbokkou talibé,\n\n`;
+      message += `Nous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois (*${monthToShare} ${globalYear}*).\n`;
+      message += `Votre contribution est essentielle pour soutenir nos actions sociales.\n\n`;
+      message += `*Modalités de paiement :*\n`;
+      message += `- Par Wave ou Orange Money au : *77 095 26 47*\n\n`;
+      message += `Barakallahou fikoum.`;
 
       navigator.clipboard.writeText(message).then(() => {
-        showToast('Liste copiée dans le presse-papier !', 'success');
+        showToast('Message de rappel copié !', 'success');
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
-      }).catch(() => {
-        showToast('Erreur lors de la copie.', 'error');
+      }).catch(() => showToast('Erreur lors de la copie.', 'error'));
+    };
+
+    const shareWhatsAppSituation = () => {
+      const monthToShare = fMois || MOIS[new Date().getMonth()];
+      const paidMembers = membres.filter(m => getMembreStatus(m.id, monthToShare) === 'À jour');
+      const totalMembers = membres.length;
+      const percentage = totalMembers > 0 ? Math.round((paidMembers.length / totalMembers) * 100) : 0;
+      
+      let message = `*SITUATION MENSUELLE - ${monthToShare.toUpperCase()} ${globalYear}*\n\n`;
+      message += `Voici la liste des membres à jour de leur cotisation pour le compte de ce mois :\n\n`;
+      
+      paidMembers.forEach((m, index) => {
+          message += `${index + 1}- ${m.prenom} ${m.nom}\n`;
       });
+      
+      message += `\n*Total : ${paidMembers.length} membres sur ${totalMembers} (${percentage}%)*\n`;
+      message += `\nDaara Madjmahoune Noreyni UCAD - Commission Sociale Cellule ESP.`;
+
+      navigator.clipboard.writeText(message).then(() => {
+        showToast('Situation copiée !', 'success');
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      }).catch(() => showToast('Erreur lors de la copie.', 'error'));
     };
 
     const filtered = cotisations.filter(c => {
@@ -1954,11 +1986,18 @@ export default function App() {
           <span className="flex items-center gap-2"><CreditCard size={18} className="text-dmn-gold-light" /> Cotisations ({globalYear})</span>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button 
-              onClick={shareWhatsAppList}
-              className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
-              title="Partager sur WhatsApp"
+              onClick={shareWhatsAppRappel}
+              className="flex-1 sm:flex-none bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
+              title="Partager le rappel"
             >
-              <MessageCircle size={16} /> <span className="hidden sm:inline">WhatsApp</span>
+              <MessageCircle size={16} /> <span className="hidden sm:inline">Rappel</span>
+            </button>
+            <button 
+              onClick={shareWhatsAppSituation}
+              className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
+              title="Partager la situation"
+            >
+              <Users size={16} /> <span className="hidden sm:inline">Situation</span>
             </button>
             {(isAdmin || isCaisse) && (
               <button 
@@ -3095,17 +3134,30 @@ export default function App() {
             <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-dmn-green-500" size={32} /></div>}>
         {activeTab === 'dashboard' && (
           <>
-            <RotatingMessages />
-            <PremiumDashboard 
-              membres={membres} cotisations={cotisations} depenses={depenses} 
-              recettes={recettes} dettes={dettes} 
-              ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
-              cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
-              cafeSellers={cafeSellers} cafeClients={cafeClients}
-              globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
-              logoUrl={appSettings.logoUrl} userRole={userRole} currentUser={user} onLogoUpload={handleLogoUpload}
-              onQuickAction={handleQuickAction}
-            />
+            {userRole === 'lecteur' ? (
+              <LecteurDashboard 
+                myMembre={myMembre}
+                membres={membres}
+                currentUser={user}
+                cotisations={cotisations} 
+                globalYear={globalYear} 
+                MOIS={MOIS} 
+              />
+            ) : (
+              <>
+                <RotatingMessages />
+                <PremiumDashboard 
+                  membres={membres} cotisations={cotisations} depenses={depenses} 
+                  recettes={recettes} dettes={dettes} 
+                  ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
+                  cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
+                  cafeSellers={cafeSellers} cafeClients={cafeClients}
+                  globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
+                  logoUrl={appSettings.logoUrl} userRole={userRole} currentUser={user} onLogoUpload={handleLogoUpload}
+                  onQuickAction={handleQuickAction}
+                />
+              </>
+            )}
           </>
         )}
 
