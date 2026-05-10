@@ -616,28 +616,28 @@ Barakallahou fikoum.`;
       className="max-w-6xl mx-auto space-y-10 pb-40 px-4 sm:px-6"
     >
       {/* NAVIGATION SECONDAIRE */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-10 rounded-[3rem] shadow-soft border border-gray-100/80">
-        <div className="space-y-3">
-          <h2 className="text-3xl sm:text-4xl fintech-heading">Gestion Tickets Resto</h2>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] shadow-soft border border-gray-100/80">
+        <div className="space-y-2 sm:space-y-3">
+          <h2 className="text-2xl sm:text-4xl fintech-heading">Gestion Tickets Resto</h2>
           <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.4em] flex items-center gap-3">
             <span className="w-2 h-2 bg-dmn-gold rounded-full shadow-[0_0_8px_rgba(107,63,42,0.4)]"></span> Flux Logistique – {effectiveMonth} {globalYear}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          <div className="flex bg-gray-50/50 p-2 rounded-[2rem] flex-1 lg:flex-none overflow-x-auto no-scrollbar border border-gray-100/50 shadow-inner">
+        <div className="w-full lg:w-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+          <div className="flex bg-gray-50/80 p-1.5 rounded-[1.5rem] sm:rounded-[2rem] overflow-x-auto no-scrollbar border border-gray-100/50 shadow-inner snap-x snap-mandatory">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                className={`snap-center shrink-0 flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-[1.25rem] sm:rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                   activeTab === tab.id 
-                    ? 'bg-white text-dmn-green-950 shadow-xl shadow-dmn-green-900/5 border border-gray-100 scale-105' 
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
+                    ? 'bg-white text-dmn-green-950 shadow-md shadow-dmn-green-900/5 border border-gray-100 scale-100 sm:scale-105 relative z-10' 
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-black/5'
                 }`}
               >
-                <tab.icon size={14} className={activeTab === tab.id ? 'text-dmn-green-600 stroke-[2.5px]' : 'stroke-2'} />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <tab.icon size={14} className={`transition-all duration-300 ${activeTab === tab.id ? 'text-dmn-green-600 stroke-[2.5px]' : 'stroke-2'}`} />
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>

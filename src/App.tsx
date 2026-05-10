@@ -959,7 +959,7 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
         <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100">
-          <div className="bg-dmn-green-900 p-8 text-white relative">
+          <div className="bg-dmn-green-900 p-8 text-white relative shrink-0">
             <button onClick={() => setSelectedMemberProfile(null)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
               <X size={24} />
             </button>
@@ -2768,7 +2768,7 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
         <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-dmn-green-50/50 rounded-t-2xl">
+          <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-dmn-green-50/50 rounded-t-2xl shrink-0">
             <div>
               <h2 className="text-2xl font-heading font-bold text-dmn-green-900">{nomComplet(m)}</h2>
               <p className="text-dmn-green-700 font-medium flex items-center gap-2 mt-1">
@@ -3340,14 +3340,14 @@ export default function App() {
       {/* Modals for Membre and Depense */}
       {isMembreModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6 shrink-0">
               <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
                 {editingMembre ? <><Edit2 size={20} className="text-dmn-gold-light" /> Modifier membre</> : <><Users size={20} className="text-dmn-gold-light" /> Nouveau membre</>}
               </h3>
               <button onClick={() => setIsMembreModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSaveMembre} className="space-y-4">
+            <form onSubmit={handleSaveMembre} className="space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Prénom</label>
                 <input name="prenom" defaultValue={editingMembre?.prenom} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
@@ -3392,14 +3392,14 @@ export default function App() {
 
       {isCotModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6 shrink-0">
               <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
                 <CreditCard size={20} className="text-dmn-gold-light" /> {editingCot.id ? 'Modifier' : 'Enregistrer'} une cotisation
               </h3>
               <button onClick={() => setIsCotModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSaveCotisation} className="space-y-4">
+            <form onSubmit={handleSaveCotisation} className="space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Membre</label>
                 <select name="mId" defaultValue={editingCot.mId || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
@@ -3431,14 +3431,14 @@ export default function App() {
 
       {isDepenseModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6 shrink-0">
               <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
                 <TrendingDown size={20} className="text-dmn-gold-light" /> Enregistrer une dépense
               </h3>
               <button onClick={() => setIsDepenseModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSaveDepense} className="space-y-4">
+            <form onSubmit={handleSaveDepense} className="space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Événement / Motif</label>
                 <input name="evenement" defaultValue={editingDepense.evenement} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
@@ -3459,14 +3459,14 @@ export default function App() {
 
       {isRecetteModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6 shrink-0">
               <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
                 <Plus size={20} className="text-dmn-gold-light" /> Enregistrer une entrée
               </h3>
               <button onClick={() => setIsRecetteModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSaveRecette} className="space-y-4">
+            <form onSubmit={handleSaveRecette} className="space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Motif / Source</label>
                 <input name="motif" defaultValue={editingRecette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Don, Subvention..." />
@@ -3495,14 +3495,14 @@ export default function App() {
 
       {isDetteModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6 shrink-0">
               <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
                 <Banknote size={20} className="text-dmn-gold-light" /> Enregistrer une dette
               </h3>
               <button onClick={() => setIsDetteModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSaveDette} className="space-y-4">
+            <form onSubmit={handleSaveDette} className="space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Motif / Bénéficiaire</label>
                 <input name="motif" defaultValue={editingDette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Achat matériel, Prêt à X..." />

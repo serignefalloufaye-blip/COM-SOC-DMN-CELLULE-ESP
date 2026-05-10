@@ -15,7 +15,7 @@ export class ReportService {
   }
 
   static generateExcelReport(params: {
-    type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise';
+    type: 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise';
     year: number;
     month?: string;
     quarter?: number;
@@ -49,25 +49,6 @@ export class ReportService {
       if (d && !isNaN(d.getTime())) {
         if (itemAnnee === undefined || itemAnnee === null) itemAnnee = d.getFullYear();
         if (itemMois === undefined || itemMois === null) itemMois = MOIS[d.getMonth()];
-      }
-
-      if (type === 'journalier') {
-         if (!d) return false;
-         const now = new Date();
-         return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }
-      
-      if (type === 'hebdomadaire') {
-         if (!d) return false;
-         const now = new Date();
-         const getWeek = (date: Date) => {
-           const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-           const dayNum = dt.getUTCDay() || 7;
-           dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
-           const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
-           return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
-         };
-         return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
       }
 
       if (type === 'personnalise' && customStartDate && customEndDate && d) {
@@ -119,7 +100,7 @@ export class ReportService {
 
   static generateFinancialReport(
     params: {
-      type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise';
+      type: 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise';
       year: number;
       month?: string;
       quarter?: number;
@@ -163,8 +144,6 @@ export class ReportService {
     doc.setFont('helvetica', 'normal');
     
     let reportTitle = '';
-    if (type === 'journalier') reportTitle = `RAPPORT JOURNALIER`;
-    if (type === 'hebdomadaire') reportTitle = `RAPPORT HEBDOMADAIRE`;
     if (type === 'annuel') reportTitle = `RAPPORT ANNUEL ${year}`;
     else if (type === 'mensuel') reportTitle = `RAPPORT MENSUEL - ${month} ${year}`;
     else if (type === 'trimestriel') reportTitle = `RAPPORT TRIMESTRIEL T${quarter} ${year}`;
@@ -190,25 +169,6 @@ export class ReportService {
       if (d && !isNaN(d.getTime())) {
         if (itemAnnee === undefined || itemAnnee === null) itemAnnee = d.getFullYear();
         if (itemMois === undefined || itemMois === null) itemMois = MOIS[d.getMonth()];
-      }
-
-      if (type === 'journalier') {
-         if (!d) return false;
-         const now = new Date();
-         return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }
-      
-      if (type === 'hebdomadaire') {
-         if (!d) return false;
-         const now = new Date();
-         const getWeek = (date: Date) => {
-           const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-           const dayNum = dt.getUTCDay() || 7;
-           dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
-           const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
-           return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
-         };
-         return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
       }
 
       if (type === 'personnalise' && customStartDate && customEndDate && d) {

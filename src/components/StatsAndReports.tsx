@@ -42,8 +42,9 @@ export function StatsAndReports({
   membres, showToast, userRole
 }: StatsAndReportsProps) {
   const defaultTab = ['admin', 'caisse'].includes(userRole) ? 'caisse' : userRole === 'tickets' ? 'tickets' : 'cafe';
-  const [filterPeriod, setFilterPeriod] = useState<'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise'>('annuel');
-  const [selectedMonth, setSelectedMonth] = useState<string>(globalMonth);
+  const [filterPeriod, setFilterPeriod] = useState<'mensuel' | 'trimestriel' | 'annuel' | 'personnalise'>('annuel');
+  const [selectedYear, setSelectedYear] = useState<number>(globalYear);
+  const [selectedMonth, setSelectedMonth] = useState<string>(globalMonth || MOIS[new Date().getMonth()]);
   const [selectedQuarter, setSelectedQuarter] = useState<number>(1);
   const [customStartDate, setCustomStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [customEndDate, setCustomEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -72,25 +73,6 @@ export function StatsAndReports({
       if (mois === undefined || mois === null) mois = MOIS[d.getMonth()];
     }
 
-    if (filterPeriod === 'journalier') {
-      if (!d) return false;
-      const now = new Date();
-      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }
-    
-    if (filterPeriod === 'hebdomadaire') {
-      if (!d) return false;
-      const now = new Date();
-      const getWeek = (date: Date) => {
-        const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-        const dayNum = dt.getUTCDay() || 7;
-        dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
-        const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
-        return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
-      };
-      return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
-    }
-
     if (filterPeriod === 'personnalise' && customStartDate && customEndDate) {
       if (!d) return false;
       const time = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -100,7 +82,7 @@ export function StatsAndReports({
     }
 
     // Basic year check
-    if (Number(annee) !== globalYear) return false;
+    if (Number(annee) !== selectedYear) return false;
 
     if (filterPeriod === 'annuel') return true;
     if (filterPeriod === 'mensuel') return mois === selectedMonth;
@@ -113,17 +95,17 @@ export function StatsAndReports({
     return true;
   };
 
-  const filteredCots = useMemo(() => cotisations.filter(filterBySelectedPeriod), [cotisations, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
-  const filteredDeps = useMemo(() => depenses.filter(filterBySelectedPeriod), [depenses, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
-  const filteredRecs = useMemo(() => recettes.filter(filterBySelectedPeriod), [recettes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
-  const filteredDettes = useMemo(() => dettes.filter(filterBySelectedPeriod), [dettes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredCots = useMemo(() => cotisations.filter(filterBySelectedPeriod), [cotisations, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredDeps = useMemo(() => depenses.filter(filterBySelectedPeriod), [depenses, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredRecs = useMemo(() => recettes.filter(filterBySelectedPeriod), [recettes, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredDettes = useMemo(() => dettes.filter(filterBySelectedPeriod), [dettes, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
-  const filteredTicketsColl = useMemo(() => ticketCollectes.filter(filterBySelectedPeriod), [ticketCollectes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
-  const filteredTicketsDist = useMemo(() => ticketDistributions.filter(filterBySelectedPeriod), [ticketDistributions, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredTicketsColl = useMemo(() => ticketCollectes.filter(filterBySelectedPeriod), [ticketCollectes, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredTicketsDist = useMemo(() => ticketDistributions.filter(filterBySelectedPeriod), [ticketDistributions, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
-  const filteredCafeProd = useMemo(() => cafeProductions.filter(filterBySelectedPeriod), [cafeProductions, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
-  const filteredCafeVentes = useMemo(() => cafeVentes.filter(filterBySelectedPeriod), [cafeVentes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
-  const filteredCafeDep = useMemo(() => cafeDepenses.filter(filterBySelectedPeriod), [cafeDepenses, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredCafeProd = useMemo(() => cafeProductions.filter(filterBySelectedPeriod), [cafeProductions, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredCafeVentes = useMemo(() => cafeVentes.filter(filterBySelectedPeriod), [cafeVentes, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredCafeDep = useMemo(() => cafeDepenses.filter(filterBySelectedPeriod), [cafeDepenses, selectedYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
   // --- KPIs Calculations ---
   const totEntrees = useMemo(() => filteredCots.reduce((s, c) => s + c.montant, 0) + filteredRecs.reduce((s, r) => s + r.montant, 0), [filteredCots, filteredRecs]);
@@ -172,7 +154,7 @@ export function StatsAndReports({
   const generatePDF = () => {
     ReportService.generateFinancialReport({
       type: filterPeriod,
-      year: globalYear,
+      year: selectedYear,
       month: selectedMonth,
       quarter: selectedQuarter,
       customStartDate: customStartDate ? new Date(customStartDate) : undefined,
@@ -195,7 +177,7 @@ export function StatsAndReports({
   const generateExcel = () => {
     ReportService.generateExcelReport({
       type: filterPeriod,
-      year: globalYear,
+      year: selectedYear,
       month: selectedMonth,
       quarter: selectedQuarter,
       customStartDate: customStartDate ? new Date(customStartDate) : undefined,
@@ -219,11 +201,11 @@ export function StatsAndReports({
     const totalOut = depenses.reduce((s, d) => s + d.montant, 0);
     const balance = totalIn - totalOut;
     
-    // Monthly aggregation for globalYear
+    // Monthly aggregation for selectedYear
     const monthlyData = MOIS.map((m, i) => {
-      const yearCots = cotisations.filter(c => c.annee === globalYear && c.mois === m).reduce((s, c) => s + c.montant, 0);
-      const yearRecs = recettes.filter(r => r.annee === globalYear && r.mois === m).reduce((s, r) => s + r.montant, 0);
-      const yearDeps = depenses.filter(d => d.annee === globalYear && d.mois === m).reduce((s, d) => s + d.montant, 0);
+      const yearCots = cotisations.filter(c => c.annee === selectedYear && c.mois === m).reduce((s, c) => s + c.montant, 0);
+      const yearRecs = recettes.filter(r => r.annee === selectedYear && r.mois === m).reduce((s, r) => s + r.montant, 0);
+      const yearDeps = depenses.filter(d => d.annee === selectedYear && d.mois === m).reduce((s, d) => s + d.montant, 0);
       return {
         name: m.substring(0, 3).toUpperCase(),
         Entrées: yearCots + yearRecs,
@@ -233,7 +215,7 @@ export function StatsAndReports({
     });
 
     return { totalIn, totalOut, balance, monthlyData };
-  }, [cotisations, depenses, recettes, globalYear]);
+  }, [cotisations, depenses, recettes, selectedYear]);
 
   // TICKETS
   const statsTickets = useMemo(() => {
@@ -282,16 +264,24 @@ export function StatsAndReports({
         <div className="space-y-2">
           <h2 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tighter">Centre d'Analyses</h2>
           <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.4em] flex items-center gap-2">
-             <BarChart3 size={14} /> Intelligence de Gestion ({globalYear})
+             <BarChart3 size={14} /> Intelligence de Gestion ({selectedYear})
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-black rounded-xl px-4 py-2.5 h-[48px] focus:outline-none focus:ring-2 focus:ring-dmn-green-500 transition-all cursor-pointer"
+            >
+              {[new Date().getFullYear(), new Date().getFullYear()-1, new Date().getFullYear()-2].map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+
             <div className="flex bg-gray-100 p-1.5 rounded-[1.5rem] overflow-x-auto no-scrollbar w-full">
               {[
-                { id: 'journalier', label: 'Jour' },
-                { id: 'hebdomadaire', label: 'Sem.' },
                 { id: 'mensuel', label: 'Mois' },
                 { id: 'trimestriel', label: 'Trim.' },
                 { id: 'annuel', label: 'Année' },
@@ -308,6 +298,30 @@ export function StatsAndReports({
                 </button>
               ))}
             </div>
+
+            {filterPeriod === 'mensuel' && (
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-black rounded-xl px-4 py-2.5 h-[48px] focus:outline-none focus:ring-2 focus:ring-dmn-green-500 transition-all cursor-pointer"
+              >
+                {MOIS.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            )}
+
+            {filterPeriod === 'trimestriel' && (
+              <select
+                value={selectedQuarter}
+                onChange={(e) => setSelectedQuarter(Number(e.target.value))}
+                className="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-black rounded-xl px-4 py-2.5 h-[48px] focus:outline-none focus:ring-2 focus:ring-dmn-green-500 transition-all cursor-pointer"
+              >
+                {[1, 2, 3, 4].map(q => (
+                  <option key={q} value={q}>Trimestre {q}</option>
+                ))}
+              </select>
+            )}
 
             {filterPeriod === 'personnalise' && (
               <div className="flex items-center gap-2">
@@ -447,7 +461,7 @@ export function StatsAndReports({
         <div className="lg:col-span-2 premium-card p-10">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-12">
             <div>
-              <h3 className="text-base font-black text-gray-900 uppercase tracking-widest">Analyse de Performance ({globalYear})</h3>
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-widest">Analyse de Performance ({selectedYear})</h3>
               <p className="text-[10px] font-bold text-gray-400 mt-1">Comparatif Entrées / Dépenses Mensuelles</p>
             </div>
             <div className="flex gap-6">

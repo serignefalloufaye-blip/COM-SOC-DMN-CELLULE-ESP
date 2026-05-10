@@ -1160,7 +1160,8 @@ export function CafeModule({
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden text-center">
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden text-center">
          <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
                <tr className="text-[10px] font-black uppercase tracking-widest text-gray-400">
@@ -1199,6 +1200,38 @@ export function CafeModule({
                })}
             </tbody>
          </table>
+      </div>
+
+      {/* Mobile Cards View */}
+      <div className="md:hidden space-y-3">
+        {sortedVentes.map(v => {
+          const seller = sellers.find(s => s.id === v.vendeurId);
+          return (
+            <div key={v.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md inline-block mb-1">{v.typeCafe}</p>
+                  <p className="text-sm font-black text-gray-900">{seller ? seller.nom : 'Direct Daara'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black text-emerald-600">{formats.price(v.total)}</p>
+                  <p className="text-[10px] font-bold text-gray-400">{v.quantite} uts</p>
+                </div>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-gray-50">
+                <p className="text-xs font-bold text-gray-500">{formats.date(v.date)}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => { setEditingItem(v); setEditingType('vente'); }} className="p-2 text-amber-600 bg-amber-50 rounded-lg">
+                    <Edit2 size={14} />
+                  </button>
+                  <button onClick={() => handleDelete('cafe_ventes', v.id)} className="p-2 text-red-600 bg-red-50 rounded-lg">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1637,7 +1670,7 @@ export function CafeModule({
                 </button>
               </div>
            </div>
-           <div className="overflow-x-auto">
+           <div className="hidden md:block overflow-x-auto">
              <table className="w-full text-left">
                 <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400">
                    <tr>
@@ -1705,6 +1738,55 @@ export function CafeModule({
                    ))}
                 </tbody>
              </table>
+           </div>
+
+           {/* Mobile Stats Cards */}
+           <div className="md:hidden space-y-4">
+              {sellerPerformance.map((s, i) => (
+                 <div
+                   key={s.id}
+                   onClick={() => {
+                     if (isAdmin || isCafeManager) {
+                       setViewingSellerId(s.id);
+                       setActiveTab('tableau');
+                     }
+                   }}
+                   className={`bg-gray-50 rounded-2xl p-4 border border-gray-100 relative ${isAdmin || isCafeManager ? 'cursor-pointer active:scale-95 transition-all' : ''}`}
+                 >
+                    <div className={`absolute top-0 right-0 m-4 w-6 h-6 rounded-lg flex items-center justify-center font-black text-[10px] shadow-sm ${
+                      i === 0 ? 'bg-amber-500 text-white' : i === 1 ? 'bg-gray-200 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-white text-gray-400 border border-gray-100'
+                    }`}>
+                      {i + 1}
+                    </div>
+                    <div className="pr-10 mb-4">
+                       <p className="font-black text-gray-900 uppercase tracking-widest">{s.nom}</p>
+                       <p className="text-[10px] font-bold text-emerald-600 uppercase italic mb-2">Cellule: {s.cellule}</p>
+                       {(isAdmin || isCafeManager) && (
+                         <div className="inline-flex items-center gap-2 bg-white px-2 py-1 rounded-md border border-gray-100">
+                           <Tag size={10} className="text-amber-500" />
+                           <span className="font-mono font-black text-[9px] text-gray-900">{s.codeAcces || '----'}</span>
+                         </div>
+                       )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-left bg-white rounded-xl p-3 border border-gray-50">
+                       <div>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Unités (CA)</p>
+                          <p className="font-black text-xs text-gray-900">{s.totalVol} <span className="text-emerald-600">({formats.price(s.totalVal)})</span></p>
+                       </div>
+                       <div>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Versements</p>
+                          <p className="font-bold text-xs text-emerald-600">{formats.price(s.versements)}</p>
+                       </div>
+                       <div className="col-span-2 pt-2 border-t border-gray-50 flex items-center justify-between">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">État</p>
+                          <span className={`px-2 py-1 rounded-md text-[9px] font-black ${s.dette > 0 ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'}`}>
+                              {s.dette > 0 ? `Dette: ${formats.price(s.dette)}` : 'À JOUR'}
+                           </span>
+                       </div>
+                    </div>
+                 </div>
+              ))}
            </div>
         </div>
       </div>
@@ -1888,9 +1970,9 @@ export function CafeModule({
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
+            className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh]"
           >
-             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 rounded-t-[2.5rem]">
                 <h3 className="text-sm font-black uppercase tracking-widest text-gray-900 flex items-center gap-2">
                    <Edit2 size={16} className="text-amber-600" /> Modifier {editingType === 'seller' ? 'Revendeur' : editingType}
                 </h3>
@@ -1898,7 +1980,7 @@ export function CafeModule({
                    <X size={20} />
                 </button>
              </div>
-             <form onSubmit={handleUpdateItem} className="p-8 space-y-6">
+             <form onSubmit={handleUpdateItem} className="p-8 space-y-6 overflow-y-auto">
                 {editingType === 'production' && (
                   <>
                      <div className="grid grid-cols-2 gap-4">
@@ -2111,47 +2193,74 @@ export function CafeModule({
     <div className="max-w-6xl mx-auto space-y-10 pb-10">
       {renderEditModal()}
       {/* HEADER DAARA STYLE */}
-      <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-soft flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-           <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+      <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[3rem] border border-gray-100 shadow-soft flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="space-y-2 sm:space-y-1">
+           <h2 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3">
              <Coffee className="text-brown-600" /> Module Café
            </h2>
            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.4em] mt-1 ml-1">Gestion Madjmahoune Noreyni</p>
         </div>
-        <div className="flex flex-wrap justify-center gap-2 p-1.5 bg-gray-100 rounded-[2.5rem]">
-           {availableTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-5 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${
-                  activeTab === tab.id ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <tab.icon size={16} className={activeTab === tab.id ? 'text-brown-600' : ''} />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
+        <div className="w-full md:w-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+          <div className="flex bg-gray-50/80 p-1.5 rounded-[1.5rem] sm:rounded-[2.5rem] overflow-x-auto no-scrollbar border border-gray-100/50 shadow-inner snap-x snap-mandatory">
+             {availableTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as TabType)}
+                  className={`snap-center shrink-0 flex items-center gap-2 px-4 sm:px-5 py-3 sm:py-4 rounded-[1.25rem] sm:rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                    activeTab === tab.id 
+                      ? 'bg-white text-gray-900 shadow-md border border-gray-100 scale-100 sm:scale-105 relative z-10' 
+                      : 'text-gray-400 hover:text-gray-600 hover:bg-black/5'
+                  }`}
+                >
+                  <tab.icon size={16} className={`transition-all duration-300 ${activeTab === tab.id ? 'text-brown-600' : ''}`} />
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+          </div>
         </div>
       </div>
 
-      {/* ACTIONS RAPIDES */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:hidden px-2">
-           {canProduce && (
-             <button onClick={() => setActiveTab('production')} className="bg-blue-600 text-white p-4 rounded-3xl flex flex-col items-center gap-2 active:scale-95 transition-all outline-none">
-                <Plus size={20} /> <span className="text-[10px] font-black uppercase">Production</span>
-             </button>
-           )}
-           {canSell && (
-             <button onClick={() => setActiveTab('ventes')} className="bg-emerald-600 text-white p-4 rounded-3xl flex flex-col items-center gap-2 active:scale-95 transition-all outline-none">
-                <TrendingUp size={20} /> <span className="text-[10px] font-black uppercase">Vente</span>
-             </button>
-           )}
-           {canExpense && (
-             <button onClick={() => setActiveTab('depenses')} className="bg-red-500 text-white p-4 rounded-3xl flex flex-col items-center gap-2 active:scale-95 transition-all outline-none">
-                <TrendingDown size={20} /> <span className="text-[10px] font-black uppercase">Dépense</span>
-             </button>
-           )}
+      {/* ACTIONS RAPIDES MOBILE */}
+      <div className="md:hidden">
+        <div className="flex gap-3 overflow-x-auto no-scrollbar px-2 snap-x snap-mandatory">
+          {canProduce && (
+            <button onClick={() => setActiveTab('production')} className="snap-center shrink-0 w-[120px] bg-blue-50 text-blue-700 border border-blue-100 p-4 rounded-[2rem] flex flex-col items-center gap-3 active:scale-95 transition-all outline-none">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <Plus size={20} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider">Production</span>
+            </button>
+          )}
+          {canSell && (
+            <button onClick={() => setActiveTab('ventes')} className="snap-center shrink-0 w-[120px] bg-emerald-50 text-emerald-700 border border-emerald-100 p-4 rounded-[2rem] flex flex-col items-center gap-3 active:scale-95 transition-all outline-none">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                <TrendingUp size={20} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider">Vente</span>
+            </button>
+          )}
+          {canExpense && (
+            <button onClick={() => setActiveTab('depenses')} className="snap-center shrink-0 w-[120px] bg-red-50 text-red-700 border border-red-100 p-4 rounded-[2rem] flex flex-col items-center gap-3 active:scale-95 transition-all outline-none">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <TrendingDown size={20} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider">Dépense</span>
+            </button>
+          )}
+          <button onClick={() => setActiveTab('logistique')} className="snap-center shrink-0 w-[120px] bg-purple-50 text-purple-700 border border-purple-100 p-4 rounded-[2rem] flex flex-col items-center gap-3 active:scale-95 transition-all outline-none">
+            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+              <Truck size={20} />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider">Distribution</span>
+          </button>
+          <button onClick={() => setActiveTab('stock')} className="snap-center shrink-0 w-[120px] bg-amber-50 text-amber-700 border border-amber-100 p-4 rounded-[2rem] flex flex-col items-center gap-3 active:scale-95 transition-all outline-none">
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+              <BarChart3 size={20} />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider">Stock</span>
+          </button>
         </div>
+      </div>
 
       {/* CONTENU PRINCIPAL */}
       <AnimatePresence mode="wait">
