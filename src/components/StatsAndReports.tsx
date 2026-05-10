@@ -13,7 +13,7 @@ import { ReportService } from '../services/ReportService';
 import { 
   Membre, Cotisation, Depense, Recette, Dette, 
   TicketCollecte, TicketDistribution, TicketConversion,
-  CafeProduction, CafeVente, CafeDepense 
+  CafeProduction, CafeVente, CafeDepense, UserRole
 } from '../types';
 
 interface StatsAndReportsProps {
@@ -31,7 +31,7 @@ interface StatsAndReportsProps {
   cafeDepenses: CafeDepense[];
   membres: Membre[];
   showToast: (msg: string, type?: 'success' | 'error') => void;
-  userRole: 'admin' | 'caisse' | 'tickets' | 'cafe' | 'lecteur' | 'visitor';
+  userRole: UserRole | null;
 }
 
 export function StatsAndReports({
@@ -42,9 +42,11 @@ export function StatsAndReports({
   membres, showToast, userRole
 }: StatsAndReportsProps) {
   const defaultTab = ['admin', 'caisse'].includes(userRole) ? 'caisse' : userRole === 'tickets' ? 'tickets' : 'cafe';
-  const [filterPeriod, setFilterPeriod] = useState<'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel'>('annuel');
+  const [filterPeriod, setFilterPeriod] = useState<'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise'>('annuel');
   const [selectedMonth, setSelectedMonth] = useState<string>(globalMonth);
   const [selectedQuarter, setSelectedQuarter] = useState<number>(1);
+  const [customStartDate, setCustomStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'caisse' | 'tickets' | 'cafe'>(defaultTab as 'caisse' | 'tickets' | 'cafe');
 
   React.useEffect(() => {
@@ -59,14 +61,23 @@ export function StatsAndReports({
 
   // --- Filtered Data ---
   const filterBySelectedPeriod = (item: any) => {
-    // Determine the date to evaluate
+    // 1. Get explicit annee/mois if they exist
+    let annee = item.annee;
+    let mois = item.mois;
+
+    // 2. If missing, derive from date/createdAt
     const d = item.date ? new Date(item.date) : (item.createdAt ? new Date(item.createdAt) : null);
-    
+    if (d && !isNaN(d.getTime())) {
+      if (annee === undefined || annee === null) annee = d.getFullYear();
+      if (mois === undefined || mois === null) mois = MOIS[d.getMonth()];
+    }
+
     if (filterPeriod === 'journalier') {
       if (!d) return false;
       const now = new Date();
       return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }
+    
     if (filterPeriod === 'hebdomadaire') {
       if (!d) return false;
       const now = new Date();
@@ -80,58 +91,39 @@ export function StatsAndReports({
       return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
     }
 
+    if (filterPeriod === 'personnalise' && customStartDate && customEndDate) {
+      if (!d) return false;
+      const time = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const start = new Date(customStartDate).getTime();
+      const end = new Date(customEndDate).getTime();
+      return time >= start && time <= end;
+    }
+
     // Basic year check
-    if (item.annee !== globalYear && d?.getFullYear() !== globalYear) return false;
+    if (Number(annee) !== globalYear) return false;
 
     if (filterPeriod === 'annuel') return true;
-    if (filterPeriod === 'mensuel') return item.mois === selectedMonth;
+    if (filterPeriod === 'mensuel') return mois === selectedMonth;
     if (filterPeriod === 'trimestriel') {
-      const mIdx = MOIS.indexOf(item.mois);
+      const mIdx = MOIS.indexOf(mois);
+      if (mIdx === -1) return false;
       const q = Math.floor(mIdx / 3) + 1;
       return q === selectedQuarter;
     }
     return true;
   };
 
-  const filteredCots = useMemo(() => cotisations.filter(filterBySelectedPeriod), [cotisations, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
-  const filteredDeps = useMemo(() => depenses.filter(filterBySelectedPeriod), [depenses, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
-  const filteredRecs = useMemo(() => recettes.filter(filterBySelectedPeriod), [recettes, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
-  const filteredDettes = useMemo(() => dettes.filter(filterBySelectedPeriod), [dettes, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
+  const filteredCots = useMemo(() => cotisations.filter(filterBySelectedPeriod), [cotisations, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredDeps = useMemo(() => depenses.filter(filterBySelectedPeriod), [depenses, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredRecs = useMemo(() => recettes.filter(filterBySelectedPeriod), [recettes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredDettes = useMemo(() => dettes.filter(filterBySelectedPeriod), [dettes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
-  const filteredTicketsColl = useMemo(() => ticketCollectes.filter(filterBySelectedPeriod), [ticketCollectes, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
-  const filteredTicketsDist = useMemo(() => ticketDistributions.filter(filterBySelectedPeriod), [ticketDistributions, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
+  const filteredTicketsColl = useMemo(() => ticketCollectes.filter(filterBySelectedPeriod), [ticketCollectes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredTicketsDist = useMemo(() => ticketDistributions.filter(filterBySelectedPeriod), [ticketDistributions, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
-  const cafeFilter = (item: any) => {
-    const d = new Date(item.date || item.createdAt);
-    
-    if (filterPeriod === 'journalier') {
-      const now = new Date();
-      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }
-    if (filterPeriod === 'hebdomadaire') {
-      const now = new Date();
-      const getWeek = (date: Date) => {
-        const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-        const dayNum = dt.getUTCDay() || 7;
-        dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
-        const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
-        return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
-      };
-      return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
-    }
-
-    if (d.getFullYear() !== globalYear) return false;
-    
-    if (filterPeriod === 'mensuel') return MOIS[d.getMonth()] === selectedMonth;
-    if (filterPeriod === 'trimestriel') {
-      const q = Math.floor(d.getMonth() / 3) + 1;
-      return q === selectedQuarter;
-    }
-    return true;
-  };
-  const filteredCafeProd = useMemo(() => cafeProductions.filter(cafeFilter), [cafeProductions, globalYear, filterPeriod, selectedMonth]);
-  const filteredCafeVentes = useMemo(() => cafeVentes.filter(cafeFilter), [cafeVentes, globalYear, filterPeriod, selectedMonth]);
-  const filteredCafeDep = useMemo(() => cafeDepenses.filter(cafeFilter), [cafeDepenses, globalYear, filterPeriod, selectedMonth]);
+  const filteredCafeProd = useMemo(() => cafeProductions.filter(filterBySelectedPeriod), [cafeProductions, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredCafeVentes = useMemo(() => cafeVentes.filter(filterBySelectedPeriod), [cafeVentes, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
+  const filteredCafeDep = useMemo(() => cafeDepenses.filter(filterBySelectedPeriod), [cafeDepenses, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
   // --- KPIs Calculations ---
   const totEntrees = useMemo(() => filteredCots.reduce((s, c) => s + c.montant, 0) + filteredRecs.reduce((s, r) => s + r.montant, 0), [filteredCots, filteredRecs]);
@@ -147,19 +139,35 @@ export function StatsAndReports({
     const col = ticketCollectes.filter(c => c.type === 'tickets' && filterBySelectedPeriod(c)).reduce((s, c) => s + (c.petitDej || 0), 0);
     const dist = ticketDistributions.filter(filterBySelectedPeriod).reduce((s, d) => s + (d.petitDej || 0), 0);
     return gen + col - dist;
-  }, [ticketConversions, ticketCollectes, ticketDistributions, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
+  }, [ticketConversions, ticketCollectes, ticketDistributions, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
   const stockRepas = useMemo(() => {
     const gen = ticketConversions.filter(filterBySelectedPeriod).reduce((s, c) => s + (c.repas || 0), 0);
     const col = ticketCollectes.filter(c => c.type === 'tickets' && filterBySelectedPeriod(c)).reduce((s, c) => s + (c.repas || 0), 0);
     const dist = ticketDistributions.filter(filterBySelectedPeriod).reduce((s, d) => s + (d.repas || 0), 0);
     return gen + col - dist;
-  }, [ticketConversions, ticketCollectes, ticketDistributions, globalYear, filterPeriod, selectedMonth, selectedQuarter]);
+  }, [ticketConversions, ticketCollectes, ticketDistributions, globalYear, filterPeriod, selectedMonth, selectedQuarter, customStartDate, customEndDate]);
 
   const totCafeRevenus = useMemo(() => filteredCafeVentes.reduce((s, v) => s + v.total, 0), [filteredCafeVentes]);
   const totCafeProdQty = useMemo(() => filteredCafeProd.reduce((s, p) => s + p.quantite, 0), [filteredCafeProd]);
   const totalChargeCafe = useMemo(() => filteredCafeProd.reduce((s, p) => s + p.total, 0) + filteredCafeDep.reduce((s, d) => s + d.montant, 0), [filteredCafeProd, filteredCafeDep]);
   const beneficeCafe = totCafeRevenus - totalChargeCafe;
+
+  const revendeursStats = useMemo(() => {
+    const vendeursIds = [...new Set(filteredCafeVentes.map(v => v.vendeurId).filter(Boolean))];
+    const data = vendeursIds.map(vId => {
+      const v = membres.find(m => m.id === vId);
+      const nom = v ? `${v.prenom} ${v.nom}` : (vId || 'Inconnu');
+      const vVentes = filteredCafeVentes.filter(vv => vv.vendeurId === vId);
+      return {
+        id: vId,
+        nom,
+        qty: vVentes.reduce((sum, vv) => sum + vv.quantite, 0),
+        ca: vVentes.reduce((sum, vv) => sum + vv.total, 0)
+      };
+    });
+    return data.sort((a, b) => b.ca - a.ca);
+  }, [filteredCafeVentes, membres]);
 
   const generatePDF = () => {
     ReportService.generateFinancialReport({
@@ -167,6 +175,8 @@ export function StatsAndReports({
       year: globalYear,
       month: selectedMonth,
       quarter: selectedQuarter,
+      customStartDate: customStartDate ? new Date(customStartDate) : undefined,
+      customEndDate: customEndDate ? new Date(customEndDate) : undefined,
       activeTab: activeTab === 'all' ? 'all' : activeTab,
       membres,
       cotisations: filteredCots,
@@ -188,6 +198,8 @@ export function StatsAndReports({
       year: globalYear,
       month: selectedMonth,
       quarter: selectedQuarter,
+      customStartDate: customStartDate ? new Date(customStartDate) : undefined,
+      customEndDate: customEndDate ? new Date(customEndDate) : undefined,
       cotisations: filteredCots,
       depenses: filteredDeps,
       recettes: filteredRecs,
@@ -275,24 +287,45 @@ export function StatsAndReports({
         </div>
 
         <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
-          <div className="flex bg-gray-100 p-1.5 rounded-[1.5rem] flex-1 lg:flex-none overflow-x-auto no-scrollbar">
-            {[
-              { id: 'journalier', label: 'Jour' },
-              { id: 'hebdomadaire', label: 'Sem.' },
-              { id: 'mensuel', label: 'Mois' },
-              { id: 'trimestriel', label: 'Trimestre' },
-              { id: 'annuel', label: 'Année' }
-            ].map(p => (
-              <button
-                key={p.id}
-                onClick={() => setFilterPeriod(p.id as any)}
-                className={`flex-1 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  filterPeriod === p.id ? 'bg-white text-dmn-green-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="flex bg-gray-100 p-1.5 rounded-[1.5rem] overflow-x-auto no-scrollbar w-full">
+              {[
+                { id: 'journalier', label: 'Jour' },
+                { id: 'hebdomadaire', label: 'Sem.' },
+                { id: 'mensuel', label: 'Mois' },
+                { id: 'trimestriel', label: 'Trim.' },
+                { id: 'annuel', label: 'Année' },
+                { id: 'personnalise', label: 'Perso.' }
+              ].map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setFilterPeriod(p.id as any)}
+                  className={`flex-1 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    filterPeriod === p.id ? 'bg-white text-dmn-green-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {filterPeriod === 'personnalise' && (
+              <div className="flex items-center gap-2">
+                <input 
+                  type="date" 
+                  value={customStartDate} 
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-3 py-2 w-full lg:w-32 focus:outline-none focus:ring-1 focus:ring-dmn-green-500"
+                />
+                <span className="text-gray-400 font-bold">-</span>
+                <input 
+                  type="date" 
+                  value={customEndDate} 
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-3 py-2 w-full lg:w-32 focus:outline-none focus:ring-1 focus:ring-dmn-green-500"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 w-full lg:w-auto">
@@ -342,9 +375,9 @@ export function StatsAndReports({
       {/* 🧭 NAVIGATION TABS */}
       <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-1">
         {[
-          { id: 'caisse', label: 'Caisse Sociale', icon: Wallet, color: 'dmn-green', isVisible: userRole === 'admin' || userRole === 'caisse' },
-          { id: 'tickets', label: 'Tickets & Repas', icon: Ticket, color: 'amber', isVisible: userRole === 'admin' || userRole === 'tickets' },
-          { id: 'cafe', label: 'Module Café', icon: Coffee, color: 'orange', isVisible: userRole === 'admin' || userRole === 'cafe' }
+          { id: 'caisse', label: 'Caisse Sociale', icon: Wallet, color: 'dmn-green', isVisible: userRole === 'admin' || userRole === 'caisse' || userRole === 'lecteur' },
+          { id: 'tickets', label: 'Tickets & Repas', icon: Ticket, color: 'amber', isVisible: userRole === 'admin' || userRole === 'tickets' || userRole === 'lecteur' },
+          { id: 'cafe', label: 'Module Café', icon: Coffee, color: 'orange', isVisible: userRole === 'admin' || userRole === 'cafe' || userRole === 'revendeur' || userRole === 'lecteur' }
         ].filter(t => t.isVisible).map(tab => (
           <button
             key={tab.id}
@@ -586,6 +619,38 @@ export function StatsAndReports({
               </div>
            </div>
         </div>
+         {revendeursStats.length > 0 && (
+           <div className="premium-card p-10 mt-8 bg-white overflow-hidden relative w-full lg:col-span-3">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-full -mr-10 -mt-10 blur-2xl"></div>
+             <h3 className="text-base font-black text-gray-900 uppercase tracking-widest mb-8 relative z-10">Performances Revendeurs</h3>
+             
+             <div className="overflow-x-auto relative z-10">
+               <table className="w-full text-left">
+                 <thead>
+                   <tr className="border-b-2 border-gray-100">
+                     <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Revendeur</th>
+                     <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Tasses Vendues</th>
+                     <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Chiffre d'Affaire</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50">
+                   {revendeursStats.map((r, i) => (
+                     <tr key={r.id} className="group hover:bg-gray-50/50 transition-colors">
+                       <td className="py-5 font-bold text-gray-900 text-sm flex items-center gap-3">
+                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-gray-200 text-gray-700' : i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-50 text-gray-400'}`}>
+                           #{i + 1}
+                         </div>
+                         {r.nom}
+                       </td>
+                       <td className="py-5 font-bold text-gray-600 text-center">{r.qty}</td>
+                       <td className="py-5 font-black text-dmn-green-600 text-right">{formatPrice(r.ca)}</td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+           </div>
+         )}
       </div>
       )}
     </motion.div>

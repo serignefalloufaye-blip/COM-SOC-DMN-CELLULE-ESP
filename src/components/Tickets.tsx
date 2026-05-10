@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import React, { useState } from 'react';
-import { Membre, TicketCollecte, TicketConversion, TicketDistribution } from '../types';
+import { Membre, TicketCollecte, TicketConversion, TicketDistribution, UserRole } from '../types';
 import { db } from '../firebase';
 import { hasPermission, logAudit } from '../utils/permissions';
 import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
@@ -18,10 +18,11 @@ interface TicketsProps {
   collectes: TicketCollecte[];
   conversions: TicketConversion[];
   distributions: TicketDistribution[];
-  userRole: string;
+  userRole: UserRole | null;
+  confirmAction: (title: string, message: string, onConfirm: () => void) => void;
 }
 
-export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions, userRole }: TicketsProps) {
+export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions, userRole, confirmAction }: TicketsProps) {
   const { isMobile, isLowEndDevice } = useAdaptive();
   const [activeTab, setActiveTab] = useState<'collecte' | 'conversion' | 'distribution' | 'historique' | 'statistiques'>('statistiques');
   const isTickets = hasPermission(userRole as any, 'tickets.create');
@@ -81,6 +82,7 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
         repas: type === 'tickets' ? repas : 0,
         createdAt: Date.now()
       });
+      logAudit(userRole, 'tickets.create', 'Social', 'Collecte tickets/argent', { mId, type, petitDej, repas });
       showToast('Enregistrement réussi !');
     } catch (e) {
       console.error("Error collecting tickets:", e);
@@ -93,14 +95,21 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       showToast("Accès refusé. Vous n'avez pas le droit de supprimer.", 'error');
       return;
     }
-    // Suppression de la confirmation pour plus de fluidité selon la demande utilisateur
-    try {
-      await deleteDoc(doc(db, 'tickets_collectes', colId));
-      showToast('Collecte annulée !');
-    } catch (e) {
-      console.error("Error cancelling collection:", e);
-      showToast('Erreur lors de l\'annulation', 'error');
-    }
+    
+    confirmAction(
+      'Annuler Collecte',
+      'Êtes-vous sûr de vouloir annuler cette collecte ?',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'tickets_collectes', colId));
+          logAudit(userRole, 'tickets.delete', 'Social', 'Annulation collecte', { colId });
+          showToast('Collecte annulée !');
+        } catch (e) {
+          console.error("Error cancelling collection:", e);
+          showToast('Erreur lors de l\'annulation', 'error');
+        }
+      }
+    );
   };
 
   const handleAnnulerOperation = async (id: string, type: 'Collecte' | 'Conversion' | 'Distribution') => {
@@ -108,18 +117,25 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
       showToast("Accès refusé", 'error');
       return;
     }
-    if (type !== 'Collecte' && !window.confirm(`Voulez-vous vraiment annuler cette ${type.toLowerCase()} ?`)) return;
-    try {
-      const collectionName = 
-        type === 'Collecte' ? 'tickets_collectes' : 
-        type === 'Conversion' ? 'tickets_conversions' : 
-        'tickets_distributions';
-      
-      await deleteDoc(doc(db, collectionName, id));
-      showToast(`${type} annulée !`);
-    } catch (e) {
-      showToast('Erreur lors de l\'annulation', 'error');
-    }
+    
+    confirmAction(
+      `Annuler ${type}`,
+      `Voulez-vous vraiment annuler cette ${type.toLowerCase()} ?`,
+      async () => {
+        try {
+          const collectionName = 
+            type === 'Collecte' ? 'tickets_collectes' : 
+            type === 'Conversion' ? 'tickets_conversions' : 
+            'tickets_distributions';
+          
+          await deleteDoc(doc(db, collectionName, id));
+          logAudit(userRole, 'tickets.delete', 'Social', `Annulation ${type.toLowerCase()}`, { id });
+          showToast(`${type} annulée !`);
+        } catch (e) {
+          showToast('Erreur lors de l\'annulation', 'error');
+        }
+      }
+    );
   };
 
   const handleSendReminder = (m: Membre, platform: 'whatsapp' | 'sms') => {
@@ -291,19 +307,26 @@ Barakallahou fikoum.`;
       return;
     }
 
-    try {
-      await addDoc(collection(db, 'tickets_conversions'), {
-        montant,
-        petitDej: pd,
-        repas: repas,
-        createdAt: Date.now()
-      });
-      setConvMontant(''); setConvPD(0); setConvRepas(0);
-      showToast("Conversion réussie !");
-      setIsAnnouncementModalOpen(true);
-    } catch (err) {
-      showToast("Erreur lors de la conversion", "error");
-    }
+    confirmAction(
+      'Convertir en tickets',
+      `Voulez-vous vraiment convertir ${montant} FCFA en ${pd} petits déj' et ${repas} repas ?`,
+      async () => {
+        try {
+          await addDoc(collection(db, 'tickets_conversions'), {
+            montant,
+            petitDej: pd,
+            repas: repas,
+            createdAt: Date.now()
+          });
+          logAudit(userRole, 'tickets.create', 'Social', 'Conversion argent en tickets', { montant, pd, repas });
+          setConvMontant(''); setConvPD(0); setConvRepas(0);
+          showToast("Conversion réussie !");
+          setIsAnnouncementModalOpen(true);
+        } catch (err) {
+          showToast("Erreur lors de la conversion", "error");
+        }
+      }
+    );
   };
 
   const renderConversion = () => {
@@ -378,19 +401,26 @@ Barakallahou fikoum.`;
     if (distPD > stockPetitDej) return showToast(`Stock Petit Dèj insuffisant (${stockPetitDej} restants)`, "error");
     if (distRepas > stockRepas) return showToast(`Stock Repas insuffisant (${stockRepas} restants)`, "error");
 
-    try {
-      await addDoc(collection(db, 'tickets_distributions'), {
-        petitDej: distPD,
-        repas: distRepas,
-        mois: globalMonth,
-        annee: globalYear,
-        createdAt: Date.now()
-      });
-      setDistPD(0); setDistRepas(0);
-      showToast("Tickets distribués !");
-    } catch (err) {
-      showToast("Erreur de distribution", "error");
-    }
+    confirmAction(
+      'Distribuer les tickets',
+      `Voulez-vous vraiment sortir ${distPD} petits déj' et ${distRepas} repas du stock ?`,
+      async () => {
+        try {
+          await addDoc(collection(db, 'tickets_distributions'), {
+            petitDej: distPD,
+            repas: distRepas,
+            mois: globalMonth,
+            annee: globalYear,
+            createdAt: Date.now()
+          });
+          logAudit(userRole, 'tickets.create', 'Social', 'Distribution tickets (sortie stock)', { pd: distPD, repas: distRepas });
+          setDistPD(0); setDistRepas(0);
+          showToast("Tickets distribués !");
+        } catch (err) {
+          showToast("Erreur de distribution", "error");
+        }
+      }
+    );
   };
 
   const renderDistribution = () => {

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
-  CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key, QrCode, Share2,
+  CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key, QrCode, Share2, UserCheck,
   Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu, Loader2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -12,7 +12,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { MOIS } from './data';
-import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, AppUser, UserRole, AccessCode, CafeProduction, CafeVente, CafeDepense, CafeTransfert, CafeSeller, CafeClient, CafeOrder, CafeDistribution, CafeVersement, CafePriceConfig } from './types';
+import { Membre, Cotisation, ModePaiement, Depense, Recette, Dette, TicketCollecte, TicketConversion, TicketDistribution, AppUser, UserRole, CafeProduction, CafeVente, CafeDepense, CafeTransfert, CafeSeller, CafeClient, CafeOrder, CafeDistribution, CafeVersement, CafePriceConfig } from './types';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
@@ -37,7 +37,7 @@ const UserRoles = lazy(() => import('./components/UserRoles').then(m => ({ defau
 const Annuel = lazy(() => import('./components/Annuel').then(m => ({ default: m.Annuel })));
 const StatsAndReports = lazy(() => import('./components/StatsAndReports').then(m => ({ default: m.StatsAndReports })));
 
-type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres' | 'cafe' | 'roles' | 'rapports';
+type Tab = 'dashboard' | 'finance' | 'tickets' | 'membres' | 'cafe' | 'roles' | 'rapports' | 'etat';
 
 export default function App() {
   const { screenSize, isMobile, isLowEndDevice, shouldReduceMotion } = useAdaptive();
@@ -49,56 +49,6 @@ export default function App() {
   
   // Advanced Features State
   const [selectedMemberProfile, setSelectedMemberProfile] = useState<Membre | null>(null);
-  
-  // Access Code State
-  const [accessCodeInput, setAccessCodeInput] = useState('');
-  const [isUsingCode, setIsUsingCode] = useState(false);
-
-  const handleUseAccessCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || userRole === 'admin') return;
-
-    setIsUsingCode(true);
-    try {
-      const q = query(collection(db, 'access_codes'), where('code', '==', accessCodeInput.toUpperCase()));
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
-        showToast('Code invalide', 'error');
-        return;
-      }
-
-      const codeDoc = snap.docs[0];
-      const codeData = codeDoc.data() as AccessCode;
-
-      if (codeData.used) {
-        showToast('Ce code a déjà été utilisé', 'error');
-        return;
-      }
-
-      // 1. Mark code as used
-      await updateDoc(codeDoc.ref, {
-        used: true,
-        usedBy: user.uid,
-        usedByName: user.displayName || 'Utilisateur',
-      });
-
-      // 2. Update user role
-      await updateDoc(doc(db, 'users', user.uid), {
-        role: codeData.role
-      });
-
-      setUserRole(codeData.role);
-      setAccessCodeInput('');
-      showToast(`Félicitations ! Votre rôle est maintenant : ${codeData.role}`, 'success');
-      
-    } catch (error) {
-      console.error(error);
-      showToast('Une erreur est survenue lors de la validation du code', 'error');
-    } finally {
-      setIsUsingCode(false);
-    }
-  };
   
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -138,6 +88,7 @@ export default function App() {
 
   const isRevendeur = useMemo(() => {
     if (!user || isAdmin || userRole === 'cafe') return false;
+    if (userRole === 'revendeur') return true;
     const userEmail = user.email?.toLowerCase().trim();
     return cafeSellers.some(s => 
       s.active && (
@@ -149,16 +100,25 @@ export default function App() {
 
   const myMembre = useMemo(() => {
     if (!user) return null;
-    return membres.find(m => 
-      (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase()) ||
-      (m.telephone && user.phoneNumber && m.telephone === user.phoneNumber) ||
-      (user.displayName && `${m.prenom} ${m.nom}`.toLowerCase() === user.displayName.toLowerCase())
-    ) || null;
+    const userEmail = user.email?.toLowerCase().trim();
+    const userPhone = user.phoneNumber?.trim();
+    const userDisplayName = user.displayName?.toLowerCase().trim();
+
+    return membres.find(m => {
+      const membreEmail = m.email?.toLowerCase().trim();
+      const membrePhone = m.telephone?.trim();
+      const membreFullName = `${m.prenom} ${m.nom}`.toLowerCase().trim();
+
+      return (userEmail && membreEmail && userEmail === membreEmail) ||
+             (userPhone && membrePhone && userPhone === membrePhone) ||
+             (userDisplayName && userDisplayName === membreFullName);
+    }) || null;
   }, [membres, user]);
 
   const navigationTabs = useMemo(() => {
     const ALL_TABS = [
       { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
+      { id: 'etat', label: 'Mon État', icon: UserCheck },
       { id: 'finance', label: 'Caisse', icon: Wallet },
       { id: 'tickets', label: 'Tickets', icon: Ticket },
       { id: 'cafe', label: 'Café', icon: Coffee },
@@ -166,14 +126,30 @@ export default function App() {
       { id: 'rapports', label: 'Rapports', icon: TrendingUp },
       { id: 'roles', label: 'Profil', icon: Shield },
     ];
-    if (isAdmin) return ALL_TABS;
-    if (userRole === 'caisse') return ALL_TABS.filter(t => ['dashboard', 'finance', 'membres', 'rapports', 'roles'].includes(t.id));
-    if (userRole === 'cafe') return ALL_TABS.filter(t => ['dashboard', 'cafe', 'roles'].includes(t.id));
-    if (userRole === 'tickets') return ALL_TABS.filter(t => ['dashboard', 'tickets', 'roles'].includes(t.id));
-    if (isRevendeur) return ALL_TABS.filter(t => ['dashboard', 'cafe'].includes(t.id));
-    if (userRole === 'lecteur' || userRole === 'visitor') return ALL_TABS.filter(t => ['dashboard'].includes(t.id));
-    return ALL_TABS.filter(t => ['dashboard'].includes(t.id));
-  }, [userRole, isAdmin, isRevendeur]);
+
+    const isMember = !!myMembre;
+    
+    if (isAdmin) return ALL_TABS.filter(t => isMember || t.id !== 'etat');
+    
+    let tabs = ALL_TABS;
+    if (userRole === 'caisse') tabs = ALL_TABS.filter(t => ['dashboard', 'finance', 'membres', 'rapports', 'roles', 'etat'].includes(t.id));
+    else if (userRole === 'cafe') tabs = ALL_TABS.filter(t => ['dashboard', 'cafe', 'roles', 'etat'].includes(t.id));
+    else if (userRole === 'tickets') tabs = ALL_TABS.filter(t => ['dashboard', 'tickets', 'roles', 'etat'].includes(t.id));
+    else if (isRevendeur) tabs = ALL_TABS.filter(t => ['dashboard', 'cafe', 'etat'].includes(t.id));
+    else if (userRole === 'lecteur' || userRole === 'visitor') tabs = ALL_TABS.filter(t => ['dashboard', 'rapports'].includes(t.id));
+    else tabs = ALL_TABS.filter(t => ['dashboard', 'etat'].includes(t.id));
+
+    // Si pas membre, on enlève 'etat' sauf si c'est un lecteur (qui en a besoin pour se lier)
+    if (!isMember && userRole !== 'lecteur') {
+      tabs = tabs.filter(t => t.id !== 'etat');
+    }
+    
+    // Pour le lecteur/visiteur, on peut fusionner dashboard et etat s'ils sont liés ? 
+    // Non, restons simple : on garde 'dashboard' pour le dashboard global/lecteur et 'etat' pour l'espace perso.
+    // En fait, pour le lecteur, on peut cacher 'etat' s'il est au dashboard ? Non.
+    
+    return tabs;
+  }, [userRole, isAdmin, isRevendeur, myMembre]);
 
   useEffect(() => {
     if (userRole && isAuthReady) {
@@ -199,6 +175,7 @@ export default function App() {
   const [editingDette, setEditingDette] = useState<Partial<Dette>>({});
 
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -249,6 +226,14 @@ export default function App() {
   const [globalMode, setGlobalMode] = useState<string>('');
   const [globalSearch, setGlobalSearch] = useState<string>('');
   const debouncedGlobalSearch = useDebounce(globalSearch, 300);
+  const membreMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    membres.forEach(m => {
+      map[m.id] = `${m.prenom} ${m.nom}`;
+    });
+    return map;
+  }, [membres]);
+
 
   // Member History Modal
   const [selectedMemberHistory, setSelectedMemberHistory] = useState<Membre | null>(null);
@@ -269,6 +254,53 @@ export default function App() {
   const [npMois, setNpMois] = useState('');
   const [npSearch, setNpSearch] = useState('');
   const debouncedNpSearch = useDebounce(npSearch, 300);
+  // --- OPTIMIZATIONS FOR LARGE SCALE ---
+  const paymentMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    cotisations.forEach(c => {
+      if (c.montant > 0) {
+        map[`${c.mId}_${c.annee}_${c.mois}`] = true;
+      }
+    });
+    return map;
+  }, [cotisations]);
+
+  const memberStatsMap = useMemo(() => {
+    const map: Record<string, { totalPaid: number; countPaid: number }> = {};
+    cotisations.forEach(c => {
+      if (c.annee === globalYear && c.montant > 0) {
+        if (!map[c.mId]) map[c.mId] = { totalPaid: 0, countPaid: 0 };
+        map[c.mId].totalPaid += c.montant;
+        map[c.mId].countPaid += 1;
+      }
+    });
+    return map;
+  }, [cotisations, globalYear]);
+
+  const getMembreStatus = (mId: string, year: number, monthToCheck?: string) => {
+    const membre = membres.find(m => m.id === mId);
+    if (!membre) return "Inconnu";
+    
+    let startMonthIndex = 0;
+    if (membre.anneeIntegration && membre.moisIntegration) {
+      if (membre.anneeIntegration > year) return "Non membre";
+      if (membre.anneeIntegration === year) {
+        startMonthIndex = MOIS.indexOf(membre.moisIntegration);
+      }
+    }
+
+    const targetMonthIndex = monthToCheck ? MOIS.indexOf(monthToCheck) : new Date().getMonth();
+    if (targetMonthIndex === -1) return "Inconnu";
+
+    let isEnRetard = false;
+    for (let i = startMonthIndex; i <= targetMonthIndex; i++) {
+      if (!paymentMap[`${mId}_${year}_${MOIS[i]}`]) {
+        isEnRetard = true;
+        break;
+      }
+    }
+    return isEnRetard ? 'En retard' : 'À jour';
+  };
 
   const availableYears = useMemo(() => {
     const years = new Set([new Date().getFullYear(), ...cotisations.map(c => c.annee), ...depenses.map(d => d.annee), ...recettes.map(r => r.annee)]);
@@ -384,22 +416,26 @@ export default function App() {
 
     // Finance data (Caisse, Finance, Stats)
     if (isAdmin || isCaisse || userRole === 'lecteur') {
-      const unsubCotisations = onSnapshot(collection(db, 'cotisations'), (snapshot) => {
+      const financeQuery = query(collection(db, 'cotisations'), where('annee', '==', globalYear));
+      const unsubCotisations = onSnapshot(financeQuery, (snapshot) => {
         setCotisations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Cotisation)));
       }, (error) => handleFirestoreError(error, OperationType.GET, 'cotisations'));
       unsubs.push(unsubCotisations);
 
-      const unsubDepenses = onSnapshot(collection(db, 'depenses'), (snapshot) => {
+      const depenseQuery = query(collection(db, 'depenses'), where('annee', '==', globalYear));
+      const unsubDepenses = onSnapshot(depenseQuery, (snapshot) => {
         setDepenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Depense)));
       }, (error) => handleFirestoreError(error, OperationType.GET, 'depenses'));
       unsubs.push(unsubDepenses);
 
-      const unsubRecettes = onSnapshot(collection(db, 'recettes'), (snapshot) => {
+      const recetteQuery = query(collection(db, 'recettes'), where('annee', '==', globalYear));
+      const unsubRecettes = onSnapshot(recetteQuery, (snapshot) => {
         setRecettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recette)));
       }, (error) => handleFirestoreError(error, OperationType.GET, 'recettes'));
       unsubs.push(unsubRecettes);
 
-      const unsubDettes = onSnapshot(collection(db, 'dettes'), (snapshot) => {
+      const detteQuery = query(collection(db, 'dettes'), where('annee', '==', globalYear));
+      const unsubDettes = onSnapshot(detteQuery, (snapshot) => {
         setDettes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dette)));
       }, (error) => handleFirestoreError(error, OperationType.GET, 'dettes'));
       unsubs.push(unsubDettes);
@@ -560,6 +596,7 @@ export default function App() {
         if (duplicate) return showToast('Un autre membre avec ces identifiants existe déjà.', 'error');
         
         await updateDoc(doc(db, 'membres', editingMembre.id), { prenom, nom, telephone, statut, moisIntegration, anneeIntegration, updatedAt: Date.now(), updatedBy: user?.uid });
+        logAudit(userRole, 'members.update', 'Caisse', 'Modification membre', { id: editingMembre.id, prenom, nom });
         showToast('Membre modifié avec succès');
       } else {
         // Create mode
@@ -567,6 +604,7 @@ export default function App() {
         if (exists) return showToast('Ce membre existe déjà !', 'error');
         
         await addDoc(collection(db, 'membres'), { prenom, nom, telephone, statut, moisIntegration, anneeIntegration, createdAt: Date.now(), createdBy: user?.uid });
+        logAudit(userRole, 'members.create', 'Caisse', 'Ajout membre', { prenom, nom });
         showToast('Membre ajouté avec succès');
       }
       setIsMembreModalOpen(false);
@@ -587,6 +625,7 @@ export default function App() {
           for (const cot of cotsToDelete) {
             await deleteDoc(doc(db, 'cotisations', cot.id));
           }
+          logAudit(userRole, 'members.delete', 'Caisse', 'Suppression membre', { id });
           showToast('Membre supprimé avec succès');
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, 'membres');
@@ -615,6 +654,7 @@ export default function App() {
           await addDoc(collection(db, 'cotisations'), { mId, mois, annee: globalYear, montant, mode, createdAt: Date.now(), createdBy: user?.uid });
         }
       }));
+      logAudit(userRole, 'caisse.create', 'Caisse', 'Saisie rapide cotisations', { mId, months: selectedMonths, total: selectedMonths.length * montant });
       setQuickMonths(prev => ({ ...prev, [mId]: [] }));
       showToast('Cotisations enregistrées avec succès');
     } catch (error) {
@@ -630,6 +670,7 @@ export default function App() {
       async () => {
         try {
           await deleteDoc(doc(db, 'cotisations', id));
+          logAudit(userRole, 'caisse.delete', 'Caisse', 'Suppression cotisation', { id });
           showToast('Cotisation supprimée avec succès');
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, 'cotisations');
@@ -658,6 +699,7 @@ export default function App() {
     try {
       if (editingCot?.id) {
         await updateDoc(doc(db, 'cotisations', editingCot.id), { mId, montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
+        logAudit(userRole, 'caisse.update', 'Caisse', 'Modification cotisation', { id: editingCot.id, mId, montant });
         showToast('Cotisation modifiée avec succès');
       } else {
         const existing = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === annee);
@@ -666,9 +708,11 @@ export default function App() {
           return;
         } else if (existing) {
           await updateDoc(doc(db, 'cotisations', existing.id), { montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
+          logAudit(userRole, 'caisse.create', 'Caisse', 'Ajout cotisation', { mId, mois, annee, montant });
           showToast('Cotisation enregistrée avec succès');
         } else {
           await addDoc(collection(db, 'cotisations'), { mId, mois, annee, trimestre, heure, montant, mode, createdAt: Date.now(), createdBy: user?.uid });
+          logAudit(userRole, 'caisse.create', 'Caisse', 'Ajout cotisation', { mId, mois, annee, montant });
           showToast('Cotisation ajoutée avec succès');
         }
       }
@@ -881,24 +925,23 @@ export default function App() {
     let startMonthIndex = 0;
     if (membre) {
       if (membre.anneeIntegration && membre.moisIntegration) {
-        if (membre.anneeIntegration === globalYear) {
+        if (Number(membre.anneeIntegration) === Number(globalYear)) {
           startMonthIndex = MOIS.indexOf(membre.moisIntegration) + 1; // Commence le mois suivant
-        } else if (membre.anneeIntegration > globalYear) {
+        } else if (Number(membre.anneeIntegration) > Number(globalYear)) {
           return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
         }
       } else if (membre.createdAt) {
         const createdDate = new Date(membre.createdAt);
-        if (createdDate.getFullYear() === globalYear) {
+        if (createdDate.getFullYear() === Number(globalYear)) {
           startMonthIndex = createdDate.getMonth() + 1; // Commence le mois suivant
-        } else if (createdDate.getFullYear() > globalYear) {
+        } else if (createdDate.getFullYear() > Number(globalYear)) {
           return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
         }
       }
     }
 
     const unpaidMonths = MOIS.slice(startMonthIndex, currentMonthIndex + 1).filter(mois => {
-      const cot = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === globalYear);
-      return !cot || cot.montant === 0;
+      return !paymentMap[`${mId}_${globalYear}_${mois}`];
     });
     return {
       isLate: unpaidMonths.length > 0,
@@ -1785,8 +1828,8 @@ export default function App() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((m, i) => {
-                const cots = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0);
-                const tot = cots.reduce((s, c) => s + c.montant, 0);
+                const stats = memberStatsMap[m.id] || { totalPaid: 0 };
+                const tot = stats.totalPaid;
                 return (
                   <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
                     <td className="px-6 py-4 text-gray-500">{i + 1}</td>
@@ -1826,8 +1869,8 @@ export default function App() {
         {/* Mobile Cards */}
         <div className="md:hidden divide-y divide-gray-50 bg-white">
           {filtered.map((m, i) => {
-            const cots = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0);
-            const tot = cots.reduce((s, c) => s + c.montant, 0);
+            const stats = memberStatsMap[m.id] || { totalPaid: 0 };
+            const tot = stats.totalPaid;
             return (
               <div key={m.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50/50 transition-colors">
                 <div className="flex justify-between items-start">
@@ -1910,65 +1953,53 @@ export default function App() {
   };
 
   const renderCotisations = () => {
-    const getMembreStatus = (mId: string, monthToCheck: string) => {
-      const membre = membres.find(m => m.id === mId);
-      let startMonthIndex = 0;
-      if (membre && membre.anneeIntegration && membre.moisIntegration) {
-        if (membre.anneeIntegration > globalYear) return "Non membre";
-        if (membre.anneeIntegration === globalYear) {
-          startMonthIndex = MOIS.indexOf(membre.moisIntegration);
-        }
-      }
-      const targetMonthIndex = MOIS.indexOf(monthToCheck);
-      let isEnRetard = false;
-      for (let i = startMonthIndex; i <= targetMonthIndex; i++) {
-          const month = MOIS[i];
-          if (!cotisations.some(c => c.mId === mId && c.mois === month && c.annee === globalYear && c.montant > 0)) {
-              isEnRetard = true;
-              break;
-          }
-      }
-      return isEnRetard ? 'En retard' : 'À jour';
-    };
-
-    const shareWhatsAppRappel = () => {
-      const monthToShare = fMois || MOIS[new Date().getMonth()];
-      let message = `*COMMISSION SOCIALE DMN - CELLULE ESP*\n\n`;
-      message += `Assalamou halaykoum Mbokkou talibé,\n\n`;
-      message += `Nous venons par ce message vous rappeler la mensualité de la *Commission Sociale* (500 FCFA ou selon vos possibilités) pour le compte de ce mois (*${monthToShare} ${globalYear}*).\n`;
-      message += `Votre contribution est essentielle pour soutenir nos actions sociales.\n\n`;
-      message += `*Modalités de paiement :*\n`;
-      message += `- Par Wave ou Orange Money au : *77 095 26 47*\n\n`;
-      message += `Barakallahou fikoum.`;
-
-      navigator.clipboard.writeText(message).then(() => {
-        showToast('Message de rappel copié !', 'success');
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank');
-      }).catch(() => showToast('Erreur lors de la copie.', 'error'));
-    };
-
     const shareWhatsAppSituation = () => {
-      const monthToShare = fMois || MOIS[new Date().getMonth()];
-      const paidMembers = membres.filter(m => getMembreStatus(m.id, monthToShare) === 'À jour');
+      const gYear = Number(globalYear);
+      const today = new Date();
+      const currentMonthIndex = today.getMonth();
+      const monthToShare = fMois || MOIS[currentMonthIndex];
+      
+      // Get all members who paid for THIS specific month in THIS specific year
+      // We also need to sort them by the time they paid (createdAt of the cotisation)
+      const paidInfos = membres
+        .map(m => {
+          const cot = cotisations.find(c => c.mId === m.id && c.mois === monthToShare && Number(c.annee) === gYear && c.montant > 0);
+          return cot ? { member: m, cotisation: cot } : null;
+        })
+        .filter((info): info is { member: Membre; cotisation: Cotisation } => info !== null)
+        .sort((a, b) => (a.cotisation.createdAt || 0) - (b.cotisation.createdAt || 0));
+
       const totalMembers = membres.length;
-      const percentage = totalMembers > 0 ? Math.round((paidMembers.length / totalMembers) * 100) : 0;
+      const totalPaidCount = paidInfos.length;
       
-      let message = `*SITUATION MENSUELLE - ${monthToShare.toUpperCase()} ${globalYear}*\n\n`;
-      message += `Voici la liste des membres à jour de leur cotisation pour le compte de ce mois :\n\n`;
+      let message = `*📊 SITUATION MENSUELLE - ${monthToShare.toUpperCase()} ${gYear}*\n\n`;
+      message += `Assalamou halaykoum Mbokkou talibé,\n\n`;
+      message += `Voici la liste des membres qui ont déjà déposé leur participation pour le compte de ce mois :\n\n`;
       
-      paidMembers.forEach((m, index) => {
-          message += `${index + 1}- ${m.prenom} ${m.nom}\n`;
-      });
+      if (paidInfos.length > 0) {
+        paidInfos.forEach((info, index) => {
+            message += `${index + 1}. ${info.member.prenom} ${info.member.nom} ✅\n`;
+        });
+        message += `\n`;
+      } else {
+        message += `Aucune cotisation n'a été enregistrée pour le moment.\n\n`;
+      }
       
-      message += `\n*Total : ${paidMembers.length} membres sur ${totalMembers} (${percentage}%)*\n`;
-      message += `\nDaara Madjmahoune Noreyni UCAD - Commission Sociale Cellule ESP.`;
+      const percentage = totalMembers > 0 ? Math.round((totalPaidCount / totalMembers) * 100) : 0;
+
+      message += `*📈 Statistiques*\n`;
+      message += `Participations : ${totalPaidCount} / ${totalMembers} (${percentage}%)\n\n`;
+      message += `Jazakoumoullahou khayran pour votre engagement et votre solidarité. 🙏\n\n`;
+      message += `Daara Madjmahoune Noreyni UCAD\nCommission Sociale Cellule ESP`;
 
       navigator.clipboard.writeText(message).then(() => {
-        showToast('Situation copiée !', 'success');
+        showToast('Situation prête ! Redirection...', 'success');
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
-      }).catch(() => showToast('Erreur lors de la copie.', 'error'));
+      }).catch(() => {
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      });
     };
 
     const filtered = cotisations.filter(c => {
@@ -1985,13 +2016,6 @@ export default function App() {
         <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <span className="flex items-center gap-2"><CreditCard size={18} className="text-dmn-gold-light" /> Cotisations ({globalYear})</span>
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button 
-              onClick={shareWhatsAppRappel}
-              className="flex-1 sm:flex-none bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
-              title="Partager le rappel"
-            >
-              <MessageCircle size={16} /> <span className="hidden sm:inline">Rappel</span>
-            </button>
             <button 
               onClick={shareWhatsAppSituation}
               className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
@@ -2357,7 +2381,7 @@ export default function App() {
   };
 
   const renderRecap = () => {
-    const yearCots = cotisations.filter(c => c.annee === globalYear);
+    const yearCots = cotisations.filter(c => Number(c.annee) === Number(globalYear));
     const moisDispo = [...new Set(yearCots.map(c => c.mois))];
     const tots = moisDispo.map(m => yearCots.filter(c => c.mois === m).reduce((s, c) => s + c.montant, 0));
     const max = Math.max(...tots, 1);
@@ -2520,7 +2544,7 @@ export default function App() {
                               <Smartphone size={18} />
                             </a>
                             <a 
-                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum,\n\nNous vous informons que la collecte de la mensualité est ouverte pour le mois en cours.\n\nVotre contribution est précieuse pour nos actions sociales au sein de l'UCAD.\n\n*Modalités de règlement :*\n- Wave ou Orange Money : *77 095 26 47*\n\nQu'Allah vous récompense pour votre engagement.`)}`}
+                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*📊 COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokkou talibé,\n\nNous vous rappelons la participation à la *Commission Sociale* pour le mois de *${fMois || MOIS[new Date().getMonth()]} ${globalYear}*. La mensualité est fixée à 500 FCFA (ou selon vos possibilités).\n\nVotre contribution est précieuse pour soutenir nos actions sociales et renforcer notre solidarité au sein de l'UCAD.\n\n*💡 Modalités de paiement*\n👉 *WAVE ou Orange Money* : *77 095 26 47* (Faye)\n\nJazakoumoullahou khayran pour votre engagement constant. 🙏`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
@@ -2599,7 +2623,7 @@ export default function App() {
                         <Smartphone size={20} />
                       </a>
                       <a 
-                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum,\n\nNous vous informons que la collecte de la mensualité (500 FCFA ou plus) est ouverte pour le mois en cours.\n\nVotre contribution est précieuse pour nos actions sociales.\n\n*Modalités de règlement :*\n- Wave ou Orange Money : *77 095 26 47*\n\nQu'Allah vous récompense.`)}`}
+                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*📊 COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokkou talibé,\n\nNous vous rappelons la participation à la *Commission Sociale* pour le mois de *${fMois || MOIS[new Date().getMonth()]} ${globalYear}*. La mensualité est fixée à 500 FCFA (ou selon vos possibilités).\n\nVotre contribution est précieuse pour soutenir nos actions sociales et renforcer notre solidarité au sein de l'UCAD.\n\n*💡 Modalités de paiement*\n👉 *WAVE ou Orange Money* : *77 095 26 47* (Faye)\n\nJazakoumoullahou khayran pour votre engagement constant. 🙏`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
@@ -2780,8 +2804,8 @@ export default function App() {
                   <CheckCircle2 className="text-dmn-green-500" size={20} /> Détail des paiements
                 </h3>
                 {paidCots.length > 0 ? (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                    <table className="w-full text-sm text-left">
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
+                    <table className="min-w-full text-sm text-left">
                       <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600">
                         <tr>
                           <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">Mois</th>
@@ -2970,9 +2994,15 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-dmn-bg text-gray-800 font-sans ${isMobile ? 'pb-32' : 'pb-10'} relative overflow-x-hidden`}>
       {/* Header Premium */}
-      <header className="bg-white/80 backdrop-blur-3xl border-b border-gray-100/50 flex justify-between items-center px-6 py-4 sticky top-0 z-[100] shadow-soft">
-        <div className="flex items-center gap-5">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center overflow-hidden shadow-premium border border-gray-100 p-0.5 transition-transform active:scale-95 group">
+      <header className="bg-white/80 backdrop-blur-3xl border-b border-gray-100/50 flex justify-between items-center px-4 sm:px-6 py-4 sticky top-0 z-[100] shadow-soft">
+        <div className="flex items-center gap-3 sm:gap-5">
+          <button 
+            className="sm:hidden p-2 -ml-2 text-gray-500 hover:text-gray-900 focus:outline-none"
+            onClick={() => setIsMobileMenuOpen(true)}
+          >
+            <Menu size={24} />
+          </button>
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-2xl flex items-center justify-center overflow-hidden shadow-premium border border-gray-100 p-0.5 transition-transform active:scale-95 group shrink-0">
             <div className="w-full h-full bg-dmn-green-50 rounded-[14px] flex items-center justify-center overflow-hidden">
               <img 
                 src={appSettings.logoUrl || "logo.png"} 
@@ -3161,6 +3191,17 @@ export default function App() {
           </>
         )}
 
+        {activeTab === 'etat' && (
+          <LecteurDashboard 
+            myMembre={myMembre}
+            membres={membres}
+            currentUser={user}
+            cotisations={cotisations} 
+            globalYear={globalYear} 
+            MOIS={MOIS} 
+          />
+        )}
+
         {activeTab === 'finance' && financeSubTab === 'saisie' && renderSaisieRapide()}
         {activeTab === 'finance' && financeSubTab === 'cotisations' && renderCotisations()}
         {activeTab === 'finance' && financeSubTab === 'recettes' && renderRecettes()}
@@ -3190,7 +3231,7 @@ export default function App() {
         {activeTab === 'membres' && membreSubTab === 'annuel' && renderAnnuel()}
         {activeTab === 'membres' && membreSubTab === 'retards' && renderNonPayeurs()}
 
-        {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} userRole={userRole} />}
+        {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} userRole={userRole as string} confirmAction={confirmAction} />}
         
         {activeTab === 'cafe' && (
           <CafeModule 
@@ -3208,6 +3249,7 @@ export default function App() {
             globalMonth={globalMonth}
             showToast={showToast}
             onTransferToCaisse={handleCafeTransferToCaisse}
+            confirmAction={confirmAction}
           />
         )}
 
@@ -3218,10 +3260,6 @@ export default function App() {
             currentUserRole={userRole}
             showToast={showToast}
             confirmAction={confirmAction}
-            accessCodeInput={accessCodeInput}
-            setAccessCodeInput={setAccessCodeInput}
-            isUsingCode={isUsingCode}
-            handleUseAccessCode={handleUseAccessCode}
           />
         )}
             </Suspense>
@@ -3578,6 +3616,68 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Mobile Menu Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] sm:hidden"
+            />
+            <motion.div 
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-[280px] bg-white z-[210] shadow-2xl flex flex-col sm:hidden overflow-y-auto"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-md z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-dmn-green-50 rounded-xl flex items-center justify-center p-0.5 overflow-hidden">
+                    <img src={appSettings.logoUrl || "logo.png"} alt="Logo" className="w-full h-full object-contain p-1" />
+                  </div>
+                  <h2 className="font-heading font-black text-dmn-green-900 text-lg">Menu</h2>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-500 hover:text-gray-900 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="flex-1 p-4 flex flex-col gap-2">
+                {navigationTabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id as Tab);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-4 p-4 rounded-2xl text-left transition-all font-bold text-sm ${
+                      activeTab === tab.id 
+                        ? 'bg-dmn-green-50 text-dmn-green-600 shadow-sm' 
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <tab.icon size={20} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-2 text-gray-400'} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="p-6 border-t border-gray-100 bg-gray-50/50">
+                <button 
+                  onClick={() => { logOut(); setIsMobileMenuOpen(false); }} 
+                  className="flex items-center gap-3 w-full p-4 text-red-600 font-bold hover:bg-red-50 rounded-2xl transition-colors text-sm"
+                >
+                  <LogOut size={20} />
+                  Se déconnecter
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Network Status Indicator */}
       <NetworkIndicator />

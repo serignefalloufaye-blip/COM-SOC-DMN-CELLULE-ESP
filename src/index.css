@@ -122,3 +122,17 @@ body {
 .card-stack {
   perspective: 1000px;
 }
+
+/* Mobile Optimizations */
+@media (max-width: 639px) {
+  input[type="text"], 
+  input[type="number"], 
+  input[type="email"], 
+  input[type="password"], 
+  select, 
+  textarea {
+    font-size: 16px !important; /* Prevents iOS auto-zoom */
+    padding-top: 0.8rem !important;
+    padding-bottom: 0.8rem !important;
+  }
+}

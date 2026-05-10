@@ -48,6 +48,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   lecteur: [
     'personal.read'
+  ],
+  revendeur: [
+    'cafe.sales.read',
+    'cafe.sales.create',
+    'personal.read'
   ]
 };
 

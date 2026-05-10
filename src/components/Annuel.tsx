@@ -309,7 +309,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
           <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex items-center gap-2">
             <CalendarRange size={18} className="text-dmn-gold-light" /> Détail Mensuel
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-100">
                 <tr>
@@ -340,6 +340,49 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Cards for Tableau Mensuel */}
+          <div className="md:hidden divide-y divide-gray-50 bg-white">
+            {monthlyData.map(data => (
+              <div key={data.name} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-gray-50/50 transition-colors">
+                <div className="flex justify-between items-center mb-1">
+                  <h4 className="font-bold text-dmn-green-900 text-sm">{data.fullMonth}</h4>
+                  <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${data.Solde > 0 ? 'bg-emerald-50 text-emerald-700' : data.Solde < 0 ? 'bg-red-50 text-red-700' : 'bg-gray-50 text-gray-500'}`}>
+                    Solde: {data.Solde > 0 ? '+' : ''}{formatPrice(data.Solde)} F
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-emerald-50/30 p-2 rounded-lg border border-emerald-50 text-center">
+                    <p className="text-[9px] font-bold text-gray-500 uppercase">Cotisations</p>
+                    <p className="text-sm font-black text-emerald-600">{formatPrice(data.Cotisations)} F</p>
+                  </div>
+                  <div className="bg-red-50/30 p-2 rounded-lg border border-red-50 text-center">
+                    <p className="text-[9px] font-bold text-gray-500 uppercase">Dépenses</p>
+                    <p className="text-sm font-black text-red-600">{formatPrice(data.Dépenses)} F</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="p-4 sm:p-5 bg-gray-50 border-t-2 border-gray-200 flex flex-col gap-3">
+              <h4 className="font-black text-gray-900 text-sm text-center">TOTAL ANNUEL</h4>
+              <div className="grid grid-cols-3 gap-2">
+                 <div className="text-center">
+                   <p className="text-[9px] font-bold text-gray-500 uppercase">Entrées</p>
+                   <p className="text-xs font-black text-emerald-600">{formatPrice(totCot + totRec)} F</p>
+                 </div>
+                 <div className="text-center">
+                   <p className="text-[9px] font-bold text-gray-500 uppercase">Dépenses</p>
+                   <p className="text-xs font-black text-red-600">{formatPrice(totDep)} F</p>
+                 </div>
+                 <div className="text-center">
+                   <p className="text-[9px] font-bold text-gray-500 uppercase">Solde</p>
+                   <p className={`text-xs font-black py-0.5 rounded-md ${solde >= 0 ? 'text-emerald-700 bg-emerald-100' : 'text-red-700 bg-red-100'}`}>
+                     {solde > 0 ? '+' : ''}{formatPrice(solde)} F
+                   </p>
+                 </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

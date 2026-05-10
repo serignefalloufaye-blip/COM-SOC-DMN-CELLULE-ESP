@@ -15,10 +15,12 @@ export class ReportService {
   }
 
   static generateExcelReport(params: {
-    type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel';
+    type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise';
     year: number;
     month?: string;
     quarter?: number;
+    customStartDate?: Date;
+    customEndDate?: Date;
     cotisations: Cotisation[];
     depenses: Depense[];
     recettes: Recette[];
@@ -30,7 +32,7 @@ export class ReportService {
     cafeDepenses: CafeDepense[];
   }) {
     const { 
-      type, year, month, quarter, 
+      type, year, month, quarter, customStartDate, customEndDate,
       cotisations, depenses, recettes, dettes,
       ticketsCollectes, ticketsDistributions,
       cafeProductions, cafeVentes, cafeDepenses
@@ -40,33 +42,23 @@ export class ReportService {
 
     // Helper to filter data
     const filterByPeriod = (item: any) => {
-      // If item has explicit year/month, use them
-      if (item.annee !== undefined && item.mois !== undefined && type !== 'journalier' && type !== 'hebdomadaire') {
-        if (item.annee !== year) return false;
-        if (type === 'mensuel' && item.mois !== month) return false;
-        if (type === 'trimestriel') {
-          const mIdx = MOIS.indexOf(item.mois);
-          const q = Math.floor(mIdx / 3) + 1;
-          return q === quarter;
-        }
-        return true;
+      let itemAnnee = item.annee;
+      let itemMois = item.mois;
+      const d = item.date ? new Date(item.date) : (item.createdAt ? new Date(item.createdAt) : null);
+      
+      if (d && !isNaN(d.getTime())) {
+        if (itemAnnee === undefined || itemAnnee === null) itemAnnee = d.getFullYear();
+        if (itemMois === undefined || itemMois === null) itemMois = MOIS[d.getMonth()];
       }
 
-      // Fallback to date
-      const d = item.date ? new Date(item.date) : (item.createdAt ? new Date(item.createdAt) : null);
-      if (!d) return false;
-      
-      const itemYear = d.getFullYear();
-      const itemMonthIdx = d.getMonth();
-      const itemMonthName = MOIS[itemMonthIdx];
-      const itemQuarter = Math.floor(itemMonthIdx / 3) + 1;
-
-      if (itemYear !== year) return false;
       if (type === 'journalier') {
+         if (!d) return false;
          const now = new Date();
          return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       }
+      
       if (type === 'hebdomadaire') {
+         if (!d) return false;
          const now = new Date();
          const getWeek = (date: Date) => {
            const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -77,15 +69,29 @@ export class ReportService {
          };
          return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
       }
-      if (type === 'mensuel' && itemMonthName !== month) return false;
-      if (type === 'trimestriel' && itemQuarter !== quarter) return false;
+
+      if (type === 'personnalise' && customStartDate && customEndDate && d) {
+         const time = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+         const start = new Date(customStartDate.getFullYear(), customStartDate.getMonth(), customStartDate.getDate()).getTime();
+         const end = new Date(customEndDate.getFullYear(), customEndDate.getMonth(), customEndDate.getDate()).getTime();
+         return time >= start && time <= end;
+      }
+
+      if (Number(itemAnnee) !== year) return false;
+      if (type === 'mensuel' && itemMois !== month) return false;
+      if (type === 'trimestriel') {
+        const mIdx = MOIS.indexOf(itemMois as string);
+        if (mIdx === -1) return false;
+        const q = Math.floor(mIdx / 3) + 1;
+        return q === quarter;
+      }
       return true;
     };
 
     // Prepare Sheets
     const financeData = [
       ['Date', 'Type', 'Libellé', 'Montant'],
-      ...cotisations.filter(c => c.annee === year && (type === 'annuel' || (type === 'mensuel' && c.mois === month) || (type === 'trimestriel' && (Math.floor(MOIS.indexOf(c.mois)/3)+1) === quarter))).map(c => [c.mois + ' ' + c.annee, 'Cotisation', `Cotisation ${c.mId}`, c.montant]),
+      ...cotisations.filter(filterByPeriod).map(c => [c.mois + ' ' + c.annee, 'Cotisation', `Cotisation ${c.mId}`, c.montant]),
       ...recettes.filter(filterByPeriod).map(r => [r.date || '', 'Recette', r.motif, r.montant]),
       ...depenses.filter(filterByPeriod).map(d => [d.date || '', 'Dépense', d.evenement, d.montant]),
       ...dettes.filter(filterByPeriod).map(d => [d.date || '', 'Dette', d.motif, d.montant])
@@ -113,10 +119,12 @@ export class ReportService {
 
   static generateFinancialReport(
     params: {
-      type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel';
+      type: 'journalier' | 'hebdomadaire' | 'mensuel' | 'trimestriel' | 'annuel' | 'personnalise';
       year: number;
       month?: string;
       quarter?: number;
+      customStartDate?: Date;
+      customEndDate?: Date;
       activeTab: 'all' | 'caisse' | 'tickets' | 'cafe';
       membres: Membre[];
       cotisations: Cotisation[];
@@ -131,7 +139,8 @@ export class ReportService {
     }
   ) {
     const { 
-      type, year, month, quarter, activeTab, membres, 
+      type, year, month, quarter, customStartDate, customEndDate,
+      activeTab, membres, 
       cotisations, depenses, recettes, dettes,
       ticketsCollectes, ticketsDistributions,
       cafeProductions, cafeVentes, cafeDepenses
@@ -141,16 +150,17 @@ export class ReportService {
     const pageWidth = doc.internal.pageSize.width;
 
     // Header
-    doc.setFillColor(22, 101, 52); // dmn-green-800
-    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.setFillColor(34, 197, 94); // dmn-green-500
+    doc.rect(0, 0, pageWidth, 45, 'F');
     
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('DAARA M. - UCAD', pageWidth / 2, 15, { align: 'center' });
+    doc.text('DAARA MADJMAHOUNE NOREYNI UCAD', pageWidth / 2, 15, { align: 'center' });
     
     doc.setFontSize(12);
-    doc.text('Système de Gestion - Rapport Officiel', pageWidth / 2, 25, { align: 'center' });
+    doc.text('Commission Sociale DMN cellule ESP', pageWidth / 2, 23, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
     
     let reportTitle = '';
     if (type === 'journalier') reportTitle = `RAPPORT JOURNALIER`;
@@ -158,44 +168,38 @@ export class ReportService {
     if (type === 'annuel') reportTitle = `RAPPORT ANNUEL ${year}`;
     else if (type === 'mensuel') reportTitle = `RAPPORT MENSUEL - ${month} ${year}`;
     else if (type === 'trimestriel') reportTitle = `RAPPORT TRIMESTRIEL T${quarter} ${year}`;
+    else if (type === 'personnalise' && customStartDate && customEndDate) {
+       reportTitle = `RAPPORT PÉRIODE : ${customStartDate.toLocaleDateString('fr-FR')} - ${customEndDate.toLocaleDateString('fr-FR')}`;
+    }
     
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.text(reportTitle, pageWidth / 2, 32, { align: 'center' });
 
     doc.setFontSize(8);
     doc.setTextColor(200, 200, 200);
-    doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 37, { align: 'center' });
+    doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 39, { align: 'center' });
 
-    let currentY = 50;
+    let currentY = 55;
 
     // Filter data based on period
     const filterByPeriod = (item: any) => {
-      // If item has explicit year/month, use them
-      if (item.annee !== undefined && item.mois !== undefined && type !== 'journalier' && type !== 'hebdomadaire') {
-        if (item.annee !== year) return false;
-        if (type === 'mensuel' && item.mois !== month) return false;
-        if (type === 'trimestriel') {
-          const mIdx = MOIS.indexOf(item.mois);
-          const q = Math.floor(mIdx / 3) + 1;
-          return q === quarter;
-        }
-        return true;
-      }
-
-      const itemDate = item.date ? new Date(item.date) : (item.createdAt ? new Date(item.createdAt) : null);
-      if (!itemDate) return false;
+      let itemAnnee = item.annee;
+      let itemMois = item.mois;
+      const d = item.date ? new Date(item.date) : (item.createdAt ? new Date(item.createdAt) : null);
       
-      const itemYear = itemDate.getFullYear();
-      const itemMonthIdx = itemDate.getMonth();
-      const itemMonthName = MOIS[itemMonthIdx];
-      const itemQuarter = Math.floor(itemMonthIdx / 3) + 1;
-
-      if (itemYear !== year) return false;
-      if (type === 'journalier') {
-         const now = new Date();
-         return itemDate.getDate() === now.getDate() && itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+      if (d && !isNaN(d.getTime())) {
+        if (itemAnnee === undefined || itemAnnee === null) itemAnnee = d.getFullYear();
+        if (itemMois === undefined || itemMois === null) itemMois = MOIS[d.getMonth()];
       }
+
+      if (type === 'journalier') {
+         if (!d) return false;
+         const now = new Date();
+         return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }
+      
       if (type === 'hebdomadaire') {
+         if (!d) return false;
          const now = new Date();
          const getWeek = (date: Date) => {
            const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -204,34 +208,37 @@ export class ReportService {
            const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
            return Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
          };
-         return getWeek(itemDate) === getWeek(now) && itemDate.getFullYear() === now.getFullYear();
+         return getWeek(d) === getWeek(now) && d.getFullYear() === now.getFullYear();
       }
-      if (type === 'mensuel' && itemMonthName !== month) return false;
-      if (type === 'trimestriel' && itemQuarter !== quarter) return false;
+
+      if (type === 'personnalise' && customStartDate && customEndDate && d) {
+         const time = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+         const start = new Date(customStartDate.getFullYear(), customStartDate.getMonth(), customStartDate.getDate()).getTime();
+         const end = new Date(customEndDate.getFullYear(), customEndDate.getMonth(), customEndDate.getDate()).getTime();
+         return time >= start && time <= end;
+      }
+
+      if (Number(itemAnnee) !== year) return false;
+      if (type === 'mensuel' && itemMois !== month) return false;
+      if (type === 'trimestriel') {
+        const mIdx = MOIS.indexOf(itemMois as string);
+        if (mIdx === -1) return false;
+        const q = Math.floor(mIdx / 3) + 1;
+        return q === quarter;
+      }
       return true;
     };
 
     // Filtered lists
-    const fCotisations = cotisations.filter(c => {
-       if (c.annee !== year) return false;
-       if (type === 'journalier' || type === 'hebdomadaire') return false; // Usually not filtered this granularly, but valid
-       if (type === 'mensuel' && c.mois !== month) return false;
-       if (type === 'trimestriel') {
-          const mIdx = MOIS.indexOf(c.mois);
-          const q = Math.floor(mIdx / 3) + 1;
-          if (q !== quarter) return false;
-       }
-       return true;
-    });
-
+    const fCotisations = cotisations.filter(filterByPeriod);
     const fDepenses = depenses.filter(filterByPeriod);
     const fRecettes = recettes.filter(filterByPeriod);
     const fDettes = dettes.filter(filterByPeriod);
     const fTicketsCollectes = ticketsCollectes.filter(filterByPeriod);
     const fTicketsDistributions = ticketsDistributions.filter(filterByPeriod);
-    const fCafeProd = cafeProductions.filter(p => filterByPeriod({ date: p.date }));
-    const fCafeVentes = cafeVentes.filter(v => filterByPeriod({ date: v.date }));
-    const fCafeDepenses = cafeDepenses.filter(d => filterByPeriod({ date: d.date }));
+    const fCafeProd = cafeProductions.filter(filterByPeriod);
+    const fCafeVentes = cafeVentes.filter(filterByPeriod);
+    const fCafeDepenses = cafeDepenses.filter(filterByPeriod);
 
     // SUMMARY TABLE (Finance)
     if (activeTab === 'all' || activeTab === 'caisse') {
@@ -350,7 +357,67 @@ export class ReportService {
         headStyles: { fillColor: [30, 41, 59] }, // slate-800
         styles: { fontSize: 8 }
       });
+
+      currentY = (doc as any).lastAutoTable.finalY + 15;
     }
+
+    // CAFE: REVENDEURS
+    if ((activeTab === 'all' || activeTab === 'cafe') && fCafeVentes.length > 0) {
+      const vendeursIds = [...new Set(fCafeVentes.map(v => v.vendeurId).filter(Boolean))];
+      if (vendeursIds.length > 0) {
+        if (currentY > 220) { doc.addPage(); currentY = 20; }
+        
+        doc.setFontSize(14);
+        doc.text('5. PERFORMANCES DES REVENDEURS (CAFÉ)', 14, currentY);
+        currentY += 10;
+
+        const revendeursData = vendeursIds.map(vId => {
+          const v = membres.find(m => m.id === vId);
+          const nom = v ? `${v.prenom} ${v.nom}` : vId;
+          const vVentes = fCafeVentes.filter(vv => vv.vendeurId === vId);
+          const totalQty = vVentes.reduce((sum, vv) => sum + vv.quantite, 0);
+          const totalCa = vVentes.reduce((sum, vv) => sum + vv.total, 0);
+          return [
+            nom,
+            `${totalQty} tasses`,
+            this.formatCurrency(totalCa)
+          ];
+        });
+
+        // Sort by total CA
+        revendeursData.sort((a, b) => parseInt(b[2] as string) - parseInt(a[2] as string));
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Revendeur', 'Total Ventes (Tasses)', 'Chiffre d\'Affaire']],
+          body: revendeursData,
+          theme: 'grid',
+          headStyles: { fillColor: [154, 52, 18] }, // orange-800
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
+    }
+
+    // SIGNATURES
+    if (currentY > 250) { doc.addPage(); currentY = 20; }
+    else { currentY += 15; }
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Préparé par :', 30, currentY);
+    doc.text('Validé par :', pageWidth - 80, currentY);
+    
+    currentY += 8;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Nom & Signature', 30, currentY);
+    doc.text('La Direction du Daara / Président', pageWidth - 80, currentY);
+    
+    // Signature lines
+    doc.setDrawColor(200, 200, 200);
+    doc.line(30, currentY + 20, 80, currentY + 20);
+    doc.line(pageWidth - 80, currentY + 20, pageWidth - 30, currentY + 20);
 
     // Footer
     const totalPages = (doc as any).internal.getNumberOfPages();

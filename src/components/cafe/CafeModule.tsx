@@ -15,10 +15,10 @@ import { MOIS } from '../../data';
 import { 
   CafeProduction, CafeVente, CafeDepense, CafeTransfert, ModePaiement,
   CafeSeller, CafeOrder, CafeDistribution, CafeVersement,
-  CafePriceConfig, AppUser, CafeClient
+  CafePriceConfig, AppUser, CafeClient, UserRole
 } from '../../types';
 import { db, auth } from '../../firebase';
-import { hasPermission } from '../../utils/permissions';
+import { hasPermission, logAudit } from '../../utils/permissions';
 import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../utils/firestoreErrorHandler';
 import { simpleDate } from '../../utils/date';
@@ -35,11 +35,12 @@ interface CafeModuleProps {
   sellers: CafeSeller[];
   clients: CafeClient[];
   priceConfig: CafePriceConfig | null;
-  userRole: string;
+  userRole: UserRole | null;
   globalYear: number;
   globalMonth: string | null;
   showToast: (message: string, type?: 'success' | 'error') => void;
   onTransferToCaisse?: (amount: number) => void;
+  confirmAction: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 type TabType = 'tableau' | 'production' | 'logistique' | 'ventes' | 'depenses' | 'stock' | 'stats' | 'historique';
@@ -47,7 +48,8 @@ type TabType = 'tableau' | 'production' | 'logistique' | 'ventes' | 'depenses' |
 export function CafeModule({ 
   productions, ventes, depenses, transferts, distributions,
   versements, sellers, clients, priceConfig,
-  userRole, globalYear, globalMonth, showToast, onTransferToCaisse 
+  userRole, globalYear, globalMonth, showToast, onTransferToCaisse,
+  confirmAction
 }: CafeModuleProps) {
   const [activeTab, setActiveTab] = useState<TabType>('tableau');
   const [searchHistory, setSearchHistory] = useState('');
@@ -292,6 +294,7 @@ export function CafeModule({
         remarque: remark,
         createdAt: Date.now()
       });
+      logAudit(userRole, 'cafe.production.create', 'Café', 'Nouvelle production', { qty, format, cost });
       showToast("Production enregistrée avec succès !", "success");
       (e.target as any).reset();
     } catch (err) { 
@@ -346,6 +349,7 @@ export function CafeModule({
         responsable: currentUser?.displayName || currentUser?.email || 'Vendeur',
         createdAt: Date.now()
       });
+      logAudit(userRole, 'cafe.sales.create', 'Café', 'Vente café', { qty, format, sellerId, total: qty * price });
       showToast("Vente enregistrée avec succès ✅", "success");
       setSaleQty(0);
       (e.target as any).reset();
@@ -375,6 +379,7 @@ export function CafeModule({
         createdAt: Date.now(),
         stockActuel: 0 // Initialize empty stock
       });
+      logAudit(userRole, 'admin', 'Café', 'Nouveau revendeur', { nom, cellule });
       showToast("Nouveau revendeur ajouté !", "success");
       (e.target as any).reset();
     } catch (err) { 
@@ -408,6 +413,7 @@ export function CafeModule({
         responsable: currentUser?.displayName || currentUser?.email || 'Manager',
         createdAt: Date.now()
       });
+      logAudit(userRole, 'cafe.production.create', 'Café', 'Distribution stock', { sellerId, qty, format });
       showToast("Stock distribué avec succès ! ✅", "success");
       setDistQty(0);
       (e.target as any).reset();
@@ -433,6 +439,7 @@ export function CafeModule({
         responsable: currentUser?.displayName || currentUser?.email || 'Manager',
         createdAt: Date.now()
       });
+      logAudit(userRole, 'cafe.expenses.create', 'Café', 'Dépense café', { amount, motif });
       showToast("Dépense enregistrée avec succès", "success");
       (e.target as any).reset();
     } catch (err) { 
@@ -447,6 +454,7 @@ export function CafeModule({
         prices: newPrices,
         lastUpdated: Date.now()
       });
+      logAudit(userRole, 'admin', 'Café', 'Mise à jour prix', { newPrices });
       showToast("Configuration des prix mise à jour !", "success");
     } catch (e) { 
       handleFirestoreError(e, OperationType.WRITE, 'settings/cafe_prices');
@@ -459,13 +467,19 @@ export function CafeModule({
       return;
     }
 
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet élément ?")) return;
-    try {
-      await deleteDoc(doc(db, collectionName, id));
-      showToast("Élément supprimé avec succès", "success");
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, collectionName);
-    }
+    confirmAction(
+      "Supprimer l'élément",
+      "Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est irréversible.",
+      async () => {
+        try {
+          await deleteDoc(doc(db, collectionName, id));
+          logAudit(userRole, 'admin', 'Café', `Suppression ${collectionName}`, { id });
+          showToast("Élément supprimé avec succès", "success");
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, collectionName);
+        }
+      }
+    );
   };
 
   const handleUpdateItem = async (e: React.FormEvent<HTMLFormElement>) => {

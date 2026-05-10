@@ -52,6 +52,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'cafe.sales.read',
     'stats.read',
     'members.read'
+  ],
+  revendeur: [
+    'cafe.sales.read',
+    'cafe.sales.create'
   ]
 };
 

@@ -64,7 +64,7 @@ export interface Dette {
   createdBy?: string;
 }
 
-export type UserRole = 'admin' | 'caisse' | 'tickets' | 'cafe' | 'lecteur';
+export type UserRole = 'admin' | 'caisse' | 'tickets' | 'cafe' | 'revendeur' | 'lecteur';
 
 export interface CafeVersement {
   id: string;
@@ -82,16 +82,6 @@ export interface AppUser {
   nom: string;
   role: UserRole;
   createdAt?: number;
-}
-
-export interface AccessCode {
-  id?: string;
-  code: string;
-  role: UserRole;
-  used: boolean;
-  usedBy?: string;
-  usedByName?: string;
-  createdAt: number;
 }
 
 export interface TicketCollecte {

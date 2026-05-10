@@ -27,6 +27,15 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
   const [isLinking, setIsLinking] = useState(false);
   const [linkError, setLinkError] = useState('');
 
+  const myCotisations = useMemo(() => {
+    if (!myMembre) return [];
+    return cotisations.filter(c => c.mId === myMembre.id && c.montant > 0);
+  }, [cotisations, myMembre]);
+
+  const currentYearCotisations = useMemo(() => {
+    return myCotisations.filter(c => c.annee === selectedYear);
+  }, [myCotisations, selectedYear]);
+
   const handleLinkProfile = async () => {
     if (!linkingMembreId) {
       setLinkError('Veuillez sélectionner un profil.');
@@ -101,9 +110,6 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
       </div>
     );
   }
-
-  const myCotisations = useMemo(() => cotisations.filter(c => c.mId === myMembre.id && c.montant > 0), [cotisations, myMembre.id]);
-  const currentYearCotisations = useMemo(() => myCotisations.filter(c => c.annee === selectedYear), [myCotisations, selectedYear]);
 
   // Statut
   const startMonthIndex = (myMembre.anneeIntegration === selectedYear && myMembre.moisIntegration) ? MOIS.indexOf(myMembre.moisIntegration) : (myMembre.anneeIntegration && myMembre.anneeIntegration > selectedYear ? 12 : 0);
@@ -227,7 +233,7 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
         <div className="bg-white p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 md:p-2.5 bg-dmn-green-50 rounded-xl">

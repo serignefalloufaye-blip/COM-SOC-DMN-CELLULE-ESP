@@ -62,18 +62,6 @@
       },
       "required": ["uid", "email", "nom", "role"]
     },
-    "AccessCode": {
-      "title": "AccessCode",
-      "description": "Code permettant d'obtenir un rôle spécifique",
-      "type": "object",
-      "properties": {
-        "code": { "type": "string" },
-        "role": { "type": "string" },
-        "used": { "type": "boolean" },
-        "createdAt": { "type": "number" }
-      },
-      "required": ["code", "role", "used", "createdAt"]
-    },
     "AppSettings": {
       "title": "AppSettings",
       "description": "Paramètres de l'application",

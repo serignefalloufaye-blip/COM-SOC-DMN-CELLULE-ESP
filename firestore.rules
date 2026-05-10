@@ -30,6 +30,10 @@ service cloud.firestore {
         : 'lecteur';
     }
 
+    function isRevendeur() {
+      return isAdmin() || (isAuthenticated() && getRole() == 'revendeur');
+    }
+
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.email == "serignefalloufaye@esp.sn" ||
@@ -52,7 +56,7 @@ service cloud.firestore {
     }
 
     function isLecteur() {
-      return isAuthenticated() && getRole() in ['lecteur', 'admin', 'caisse', 'tickets', 'cafe'];
+      return isAuthenticated() && getRole() in ['lecteur', 'admin', 'caisse', 'tickets', 'cafe', 'revendeur'];
     }
 
     // --- Domain Validators ---
@@ -97,14 +101,7 @@ service cloud.firestore {
       return data.uid is string &&
              data.email is string && data.email.size() > 0 &&
              data.nom is string &&
-             data.role in ['admin', 'caisse', 'tickets', 'cafe', 'lecteur'];
-    }
-
-    function isValidAccessCode(data) {
-      return data.code is string && 
-             data.role in ['caisse', 'tickets', 'cafe'] &&
-             data.used is bool &&
-             data.createdAt is number;
+             data.role in ['admin', 'caisse', 'tickets', 'cafe', 'revendeur', 'lecteur'];
     }
 
     function isValidTicketCollecte(data) {
@@ -184,17 +181,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /access_codes/{codeId} {
-      allow read: if isAuthenticated();
-      allow create: if isAdmin() && isValidAccessCode(incoming());
-      allow update: if isAdmin() || (
-        isAuthenticated() && 
-        resource.data.used == false && 
-        incoming().diff(existing()).affectedKeys().hasOnly(['used', 'usedBy', 'usedByName'])
-      );
-      allow delete: if isAdmin();
-    }
-
     // Tickets
     match /tickets_collectes/{id} {
       allow read: if isLecteur();
@@ -216,24 +202,24 @@ service cloud.firestore {
 
     // Cafe
     match /cafe_productions/{id} {
-      allow read: if isLecteur();
+      allow read: if isLecteur() || isRevendeur();
       allow create, update: if isCafe() && incoming().keys().hasAll(['date', 'quantite']);
       allow delete: if isCafe();
     }
 
     match /cafe_ventes/{id} {
-      allow read: if isLecteur();
-      allow create, update: if isCafe() && incoming().keys().hasAll(['date', 'quantite', 'total']);
+      allow read: if isLecteur() || isRevendeur();
+      allow create, update: if (isCafe() || isRevendeur()) && incoming().keys().hasAll(['date', 'quantite', 'total']);
       allow delete: if isCafe();
     }
 
     match /cafe_depenses/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
     match /cafe_transferts/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
-    match /cafe_distributions/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
-    match /cafe_versements/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
-    match /cafe_sellers/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
-    match /cafe_clients/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
-    match /cafe_orders/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
+    match /cafe_distributions/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe(); }
+    match /cafe_versements/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
+    match /cafe_sellers/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe(); }
+    match /cafe_clients/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
+    match /cafe_orders/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
 
     match /audit_logs/{id} {
       allow read: if isAdmin();
