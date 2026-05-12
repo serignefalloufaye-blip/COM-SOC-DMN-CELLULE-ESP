@@ -192,7 +192,16 @@ Barakallahou fikoum.`;
   };
 
   const renderCollecte = () => {
-    const nomComplet = (m: Membre) => `${m.prenom} ${m.nom}`;
+    const nomComplet = (m: Membre) => {
+      const baseName = `${m.prenom} ${m.nom}`;
+      const duplicate = membres.some(other => other.id !== m.id && other.prenom === m.prenom && other.nom === m.nom);
+      if (duplicate) {
+        if (m.telephone) return `${baseName} (${m.telephone})`;
+        if (m.statut) return `${baseName} [${m.statut}]`;
+        return `${baseName} *`;
+      }
+      return baseName;
+    };
     const filteredMembres = membres.filter(m => nomComplet(m).toLowerCase().includes(searchMembre.toLowerCase()));
 
     return (
@@ -218,7 +227,7 @@ Barakallahou fikoum.`;
             return (
               <div key={m.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative hover:shadow-md transition-all">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900 text-lg">{m.prenom} {m.nom}</h3>
+                  <h3 className="font-bold text-gray-900 text-lg">{nomComplet(m)}</h3>
                   {!collecteDuMois && (
                     <div className="flex gap-1">
                       <button 

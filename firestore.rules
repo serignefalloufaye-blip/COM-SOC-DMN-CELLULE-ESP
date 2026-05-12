@@ -144,7 +144,12 @@ service cloud.firestore {
 
     match /membres/{membreId} {
       allow read: if isLecteur();
-      allow create, update: if isCaisse() && isValidMembre(incoming());
+      allow create: if isCaisse() && isValidMembre(incoming());
+      allow update: if (isCaisse() && isValidMembre(incoming())) ||
+                       (isAuthenticated() && 
+                        (!('userId' in existing()) || existing().userId == '' || existing().userId == request.auth.uid) &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['email', 'telephone', 'userId', 'updatedAt']) &&
+                        incoming().userId == request.auth.uid);
       allow delete: if isAdmin();
     }
 

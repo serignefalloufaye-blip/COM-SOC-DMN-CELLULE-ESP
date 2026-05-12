@@ -41,7 +41,7 @@ export function StatsAndReports({
   cafeProductions, cafeVentes, cafeDepenses,
   membres, showToast, userRole
 }: StatsAndReportsProps) {
-  const defaultTab = ['admin', 'caisse'].includes(userRole) ? 'caisse' : userRole === 'tickets' ? 'tickets' : 'cafe';
+  const defaultTab = ['admin', 'caisse', 'lecteur'].includes(userRole as string) ? 'caisse' : userRole === 'tickets' ? 'tickets' : 'cafe';
   const [filterPeriod, setFilterPeriod] = useState<'mensuel' | 'trimestriel' | 'annuel' | 'personnalise'>('annuel');
   const [selectedYear, setSelectedYear] = useState<number>(globalYear);
   const [selectedMonth, setSelectedMonth] = useState<string>(globalMonth || MOIS[new Date().getMonth()]);
@@ -182,6 +182,7 @@ export function StatsAndReports({
       quarter: selectedQuarter,
       customStartDate: customStartDate ? new Date(customStartDate) : undefined,
       customEndDate: customEndDate ? new Date(customEndDate) : undefined,
+      activeTab: activeTab === 'all' ? 'all' : activeTab,
       cotisations: filteredCots,
       depenses: filteredDeps,
       recettes: filteredRecs,
@@ -392,7 +393,7 @@ export function StatsAndReports({
         {[
           { id: 'caisse', label: 'Caisse Sociale', icon: Wallet, color: 'dmn-green', isVisible: userRole === 'admin' || userRole === 'caisse' || userRole === 'lecteur' },
           { id: 'tickets', label: 'Tickets & Repas', icon: Ticket, color: 'amber', isVisible: userRole === 'admin' || userRole === 'tickets' || userRole === 'lecteur' },
-          { id: 'cafe', label: 'Module Café', icon: Coffee, color: 'orange', isVisible: userRole === 'admin' || userRole === 'cafe' || userRole === 'revendeur' || userRole === 'lecteur' }
+          { id: 'cafe', label: 'Module Café', icon: Coffee, color: 'orange', isVisible: userRole === 'admin' || userRole === 'cafe' || userRole === 'revendeur' }
         ].filter(t => t.isVisible).map(tab => (
           <motion.button
             key={tab.id}

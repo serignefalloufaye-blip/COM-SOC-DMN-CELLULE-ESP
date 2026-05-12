@@ -21,6 +21,7 @@ export class ReportService {
     quarter?: number;
     customStartDate?: Date;
     customEndDate?: Date;
+    activeTab?: 'all' | 'caisse' | 'tickets' | 'cafe' | 'finance';
     cotisations: Cotisation[];
     depenses: Depense[];
     recettes: Recette[];
@@ -33,6 +34,7 @@ export class ReportService {
   }) {
     const { 
       type, year, month, quarter, customStartDate, customEndDate,
+      activeTab = 'all',
       cotisations, depenses, recettes, dettes,
       ticketsCollectes, ticketsDistributions,
       cafeProductions, cafeVentes, cafeDepenses
@@ -91,9 +93,15 @@ export class ReportService {
       ...cafeDepenses.filter(d => filterByPeriod({ date: d.date })).map(d => [new Date(d.date).toLocaleDateString(), 'Dépense', d.motif, d.montant])
     ];
 
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(financeData), 'Finance');
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(ticketsData), 'Tickets');
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(cafeData), 'Café');
+    if (activeTab === 'all' || activeTab === 'caisse' || (activeTab as string) === 'finance') {
+       XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(financeData), 'Finance');
+    }
+    if (activeTab === 'all' || activeTab === 'tickets') {
+       XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(ticketsData), 'Tickets');
+    }
+    if (activeTab === 'all' || activeTab === 'cafe') {
+       XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(cafeData), 'Café');
+    }
 
     XLSX.writeFile(workbook, `Rapport_DMN_${type}_${year}.xlsx`);
   }
@@ -201,7 +209,7 @@ export class ReportService {
     const fCafeDepenses = cafeDepenses.filter(filterByPeriod);
 
     // SUMMARY TABLE (Finance)
-    if (activeTab === 'all' || activeTab === 'caisse') {
+    if (activeTab === 'all' || activeTab === 'caisse' || (activeTab as string) === 'finance') {
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(14);
       doc.text('1. RÉSUMÉ FINANCIER (CAISSE)', 14, currentY);

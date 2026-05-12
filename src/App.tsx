@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, CalendarDays, CreditCard, 
-  CalendarRange, AlertTriangle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
+  CalendarRange, AlertTriangle, AlertCircle, CheckCircle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key, QrCode, Share2, UserCheck,
   Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu, Loader2
 } from 'lucide-react';
@@ -48,6 +48,20 @@ export default function App() {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   
+  // Test de connexion Firestore au démarrage
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'settings', 'app_config'));
+      } catch (error: any) {
+        if (error.message?.includes('unavailable') || error.message?.includes('offline')) {
+          console.warn("Firestore est actuellement hors ligne ou indisponible. Passage en mode déconnecté.");
+        }
+      }
+    };
+    testConnection();
+  }, []);
+
   // Advanced Features State
   const [selectedMemberProfile, setSelectedMemberProfile] = useState<Membre | null>(null);
   
@@ -112,6 +126,8 @@ export default function App() {
     const userDisplayName = user.displayName?.toLowerCase().trim();
 
     return membres.find(m => {
+      if (m.userId && m.userId === user.uid) return true;
+
       const membreEmail = m.email?.toLowerCase().trim();
       const membrePhone = m.telephone?.trim();
       const membreFullName = `${m.prenom} ${m.nom}`.toLowerCase().trim();
@@ -143,17 +159,13 @@ export default function App() {
     else if (userRole === 'cafe') tabs = ALL_TABS.filter(t => ['dashboard', 'cafe', 'roles', 'etat'].includes(t.id));
     else if (userRole === 'tickets') tabs = ALL_TABS.filter(t => ['dashboard', 'tickets', 'roles', 'etat'].includes(t.id));
     else if (isRevendeur) tabs = ALL_TABS.filter(t => ['dashboard', 'cafe', 'etat'].includes(t.id));
-    else if (userRole === 'lecteur' || userRole === 'visitor') tabs = ALL_TABS.filter(t => ['dashboard', 'rapports'].includes(t.id));
+    else if (userRole === 'lecteur' || userRole === 'visitor') tabs = ALL_TABS.filter(t => ['dashboard', 'rapports', 'etat'].includes(t.id));
     else tabs = ALL_TABS.filter(t => ['dashboard', 'etat'].includes(t.id));
 
     // Si pas membre, on enlève 'etat' sauf si c'est un lecteur (qui en a besoin pour se lier)
     if (!isMember && userRole !== 'lecteur') {
       tabs = tabs.filter(t => t.id !== 'etat');
     }
-    
-    // Pour le lecteur/visiteur, on peut fusionner dashboard et etat s'ils sont liés ? 
-    // Non, restons simple : on garde 'dashboard' pour le dashboard global/lecteur et 'etat' pour l'espace perso.
-    // En fait, pour le lecteur, on peut cacher 'etat' s'il est au dashboard ? Non.
     
     return tabs;
   }, [userRole, isAdmin, isRevendeur, myMembre]);
@@ -195,6 +207,25 @@ export default function App() {
     title: '',
     message: '',
     onConfirm: () => {},
+  });
+
+  // Direct Payment Modal State
+  const [paymentModal, setPaymentModal] = useState<{
+    isOpen: boolean;
+    mode: 'WAVE' | null;
+    membre: Membre | null;
+    unpaidMonths: string[];
+    selectedMonths: string[];
+    customAmountPerMonth: number;
+    isWaitingForValidation?: boolean;
+  }>({
+    isOpen: false,
+    mode: null,
+    membre: null,
+    unpaidMonths: [],
+    selectedMonths: [],
+    customAmountPerMonth: 500,
+    isWaitingForValidation: false,
   });
 
   const confirmAction = (title: string, message: string, onConfirm: () => void) => {
@@ -255,6 +286,7 @@ export default function App() {
 
   const [isCotModalOpen, setIsCotModalOpen] = useState(false);
   const [editingCot, setEditingCot] = useState<Partial<Cotisation>>({});
+  const [cotisationMembreFilter, setCotisationMembreFilter] = useState('');
   const [fMois, setFMois] = useState('');
   const [fMode, setFMode] = useState('');
   const [searchCot, setSearchCot] = useState('');
@@ -584,7 +616,17 @@ export default function App() {
   };
 
   const getMembre = (id: string) => membres.find(m => m.id === id);
-  const nomComplet = (m?: Membre) => m ? `${m.prenom} ${m.nom}` : '—';
+  const nomComplet = (m?: Membre) => {
+    if (!m) return '—';
+    const baseName = `${m.prenom} ${m.nom}`;
+    const duplicate = membres.some(other => other.id !== m.id && other.prenom === m.prenom && other.nom === m.nom);
+    if (duplicate) {
+      if (m.telephone) return `${baseName} (${m.telephone})`;
+      if (m.statut) return `${baseName} [${m.statut}]`;
+      return `${baseName} *`;
+    }
+    return baseName;
+  };
 
   const handleSaveMembre = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -686,6 +728,91 @@ export default function App() {
         }
       }
     );
+  };
+
+  const handleConfirmDirectPayment = () => {
+    if (!paymentModal.membre || paymentModal.unpaidMonths.length === 0) return;
+    
+    const paymentAmountExFee = paymentModal.selectedMonths.length * paymentModal.customAmountPerMonth;
+    const paymentFee = 0; // Wave marchand, pas de frais
+    const paymentTotalAmount = paymentAmountExFee + paymentFee;
+
+    // Redirection vers Wave avec montant préchargé
+    // Utilisation du format standard : /c/{montant}
+    const url = `https://pay.wave.com/m/M_sn_pRX2DhJGTmqm/c/${paymentTotalAmount}`;
+    
+    window.open(url, '_blank');
+    
+    showToast(`Redirection vers Wave pour le montant de ${formatPrice(paymentTotalAmount)} FCFA.`);
+    
+    // Passer en mode attente de validation
+    setPaymentModal(prev => ({ ...prev, isWaitingForValidation: true }));
+  };
+
+  const handleFinalizeDirectPayment = async () => {
+    if (!paymentModal.membre || paymentModal.selectedMonths.length === 0) return;
+    
+    const { membre, selectedMonths, customAmountPerMonth, mode } = paymentModal;
+    const currentYear = globalYear; // On assume l'année globale
+    
+    try {
+      showToast("Enregistrement de vos cotisations...");
+      
+      const promises = selectedMonths.map(mois => {
+        const tIndex = MOIS.indexOf(mois);
+        const trimestre = tIndex !== -1 ? Math.floor(tIndex / 3) + 1 : 1;
+        const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        
+        // Vérifier si une cotisation existe déjà (sécurité)
+        const existing = cotisations.find(c => c.mId === membre.id && c.mois === mois && c.annee === currentYear);
+        
+        if (existing) {
+          return updateDoc(doc(db, 'cotisations', existing.id), {
+            montant: customAmountPerMonth,
+            mode: mode || 'WAVE',
+            updatedAt: Date.now()
+          });
+        } else {
+          return addDoc(collection(db, 'cotisations'), {
+            mId: membre.id,
+            mois,
+            annee: currentYear,
+            trimestre,
+            heure,
+            montant: customAmountPerMonth,
+            mode: mode || 'WAVE',
+            createdAt: Date.now(),
+            createdBy: user?.uid || 'auto'
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      
+      logAudit(userRole, 'caisse.create', 'Caisse', 'Paiement direct Wave validé', { 
+        mId: membre.id, 
+        mois: selectedMonths, 
+        total: selectedMonths.length * customAmountPerMonth 
+      });
+      
+      showToast('Bravo ! Vos cotisations ont été mises à jour.', 'success');
+      setPaymentModal({ isOpen: false, mode: null, membre: null, unpaidMonths: [], selectedMonths: [], customAmountPerMonth: 500, isWaitingForValidation: false });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'cotisations');
+      showToast("Erreur lors de l'enregistrement automatique", 'error');
+    }
+  };
+
+  const handleGeneralReminderWhatsApp = () => {
+    const message = `Assalamou haleykoum Mbokkou talibé yii,
+Nous vous rappelons amicalement de bien vouloir régulariser vos cotisations.
+Vous pouvez consulter votre état et payer directement par Wave via notre plateforme en cliquant sur ce lien :
+👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/
+Pour ceux qui souhaitent payer par Orange Money, merci de le faire directement au 77 095 26 47.
+Merci pour votre engagement envers la Commission Sociale du DMN`;
+    
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   const openAddCot = (mId?: string, mois?: string, annee?: number) => {
@@ -1003,6 +1130,31 @@ export default function App() {
                 </div>
               </div>
             </div>
+            
+            {status.isLate && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="mt-8 bg-white/5 border border-white/10 p-6 rounded-3xl"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertCircle size={16} className="text-red-400" />
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-white/90">
+                    Régularisation ({status.unpaidCount} mois)
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <button 
+                    onClick={() => setPaymentModal({ isOpen: true, mode: 'WAVE', membre, unpaidMonths: status.unpaidMonths, selectedMonths: status.unpaidMonths, customAmountPerMonth: 500 })} 
+                    className="bg-[#1dc6f8] hover:bg-[#15b2e0] text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#1dc6f8]/20 active:scale-95"
+                  >
+                    <Smartphone size={14} /> Régler via Wave
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
             {userRole === 'admin' && (
               <div className="absolute top-8 left-8 flex gap-3">
                 <button 
@@ -2475,14 +2627,19 @@ export default function App() {
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-      <div className="bg-dmn-green-900 text-white px-8 py-6 font-heading font-bold text-lg flex justify-between items-center">
+      <div className="bg-dmn-green-900 text-white px-8 py-6 font-heading font-bold text-lg flex justify-between items-center sm:flex-row flex-col gap-4">
         <div className="flex items-center gap-3">
           <AlertTriangle size={24} className="text-dmn-gold-light" strokeWidth={2.5} /> 
           Suivi des Retards de Paiement
         </div>
-        <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
-          <Printer size={14} /> Imprimer
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleGeneralReminderWhatsApp} className="bg-[#25D366] hover:bg-[#1da851] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm">
+            <MessageCircle size={14} /> Rappel Général
+          </button>
+          <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
+            <Printer size={14} /> Imprimer
+          </button>
+        </div>
       </div>
           <div className="p-8">
             {/* Filtres */}
@@ -3215,6 +3372,18 @@ export default function App() {
                 cotisations={cotisations} 
                 globalYear={globalYear} 
                 MOIS={MOIS} 
+                onDirectPaymentClick={(mode, amount, unpaidMonths) => {
+                  if (myMembre) {
+                    setPaymentModal({
+                      isOpen: true,
+                      mode,
+                      membre: myMembre,
+                      unpaidMonths,
+                      selectedMonths: unpaidMonths,
+                      customAmountPerMonth: 500
+                    });
+                  }
+                }}
               />
             ) : (
               <>
@@ -3242,6 +3411,18 @@ export default function App() {
             cotisations={cotisations} 
             globalYear={globalYear} 
             MOIS={MOIS} 
+            onDirectPaymentClick={(mode, amount, unpaidMonths) => {
+              if (myMembre) {
+                setPaymentModal({
+                  isOpen: true,
+                  mode,
+                  membre: myMembre,
+                  unpaidMonths,
+                  selectedMonths: unpaidMonths,
+                  customAmountPerMonth: 500
+                });
+              }
+            }}
           />
         )}
 
@@ -3488,10 +3669,22 @@ export default function App() {
               </div>
               <form onSubmit={handleSaveCotisation} className="space-y-6 overflow-y-auto pr-2 scrollbar-thin">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Membre</label>
+                  <div className="flex justify-between items-end mb-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Membre</label>
+                    <input 
+                      type="text" 
+                      placeholder="Filtrer..." 
+                      value={cotisationMembreFilter}
+                      onChange={e => setCotisationMembreFilter(e.target.value)}
+                      className="text-xs px-3 py-1.5 border border-gray-200 rounded-xl outline-none focus:border-dmn-green-500 bg-white"
+                    />
+                  </div>
                   <select name="mId" defaultValue={editingCot.mId || ''} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm">
                     <option value="" disabled>Sélectionner un membre</option>
-                    {membres.map(m => <option key={m.id} value={m.id}>{nomComplet(m)}</option>)}
+                    {membres
+                      .filter(m => nomComplet(m).toLowerCase().includes(cotisationMembreFilter.toLowerCase()))
+                      .map(m => <option key={m.id} value={m.id}>{nomComplet(m)}</option>)
+                    }
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -3779,6 +3972,126 @@ export default function App() {
                 >
                   Annuler
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Direct Payment Modal */}
+      <AnimatePresence>
+        {paymentModal.isOpen && paymentModal.membre && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[600] flex items-center justify-center p-4 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className={`bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative border-2 ${paymentModal.mode === 'WAVE' ? 'border-[#1DC6F8]/30' : 'border-[#FF6600]/30'} text-center overflow-hidden`}
+            >
+              <div className={`absolute top-0 left-0 w-full h-2 ${paymentModal.mode === 'WAVE' ? 'bg-[#1DC6F8]' : 'bg-[#FF6600]'}`}></div>
+              
+              <div className="flex justify-center mb-6 mt-4">
+                <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center shadow-lg transform -rotate-6 transition-transform ${paymentModal.mode === 'WAVE' ? 'bg-[#1DC6F8]/10 text-[#1DC6F8]' : 'bg-[#FF6600]/10 text-[#FF6600]'}`}>
+                  {paymentModal.mode === 'WAVE' ? <Smartphone size={40} /> : <Wallet size={40} />}
+                </div>
+              </div>
+              
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Paiement {paymentModal.mode}</h3>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-6">
+                Régularisation <span className="font-black text-gray-900">{paymentModal.membre.prenom} {paymentModal.membre.nom}</span> ({paymentModal.selectedMonths.length} mois)
+              </p>
+
+              <div className="text-left mb-6">
+                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-3">Mois à payer</p>
+                <div className="flex flex-wrap gap-2 border border-gray-100 bg-gray-50/50 p-2 rounded-2xl mb-4">
+                  {paymentModal.unpaidMonths.map(mois => {
+                    const isSelected = paymentModal.selectedMonths.includes(mois);
+                    return (
+                      <button
+                        key={mois}
+                        onClick={() => {
+                          setPaymentModal(prev => ({
+                            ...prev,
+                            selectedMonths: isSelected 
+                              ? prev.selectedMonths.filter(m => m !== mois)
+                              : [...prev.selectedMonths, mois].sort((a, b) => MOIS.indexOf(a) - MOIS.indexOf(b))
+                          }));
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${isSelected ? (paymentModal.mode === 'WAVE' ? 'bg-[#1DC6F8] text-white border-[#1DC6F8]' : 'bg-[#FF6600] text-white border-[#FF6600]') : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}`}
+                      >
+                        {formatMoisPreposition(mois)}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="px-1">
+                  <label className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1.5 block">Montant par mois (FCFA)</label>
+                  <input 
+                    type="number" 
+                    min="500"
+                    value={paymentModal.customAmountPerMonth}
+                    onChange={(e) => setPaymentModal(prev => ({ ...prev, customAmountPerMonth: Math.max(0, parseInt(e.target.value) || 0) }))}
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-black focus:outline-none focus:border-dmn-green-500 bg-white"
+                  />
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 p-6 rounded-[2rem] mb-8 border border-gray-100">
+                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-2">Montant à payer</p>
+                <div className="flex flex-col gap-1 items-center">
+                  <p className={`text-4xl font-black ${paymentModal.mode === 'WAVE' ? 'text-[#1DC6F8]' : 'text-[#FF6600]'}`}>
+                    {formatPrice((paymentModal.selectedMonths.length * paymentModal.customAmountPerMonth) + (paymentModal.mode === 'WAVE' ? 0 : Math.ceil(paymentModal.selectedMonths.length * paymentModal.customAmountPerMonth * 0.01)))} <span className="text-lg text-gray-400">F</span>
+                  </p>
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest text-center mt-1">
+                    Base: {formatPrice(paymentModal.selectedMonths.length * paymentModal.customAmountPerMonth)}F {paymentModal.mode !== 'WAVE' && `+ Frais (1%): ${formatPrice(Math.ceil(paymentModal.selectedMonths.length * paymentModal.customAmountPerMonth * 0.01))}F`}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                {!paymentModal.isWaitingForValidation ? (
+                  <>
+                    <button 
+                      onClick={handleConfirmDirectPayment}
+                      disabled={paymentModal.selectedMonths.length === 0}
+                      className={`w-full py-5 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] transition-all flex items-center justify-center gap-3 hover:-translate-y-1 active:translate-y-0 active:scale-95 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed bg-[#1DC6F8] hover:shadow-[#1DC6F8]/30 hover:bg-[#15b2e0]`}
+                    >
+                      <CheckCircle size={16} />
+                      Ouvrir l'application de paiement
+                    </button>
+                    <button 
+                      onClick={() => setPaymentModal({ isOpen: false, mode: null, membre: null, unpaidMonths: [], selectedMonths: [], customAmountPerMonth: 500, isWaitingForValidation: false })}
+                      className="w-full py-4 text-gray-400 bg-gray-50 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-gray-100 hover:text-gray-600 transition-all"
+                    >
+                      Annuler
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-[#1DC6F8]/5 p-4 rounded-2xl border border-[#1DC6F8]/10 mb-2">
+                       <p className="text-[10px] font-black text-[#1DC6F8] uppercase tracking-wider">Paiement en cours...</p>
+                       <p className="text-xs text-gray-600 mt-1">Cliquez ci-dessous une fois que vous avez fini sur Wave.</p>
+                    </div>
+                    <button 
+                      onClick={handleFinalizeDirectPayment}
+                      className={`w-full py-5 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] transition-all flex items-center justify-center gap-3 hover:-translate-y-1 active:translate-y-0 active:scale-95 shadow-xl bg-dmn-green-500 hover:shadow-dmn-green-500/30 hover:bg-dmn-green-600`}
+                    >
+                      <CheckCircle size={16} />
+                      J'ai terminé le paiement
+                    </button>
+                    <button 
+                      onClick={() => setPaymentModal(prev => ({ ...prev, isWaitingForValidation: false }))}
+                      className="w-full py-3 text-gray-400 font-bold text-[10px] uppercase tracking-widest hover:text-gray-600 transition-all"
+                    >
+                      Modifier ou Retour
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           </motion.div>

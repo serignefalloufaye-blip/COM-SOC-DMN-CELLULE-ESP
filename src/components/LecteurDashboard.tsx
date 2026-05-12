@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Membre, Cotisation } from '../types';
 import { 
   CheckCircle2, XCircle, AlertTriangle, Wallet, Calendar, CalendarDays, 
-  TrendingUp, Download, PieChart as PieChartIcon, Activity, Printer, Info, UserCheck, Loader2
+  TrendingUp, Download, PieChart as PieChartIcon, Activity, Printer, Info, UserCheck, Loader2, Smartphone
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { formalizeDate } from '../utils/date';
@@ -19,11 +19,13 @@ interface LecteurDashboardProps {
   cotisations: Cotisation[];
   globalYear: number;
   MOIS: string[];
+  onDirectPaymentClick?: (mode: 'WAVE', amount: number, unpaidMonths: string[]) => void;
 }
 
-export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS }) => {
+export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS, onDirectPaymentClick }) => {
   const [selectedYear, setSelectedYear] = useState(globalYear);
   const [linkingMembreId, setLinkingMembreId] = useState('');
+  const [linkingSearch, setLinkingSearch] = useState('');
   const [isLinking, setIsLinking] = useState(false);
   const [linkError, setLinkError] = useState('');
 
@@ -52,6 +54,7 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
       await updateDoc(doc(db, 'membres', linkingMembreId), {
         email: currentUser.email || '',
         telephone: currentUser.phoneNumber || '',
+        userId: currentUser.uid,
         updatedAt: Date.now()
       });
       // Component will automatically re-render when myMembre gets detected via updated firestore members.
@@ -63,7 +66,7 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
   };
 
   if (!myMembre) {
-    const unlinkedMembres = membres.filter(m => !m.email && !m.telephone);
+    const unlinkedMembres = membres.filter(m => !m.userId && !m.email);
     
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 animate-in fade-in">
@@ -78,17 +81,29 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
           </p>
           
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Choisir mon profil</label>
+            <div className="flex flex-col gap-2">
+              <label className="block text-sm font-semibold text-gray-700">Choisir mon profil</label>
+              <input 
+                type="text" 
+                placeholder="Filtrer par prénom ou nom..."
+                value={linkingSearch}
+                onChange={(e) => setLinkingSearch(e.target.value)}
+                className="w-full bg-white border border-gray-200 text-gray-800 rounded-xl px-4 py-2 text-xs font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+              />
               <select 
                 value={linkingMembreId} 
                 onChange={(e) => setLinkingMembreId(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+                size={5}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm max-h-48"
               >
-                <option value="">-- Sélectionnez votre profil --</option>
-                {unlinkedMembres.map(m => (
-                  <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
-                ))}
+                {unlinkedMembres
+                  .filter(m => `${m.prenom} ${m.nom}`.toLowerCase().includes(linkingSearch.toLowerCase()))
+                  .map(m => (
+                    <option key={m.id} value={m.id} className="py-1">
+                      {m.prenom} {m.nom} {m.telephone ? `(${m.telephone})` : ''} - {m.statut || 'N/A'}
+                    </option>
+                  ))
+                }
               </select>
             </div>
             
@@ -97,7 +112,7 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
             <button
               onClick={handleLinkProfile}
               disabled={isLinking || !linkingMembreId}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm mt-4"
             >
               {isLinking ? <Loader2 size={18} className="animate-spin" /> : <UserCheck size={18} />}
               Confirmer et Lier mon compte
@@ -218,17 +233,30 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
       </div>
 
       {unpaidMonths.length > 0 && (
-         <div className="bg-red-50 border border-red-100 p-4 md:p-5 rounded-2xl flex items-start gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-            <div className="p-2 bg-white rounded-full shrink-0 shadow-sm">
-                <AlertTriangle className="text-red-500" size={24} />
+         <div className="bg-red-50 border border-red-100 p-4 md:p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-white rounded-full shrink-0 shadow-sm">
+                  <AlertTriangle className="text-red-500" size={24} />
+              </div>
+              <div>
+                  <h4 className="font-bold text-red-800 text-sm md:text-base">Rappel de cotisation</h4>
+                  <p className="text-red-600 text-xs md:text-sm mt-1">
+                      Vous avez {unpaidMonths.length} mois de retard ({unpaidMonths.join(', ')}). 
+                      Montant restant estimé : <strong className="font-black">{montantRestant} FCFA</strong>.
+                  </p>
+              </div>
             </div>
-            <div>
-                <h4 className="font-bold text-red-800 text-sm md:text-base">Rappel de cotisation</h4>
-                <p className="text-red-600 text-xs md:text-sm mt-1">
-                    Vous avez {unpaidMonths.length} mois de retard ({unpaidMonths.join(', ')}). 
-                    Montant restant estimé : <strong className="font-black">{montantRestant} FCFA</strong>.
-                </p>
-            </div>
+            
+            {onDirectPaymentClick && (
+              <div className="flex gap-2 w-full md:w-auto shrink-0 mt-2 md:mt-0">
+                <button 
+                  onClick={() => onDirectPaymentClick('WAVE', montantRestant, unpaidMonths)} 
+                  className="flex-1 md:flex-none bg-[#1dc6f8] hover:bg-[#15b2e0] text-white py-2 px-4 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md shadow-[#1dc6f8]/20 active:scale-95 whitespace-nowrap"
+                >
+                  <Smartphone size={14} /> Régler via Wave
+                </button>
+              </div>
+            )}
          </div>
       )}
 
