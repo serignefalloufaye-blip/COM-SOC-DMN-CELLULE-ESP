@@ -345,10 +345,18 @@ export function PremiumDashboard({
           <motion.div
             key={i}
             variants={itemVariants}
-            whileHover={{ y: -5 }}
-            className={`premium-card p-4 sm:p-5 flex flex-col justify-between h-28 sm:h-32 relative overflow-hidden`}
+            whileHover={{ 
+              y: -8, 
+              scale: 1.02,
+              transition: { type: 'spring', stiffness: 400, damping: 10 }
+            }}
+            whileTap={{ scale: 0.98 }}
+            className={`premium-card p-4 sm:p-5 flex flex-col justify-between h-28 sm:h-32 relative overflow-hidden group cursor-pointer`}
           >
-            <div className={`p-2 w-9 h-9 sm:w-10 sm:h-10 ${item.bg} ${item.color} rounded-xl flex items-center justify-center mb-1 sm:mb-2`}>
+            <div className={`absolute top-0 right-0 w-16 h-16 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity`}>
+               <item.icon size={64} className="-mr-4 -mt-4 rotate-12" />
+            </div>
+            <div className={`p-2 w-9 h-9 sm:w-10 sm:h-10 ${item.bg} ${item.color} rounded-xl flex items-center justify-center mb-1 sm:mb-2 transition-transform group-hover:scale-110`}>
               <item.icon size={18} />
             </div>
             <div>

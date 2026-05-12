@@ -20,11 +20,12 @@ interface TicketsProps {
   distributions: TicketDistribution[];
   userRole: UserRole | null;
   confirmAction: (title: string, message: string, onConfirm: () => void) => void;
+  activeTab: 'statistiques' | 'collecte' | 'conversion' | 'distribution' | 'historique';
+  setActiveTab: (tab: 'statistiques' | 'collecte' | 'conversion' | 'distribution' | 'historique') => void;
 }
 
-export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions, userRole, confirmAction }: TicketsProps) {
+export function Tickets({ membres, globalYear, globalMonth, showToast, collectes, conversions, distributions, userRole, confirmAction, activeTab, setActiveTab }: TicketsProps) {
   const { isMobile, isLowEndDevice } = useAdaptive();
-  const [activeTab, setActiveTab] = useState<'collecte' | 'conversion' | 'distribution' | 'historique' | 'statistiques'>('statistiques');
   const isTickets = hasPermission(userRole as any, 'tickets.create');
   const canDelete = hasPermission(userRole as any, 'tickets.delete');
 
@@ -127,6 +128,16 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             type === 'Collecte' ? 'tickets_collectes' : 
             type === 'Conversion' ? 'tickets_conversions' : 
             'tickets_distributions';
+          
+          if (type === 'Collecte') {
+            const collecte = collectes.find(c => c.id === id);
+            if (collecte && collecte.type === 'argent' && collecte.montantArgent) {
+              const matchingConv = conversions.find(c => c.montant === collecte.montantArgent);
+              if (matchingConv) {
+                await deleteDoc(doc(db, 'tickets_conversions', matchingConv.id!));
+              }
+            }
+          }
           
           await deleteDoc(doc(db, collectionName, id));
           logAudit(userRole, 'tickets.delete', 'Social', `Annulation ${type.toLowerCase()}`, { id });
@@ -627,8 +638,10 @@ Barakallahou fikoum.`;
         <div className="w-full lg:w-auto -mx-2 px-2 sm:mx-0 sm:px-0">
           <div className="flex bg-gray-50/80 p-1.5 rounded-[1.5rem] sm:rounded-[2rem] overflow-x-auto no-scrollbar border border-gray-100/50 shadow-inner snap-x snap-mandatory">
             {tabs.map(tab => (
-              <button
+              <motion.button
                 key={tab.id}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`snap-center shrink-0 flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-[1.25rem] sm:rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                   activeTab === tab.id 
@@ -638,7 +651,7 @@ Barakallahou fikoum.`;
               >
                 <tab.icon size={14} className={`transition-all duration-300 ${activeTab === tab.id ? 'text-dmn-green-600 stroke-[2.5px]' : 'stroke-2'}`} />
                 <span>{tab.label}</span>
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
@@ -647,26 +660,26 @@ Barakallahou fikoum.`;
       {/* STATISTIQUES RAPIDES */}
       {activeTab !== 'statistiques' && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="premium-card p-10 relative overflow-hidden group">
+          <motion.div whileHover={{ y: -5 }} className="premium-card p-10 relative overflow-hidden group">
              <div className="absolute top-0 right-0 w-24 h-24 bg-dmn-green-500/10 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700"></div>
              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Argent Dispo</p>
              <p className="text-3xl fintech-kpi text-dmn-green-950 relative z-10">{argentDisponible} <span className="text-xs font-black text-gray-400 tracking-normal">FCFA</span></p>
-          </div>
-          <div className="premium-card p-10 relative overflow-hidden group">
+          </motion.div>
+          <motion.div whileHover={{ y: -5 }} className="premium-card p-10 relative overflow-hidden group">
              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700"></div>
              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Stock PetitDèj</p>
              <p className="text-3xl fintech-kpi text-dmn-green-950 relative z-10">{stockPetitDej} <span className="text-xs font-black text-gray-400 tracking-normal">UTS</span></p>
-          </div>
-          <div className="premium-card p-10 relative overflow-hidden group">
+          </motion.div>
+          <motion.div whileHover={{ y: -5 }} className="premium-card p-10 relative overflow-hidden group">
              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700"></div>
              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Stock Repas</p>
              <p className="text-3xl fintech-kpi text-dmn-green-950 relative z-10">{stockRepas} <span className="text-xs font-black text-gray-400 tracking-normal">UTS</span></p>
-          </div>
-          <div className="premium-card bg-dmn-green-900 border-none p-10 text-white relative overflow-hidden group">
+          </motion.div>
+          <motion.div whileHover={{ y: -5 }} className="premium-card bg-dmn-green-900 border-none p-10 text-white relative overflow-hidden group">
              <div className="absolute bottom-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mb-16 transition-transform group-hover:scale-150 duration-700"></div>
              <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-4">Total Distribué</p>
              <p className="text-3xl fintech-kpi text-white relative z-10">{ticketsDistribuesPetitDej + ticketsDistribuesRepas} <span className="text-xs font-black text-white/30 tracking-normal">UTS</span></p>
-          </div>
+          </motion.div>
         </div>
       )}
 

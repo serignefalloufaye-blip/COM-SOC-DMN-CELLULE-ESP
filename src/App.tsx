@@ -27,6 +27,7 @@ import { ReportService } from './services/ReportService';
 import AdminDateInput from './components/AdminDateInput';
 import * as XLSX from 'xlsx';
 import { useAdaptive } from './hooks/useAdaptive';
+import { Skeleton, DashboardSkeleton } from './components/ui/Skeleton';
 
 // Lazy load heavy components
 const Tickets = lazy(() => import('./components/Tickets').then(m => ({ default: m.Tickets })));
@@ -51,15 +52,21 @@ export default function App() {
   const [selectedMemberProfile, setSelectedMemberProfile] = useState<Membre | null>(null);
   
   // Toast Notification State
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    // Vibrate if available (haptic feedback)
+    if (navigator.vibrate) {
+      if (type === 'error') navigator.vibrate([10, 30, 10]);
+      else navigator.vibrate(10);
+    }
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 4000);
   };
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [financeSubTab, setFinanceSubTab] = useState<'saisie' | 'cotisations' | 'recettes' | 'depenses' | 'dettes' | 'rapports'>('cotisations');
+  const [ticketsSubTab, setTicketsSubTab] = useState<'statistiques' | 'collecte' | 'conversion' | 'distribution' | 'historique'>('statistiques');
   
   const isCaisse = userRole === 'caisse' || hasPermission(userRole, 'caisse.read');
   const isTickets = userRole === 'tickets' || hasPermission(userRole, 'tickets.read');
@@ -209,6 +216,7 @@ export default function App() {
         break;
       case 'ticket':
         setActiveTab('tickets');
+        setTicketsSubTab('distribution');
         break;
       case 'cafe':
         setActiveTab('cafe');
@@ -957,113 +965,127 @@ export default function App() {
     const monthsPaid = memberCotisations.filter(c => c.montant > 0).length;
 
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-        <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100">
-          <div className="bg-dmn-green-900 p-8 text-white relative shrink-0">
-            <button onClick={() => setSelectedMemberProfile(null)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4"
+      >
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className="bg-white rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100"
+        >
+          <div className="bg-dmn-green-900 p-10 text-white relative shrink-0">
+            <button onClick={() => setSelectedMemberProfile(null)} className="absolute top-8 right-8 text-white/50 hover:text-white transition-all p-3 hover:bg-white/10 rounded-full active:scale-90">
               <X size={24} />
             </button>
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center text-4xl font-bold border-4 border-white/20 shadow-inner">
+            <div className="flex flex-col sm:flex-row items-center gap-8">
+              <div className="w-32 h-32 bg-white/10 rounded-[2.5rem] flex items-center justify-center text-5xl font-black border-4 border-white/20 shadow-inner transform -rotate-3">
                 {membre.prenom[0]}{membre.nom[0]}
               </div>
               <div className="text-center sm:text-left flex-1">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <h2 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight">{membre.prenom} {membre.nom}</h2>
-                  <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase self-center sm:self-auto ${status.isLate ? 'bg-red-500 text-white' : 'bg-dmn-green-500 text-white'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <h2 className="text-3xl sm:text-4xl font-black tracking-tight">{membre.prenom} {membre.nom}</h2>
+                  <span className={`inline-block px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.2em] uppercase self-center sm:self-auto border-2 ${status.isLate ? 'border-red-400 text-red-100 bg-red-400/10' : 'border-dmn-green-400 text-dmn-green-100 bg-dmn-green-400/10'}`}>
                     {status.isLate ? 'En Retard' : 'Régulier'}
                   </span>
                 </div>
-                <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-4">
-                  <span className="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 border border-white/10">
-                    <Smartphone size={14} className="text-dmn-gold-light" /> 
-                    <span className="text-dmn-green-100">+221</span> {membre.telephone || 'Non renseigné'}
+                <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-6">
+                  <span className="bg-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-white/10">
+                    <Smartphone size={14} className="text-dmn-gold" /> 
+                    <span className="text-dmn-green-200">+221</span> {membre.telephone || 'Non renseigné'}
                   </span>
-                  <span className="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-medium border border-white/10">
+                  <span className="bg-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10">
                     {membre.statut || 'Statut non défini'}
                   </span>
                 </div>
               </div>
             </div>
             {userRole === 'admin' && (
-              <div className="absolute top-6 left-6 flex gap-2">
+              <div className="absolute top-8 left-8 flex gap-3">
                 <button 
                   onClick={() => { setEditingMembre(membre); setIsMembreModalOpen(true); setSelectedMemberProfile(null); }}
-                  className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all border border-white/10 flex items-center gap-2 text-xs font-bold"
+                  className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
                   title="Modifier"
                 >
                   <Edit2 size={16} /> <span className="hidden sm:inline">Modifier</span>
-                </button>
-                <button 
-                  onClick={() => { handleDeleteMembre(membre.id); setSelectedMemberProfile(null); }}
-                  className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-white rounded-xl transition-all border border-red-500/20 flex items-center gap-2 text-xs font-bold"
-                  title="Supprimer"
-                >
-                  <Trash2 size={16} /> <span className="hidden sm:inline">Supprimer</span>
                 </button>
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 bg-gray-50/30">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-                <div className="w-12 h-12 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center">
-                  <Wallet size={24} />
+          <div className="flex-1 overflow-y-auto p-8 sm:p-10 space-y-10 bg-gray-50/30 scrollbar-thin">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <motion.div whileHover={{ y: -5 }} className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-5">
+                <div className="w-16 h-16 bg-dmn-green-50 text-dmn-green-600 rounded-2xl flex items-center justify-center">
+                  <Wallet size={32} />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">Total Cotisations</p>
-                  <p className="text-2xl font-heading font-bold text-dmn-green-900">{formatPrice(totalPaid)} F</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Total Cotisations</p>
+                  <p className="text-3xl font-black text-dmn-green-900">{formatPrice(totalPaid)} <span className="text-xs font-bold text-gray-400">F</span></p>
                 </div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-                  <CalendarRange size={24} />
+              </motion.div>
+              <motion.div whileHover={{ y: -5 }} className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-5">
+                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                  <CalendarRange size={32} />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-0.5">Mois Payés</p>
-                  <p className="text-2xl font-heading font-bold text-blue-900">{monthsPaid}</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Mois Payés</p>
+                  <p className="text-3xl font-black text-blue-900">{monthsPaid} <span className="text-xs font-bold text-gray-400">/ 12</span></p>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             <div>
-              <h3 className="font-heading font-bold text-gray-900 mb-6 flex items-center gap-2 text-lg">
-                <History size={20} className="text-dmn-green-600" /> Historique des Paiements
-              </h3>
-              <div className="relative pl-8 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                  <History size={16} className="text-dmn-green-600" /> Historique des Paiements
+                </h3>
+              </div>
+              <div className="relative pl-10 space-y-8 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-1 before:bg-gray-100/50 before:rounded-full">
                 {memberCotisations.length > 0 ? (
                   memberCotisations.map((c, idx) => (
-                    <div key={c.id} className="relative animate-in slide-in-from-left-4 duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
-                      <div className="absolute -left-[29px] top-1.5 w-6 h-6 bg-white border-2 border-dmn-green-500 rounded-full z-10 flex items-center justify-center">
-                        <div className="w-2 h-2 bg-dmn-green-500 rounded-full"></div>
+                    <motion.div 
+                      key={c.id} 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="relative"
+                    >
+                      <div className="absolute -left-[35px] top-1/2 -translate-y-1/2 w-10 h-10 bg-white border-4 border-gray-50 rounded-2xl z-10 flex items-center justify-center shadow-sm">
+                        <div className="w-3 h-3 bg-dmn-green-500 rounded-lg"></div>
                       </div>
-                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-gray-900 text-sm">{c.mois} {c.annee}</p>
-                          <div className="flex items-center gap-2 mt-1">
+                      <div className="bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-between group">
+                        <div className="space-y-1">
+                          <p className="font-black text-dmn-green-950 text-base">{c.mois} {c.annee}</p>
+                          <div className="flex items-center gap-3">
                             <Badge mode={c.mode} date={c.createdAt || c.updatedAt} />
-                            <span className="text-[10px] text-gray-400 font-medium italic">Enregistré le {simpleDate(c.createdAt || Date.now())}</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Le {simpleDate(c.createdAt || Date.now())}</span>
                           </div>
                         </div>
-                        <p className="font-black text-dmn-green-600">+{formatPrice(c.montant)} F</p>
+                        <div className="text-right">
+                          <p className="font-black text-dmn-green-600 text-xl">+{formatPrice(c.montant)} F</p>
+                        </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 ) : (
-                  <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <History size={48} className="mx-auto text-gray-200 mb-4" />
-                    <p className="text-gray-400 italic text-sm">Aucun paiement enregistré pour ce membre</p>
+                  <div className="text-center py-16 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
+                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-200">
+                      <History size={40} />
+                    </div>
+                    <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">Aucun paiement enregistré</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   };
-
 
   const formatPrice = (amount: number) => {
     if (amount === undefined || amount === null) return "0";
@@ -2766,19 +2788,35 @@ export default function App() {
     const lateMonths = unpaidMonths.filter(um => monthsPassed.includes(um));
 
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-        <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-dmn-green-50/50 rounded-t-2xl shrink-0">
-            <div>
-              <h2 className="text-2xl font-heading font-bold text-dmn-green-900">{nomComplet(m)}</h2>
-              <p className="text-dmn-green-700 font-medium flex items-center gap-2 mt-1">
-                <CalendarRange size={16} /> Historique {globalYear}
-              </p>
+      <AnimatePresence>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] border border-gray-100 overflow-hidden"
+          >
+            <div className="p-8 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 shrink-0">
+              <div>
+                <h2 className="text-3xl font-black text-dmn-green-900">{nomComplet(m)}</h2>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="px-3 py-1 bg-dmn-green-100 text-dmn-green-700 text-[10px] font-black uppercase tracking-widest rounded-full">Historique {globalYear}</span>
+                  <div className="flex items-center gap-1 text-gray-400 font-bold text-xs">
+                    <CalendarRange size={14} /> 
+                    <span>Fiche membre</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedMemberHistory(null)} className="p-3 bg-white rounded-full text-gray-400 hover:text-gray-700 shadow-sm transition-all active:scale-90"><X size={20} /></button>
             </div>
-            <button onClick={() => setSelectedMemberHistory(null)} className="p-2 bg-white rounded-full text-gray-400 hover:text-gray-700 shadow-sm transition-colors"><X size={20} /></button>
-          </div>
-          
-          <div className="p-6 overflow-y-auto">
+            
+            <div className="p-8 overflow-y-auto scrollbar-thin">
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-dmn-green-50 p-4 rounded-xl border border-dmn-green-100">
                 <p className="text-xs text-dmn-green-600 font-bold uppercase tracking-wider mb-1">Total Payé</p>
@@ -2844,9 +2882,10 @@ export default function App() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
     );
   };
 
@@ -3113,18 +3152,20 @@ export default function App() {
                 { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
                 { id: 'dettes', label: 'Dettes', icon: Banknote },
               ].map(sub => (
-                <button 
+                <motion.button 
                   key={sub.id} 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setFinanceSubTab(sub.id as any)} 
                   className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
                     financeSubTab === sub.id 
-                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10 scale-105' 
+                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10' 
                       : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
                    <sub.icon size={14} className={financeSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
                    <span>{sub.label}</span>
-                </button>
+                </motion.button>
               ))}
 
               {activeTab === 'membres' && [
@@ -3132,18 +3173,20 @@ export default function App() {
                 { id: 'annuel', label: 'Annuel', icon: CalendarRange },
                 { id: 'retards', label: 'Retards', icon: AlertTriangle },
               ].map(sub => (
-                <button 
+                <motion.button 
                   key={sub.id} 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setMembreSubTab(sub.id as any)} 
                   className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
                     membreSubTab === sub.id 
-                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10 scale-105' 
+                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10' 
                       : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
                    <sub.icon size={14} className={membreSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
                    <span>{sub.label}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
           </motion.div>
@@ -3161,7 +3204,7 @@ export default function App() {
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="p-3 sm:p-6 lg:p-8"
           >
-            <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-dmn-green-500" size={32} /></div>}>
+            <Suspense fallback={<DashboardSkeleton />}>
         {activeTab === 'dashboard' && (
           <>
             {userRole === 'lecteur' ? (
@@ -3231,7 +3274,7 @@ export default function App() {
         {activeTab === 'membres' && membreSubTab === 'annuel' && renderAnnuel()}
         {activeTab === 'membres' && membreSubTab === 'retards' && renderNonPayeurs()}
 
-        {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} userRole={userRole as string} confirmAction={confirmAction} />}
+        {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} userRole={userRole as string} confirmAction={confirmAction} activeTab={ticketsSubTab} setActiveTab={setTicketsSubTab} />}
         
         {activeTab === 'cafe' && (
           <CafeModule 
@@ -3270,18 +3313,20 @@ export default function App() {
       {/* Desktop Navigation */}
       <nav className="hidden sm:flex max-w-7xl mx-auto px-6 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-[136px] z-[80] bg-white/80 backdrop-blur-md border-b border-gray-100">
         {navigationTabs.map(tab => (
-          <button
+          <motion.button
             key={tab.id}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setActiveTab(tab.id as Tab)}
             className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group ${
               activeTab === tab.id 
-                ? 'bg-dmn-green-600 text-white shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10 scale-105' 
-                : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200 hover:border-gray-300 hover:scale-105'
+                ? 'bg-dmn-green-600 text-white shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10' 
+                : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200 hover:border-gray-300'
             }`}
           >
             <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-[2px] group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
             <span>{tab.label}</span>
-          </button>
+          </motion.button>
         ))}
       </nav>
 
@@ -3335,287 +3380,410 @@ export default function App() {
       </footer>
 
       {renderMemberHistoryModal()}
-      {selectedMemberProfile && renderMemberProfile(selectedMemberProfile)}
+      <AnimatePresence>
+        {selectedMemberProfile && renderMemberProfile(selectedMemberProfile)}
+      </AnimatePresence>
 
       {/* Modals for Membre and Depense */}
-      {isMembreModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6 shrink-0">
-              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
-                {editingMembre ? <><Edit2 size={20} className="text-dmn-gold-light" /> Modifier membre</> : <><Users size={20} className="text-dmn-gold-light" /> Nouveau membre</>}
-              </h3>
-              <button onClick={() => setIsMembreModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSaveMembre} className="space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Prénom</label>
-                <input name="prenom" defaultValue={editingMembre?.prenom} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+      <AnimatePresence>
+        {isMembreModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] border border-gray-100"
+            >
+              <div className="flex justify-between items-center mb-8 shrink-0">
+                <h3 className="text-2xl font-black text-dmn-green-900 flex items-center gap-3">
+                  {editingMembre ? (
+                    <div className="w-12 h-12 bg-dmn-gold/10 rounded-2xl flex items-center justify-center">
+                      <Edit2 size={24} className="text-dmn-gold" />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 bg-dmn-green-500/10 rounded-2xl flex items-center justify-center">
+                      <Users size={24} className="text-dmn-green-600" />
+                    </div>
+                  )}
+                  {editingMembre ? 'Modifier membre' : 'Nouveau membre'}
+                </h3>
+                <button onClick={() => setIsMembreModalOpen(false)} className="p-3 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all active:scale-90">
+                  <X size={20} />
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nom</label>
-                <input name="nom" defaultValue={editingMembre?.nom} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Téléphone</label>
-                <input name="telephone" defaultValue={editingMembre?.telephone} placeholder="77 000 00 00" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Statut</label>
-                <select name="statut" defaultValue={editingMembre?.statut || 'Non Boursier'} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  <option value="Boursier">Boursier</option>
-                  <option value="Non Boursier">Non Boursier</option>
-                  <option value="Professionnel">Professionnel</option>
-                  <option value="Autre">Autre</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mois d'intégration</label>
-                  <select name="moisIntegration" defaultValue={editingMembre?.moisIntegration || MOIS[new Date().getMonth()]} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                    {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
+              <form onSubmit={handleSaveMembre} className="space-y-6 overflow-y-auto pr-2 scrollbar-thin">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Prénom</label>
+                  <input name="prenom" defaultValue={editingMembre?.prenom} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Nom</label>
+                  <input name="nom" defaultValue={editingMembre?.nom} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Téléphone</label>
+                  <input name="telephone" defaultValue={editingMembre?.telephone} placeholder="77 000 00 00" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Statut</label>
+                  <select name="statut" defaultValue={editingMembre?.statut || 'Non Boursier'} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm">
+                    <option value="Boursier">Boursier</option>
+                    <option value="Non Boursier">Non Boursier</option>
+                    <option value="Professionnel">Professionnel</option>
+                    <option value="Autre">Autre</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Année d'intégration</label>
-                  <input type="number" name="anneeIntegration" defaultValue={editingMembre?.anneeIntegration || new Date().getFullYear()} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Mois d'intégration</label>
+                    <select name="moisIntegration" defaultValue={editingMembre?.moisIntegration || MOIS[new Date().getMonth()]} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm">
+                      {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Année</label>
+                    <input type="number" name="anneeIntegration" defaultValue={editingMembre?.anneeIntegration || new Date().getFullYear()} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsMembreModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
-                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isCotModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6 shrink-0">
-              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
-                <CreditCard size={20} className="text-dmn-gold-light" /> {editingCot.id ? 'Modifier' : 'Enregistrer'} une cotisation
-              </h3>
-              <button onClick={() => setIsCotModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSaveCotisation} className="space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Membre</label>
-                <select name="mId" defaultValue={editingCot.mId || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  <option value="" disabled>Sélectionner un membre</option>
-                  {membres.map(m => <option key={m.id} value={m.id}>{nomComplet(m)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
-                <input type="number" name="montant" defaultValue={editingCot.montant} placeholder="500" required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mode de paiement</label>
-                <select name="mode" defaultValue={editingCot.mode || 'WAVE'} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  <option value="WAVE">WAVE</option>
-                  <option value="OM">OM</option>
-                  <option value="ESPÈCES">ESPÈCES</option>
-                </select>
-              </div>
-              <AdminDateInput userRole={userRole} />
-              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsCotModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
-                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isDepenseModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6 shrink-0">
-              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
-                <TrendingDown size={20} className="text-dmn-gold-light" /> Enregistrer une dépense
-              </h3>
-              <button onClick={() => setIsDepenseModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSaveDepense} className="space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Événement / Motif</label>
-                <input name="evenement" defaultValue={editingDepense.evenement} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
-                <input type="number" name="montant" defaultValue={editingDepense.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <AdminDateInput userRole={userRole} />
-              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsDepenseModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
-                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isRecetteModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6 shrink-0">
-              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
-                <Plus size={20} className="text-dmn-gold-light" /> Enregistrer une entrée
-              </h3>
-              <button onClick={() => setIsRecetteModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSaveRecette} className="space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Motif / Source</label>
-                <input name="motif" defaultValue={editingRecette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Don, Subvention..." />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
-                <input type="number" name="montant" defaultValue={editingRecette.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mode de paiement</label>
-                <select name="mode" defaultValue={editingRecette.mode || 'WAVE'} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm">
-                  <option value="WAVE">WAVE</option>
-                  <option value="OM">OM</option>
-                  <option value="ESPÈCES">ESPÈCES</option>
-                </select>
-              </div>
-              <AdminDateInput userRole={userRole} />
-              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsRecetteModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
-                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isDetteModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6 shrink-0">
-              <h3 className="text-xl font-heading font-bold text-dmn-green-900 flex items-center gap-2">
-                <Banknote size={20} className="text-dmn-gold-light" /> Enregistrer une dette
-              </h3>
-              <button onClick={() => setIsDetteModalOpen(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSaveDette} className="space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Motif / Bénéficiaire</label>
-                <input name="motif" defaultValue={editingDette.motif} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" placeholder="Ex: Achat matériel, Prêt à X..." />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Montant (FCFA)</label>
-                <input type="number" name="montant" defaultValue={editingDette.montant || ''} required className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 focus:border-dmn-green-500 transition-all shadow-sm" />
-              </div>
-              <AdminDateInput userRole={userRole} />
-              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsDetteModalOpen(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold shadow-sm hover:shadow hover:bg-gray-200 active:scale-95 transition-all outline-none">Annuler</button>
-                <button type="submit" className="px-6 py-3 bg-dmn-green-600 text-white rounded-xl text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">Enregistrer</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* QR Code Modal */}
-      {isQRModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative border border-gray-100"
-          >
-            <button 
-              onClick={() => setIsQRModalOpen(false)} 
-              className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              <X size={20} />
-            </button>
-            
-            <div className="text-center space-y-6">
-              <div className="w-16 h-16 bg-dmn-green-50 rounded-2xl flex items-center justify-center mx-auto text-dmn-green-600 mb-2">
-                <Share2 size={32} />
-              </div>
-              
-              <div className="space-y-1">
-                <h3 className="text-2xl font-heading font-black text-dmn-green-900">Partager l'App</h3>
-                <p className="text-dmn-green-600 text-xs font-bold uppercase tracking-widest">Commission Sociale DMN</p>
-              </div>
-
-              <div className="bg-white p-4 rounded-3xl shadow-premium border border-gray-100 inline-block mx-auto">
-                <QRCodeSVG 
-                  value={window.location.href}
-                  size={200}
-                  level="H"
-                  includeMargin={true}
-                  imageSettings={{
-                    src: appSettings.logoUrl || "logo.png",
-                    x: undefined,
-                    y: undefined,
-                    height: 40,
-                    width: 40,
-                    excavate: true,
-                  }}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-gray-500 text-xs font-medium leading-relaxed">
-                  Scannez ce QR code avec votre téléphone pour accéder instantanément à l'application.
-                </p>
-                
-                <div className="flex flex-col gap-2">
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href);
-                      showToast('Lien copié dans le presse-papier !');
-                    }}
-                    className="w-full py-4 bg-dmn-green-50 text-dmn-green-700 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-dmn-green-100 transition-all flex items-center justify-center gap-2"
-                  >
-                    Copier le lien
+                <div className="pt-4 sticky bottom-0 bg-white">
+                  <button type="submit" className="w-full py-5 bg-dmn-green-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-dmn-green-900/20 hover:shadow-2xl hover:shadow-dmn-green-900/30 transition-all hover:-translate-y-1 active:translate-y-0 active:scale-95">
+                    {editingMembre ? 'Enregistrer les modifications' : 'Créer le membre'}
                   </button>
                 </div>
-              </div>
-            </div>
+              </form>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isCotModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] border border-gray-100"
+            >
+              <div className="flex justify-between items-center mb-8 shrink-0">
+                <h3 className="text-2xl font-black text-dmn-green-900 flex items-center gap-3">
+                  <div className="w-12 h-12 bg-dmn-gold/10 rounded-2xl flex items-center justify-center text-dmn-gold">
+                    <CreditCard size={24} />
+                  </div>
+                  {editingCot.id ? 'Modifier' : 'Nouvelle'} Cotisation
+                </h3>
+                <button onClick={() => setIsCotModalOpen(false)} className="p-3 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all active:scale-90">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleSaveCotisation} className="space-y-6 overflow-y-auto pr-2 scrollbar-thin">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Membre</label>
+                  <select name="mId" defaultValue={editingCot.mId || ''} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm">
+                    <option value="" disabled>Sélectionner un membre</option>
+                    {membres.map(m => <option key={m.id} value={m.id}>{nomComplet(m)}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Montant (FCFA)</label>
+                  <input type="number" name="montant" defaultValue={editingCot.montant} placeholder="500" required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Mode de paiement</label>
+                  <select name="mode" defaultValue={editingCot.mode || 'WAVE'} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm">
+                    <option value="WAVE">WAVE</option>
+                    <option value="OM">OM</option>
+                    <option value="ESPÈCES">ESPÈCES</option>
+                  </select>
+                </div>
+                <AdminDateInput userRole={userRole} />
+                <div className="pt-4 sticky bottom-0 bg-white">
+                  <button type="submit" className="w-full py-5 bg-dmn-green-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-dmn-green-900/20 hover:shadow-2xl hover:shadow-dmn-green-900/30 transition-all hover:-translate-y-1 active:translate-y-0 active:scale-95">
+                    {editingCot.id ? 'Mettre à jour' : 'Enregistrer la cotisation'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+      <AnimatePresence>
+        {isDepenseModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] border border-gray-100"
+            >
+              <div className="flex justify-between items-center mb-8 shrink-0">
+                <h3 className="text-2xl font-black text-dmn-green-900 flex items-center gap-3">
+                  <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center text-red-600">
+                    <TrendingDown size={24} />
+                  </div>
+                  Enregistrer une dépense
+                </h3>
+                <button onClick={() => setIsDepenseModalOpen(false)} className="p-3 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all active:scale-90">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleSaveDepense} className="space-y-6 overflow-y-auto pr-2 scrollbar-thin">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Événement / Motif</label>
+                  <input name="evenement" defaultValue={editingDepense.evenement} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-red-500/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Montant (FCFA)</label>
+                  <input type="number" name="montant" defaultValue={editingDepense.montant || ''} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-red-500/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <AdminDateInput userRole={userRole} />
+                <div className="pt-4 sticky bottom-0 bg-white">
+                  <button type="submit" className="w-full py-5 bg-red-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-red-600/20 hover:shadow-2xl hover:shadow-red-600/30 transition-all hover:-translate-y-1 active:translate-y-0 active:scale-95">
+                    Enregistrer la dépense
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+      <AnimatePresence>
+        {isRecetteModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] border border-gray-100"
+            >
+              <div className="flex justify-between items-center mb-8 shrink-0">
+                <h3 className="text-2xl font-black text-dmn-green-900 flex items-center gap-3">
+                  <div className="w-12 h-12 bg-dmn-green-100 rounded-2xl flex items-center justify-center text-dmn-green-600">
+                    <Plus size={24} />
+                  </div>
+                  Nouvelle Entrée
+                </h3>
+                <button onClick={() => setIsRecetteModalOpen(false)} className="p-3 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all active:scale-90">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleSaveRecette} className="space-y-6 overflow-y-auto pr-2 scrollbar-thin">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Motif / Source</label>
+                  <input name="motif" defaultValue={editingRecette.motif} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-600/10 focus:bg-white transition-all shadow-sm" placeholder="Ex: Don, Subvention..." />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Montant (FCFA)</label>
+                  <input type="number" name="montant" defaultValue={editingRecette.montant || ''} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-600/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Mode de paiement</label>
+                  <select name="mode" defaultValue={editingRecette.mode || 'WAVE'} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-600/10 focus:bg-white transition-all shadow-sm">
+                    <option value="WAVE">WAVE</option>
+                    <option value="OM">OM</option>
+                    <option value="ESPÈCES">ESPÈCES</option>
+                  </select>
+                </div>
+                <AdminDateInput userRole={userRole} />
+                <div className="pt-4 sticky bottom-0 bg-white">
+                  <button type="submit" className="w-full py-5 bg-dmn-green-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-dmn-green-900/20 hover:shadow-2xl hover:shadow-dmn-green-900/30 transition-all hover:-translate-y-1 active:translate-y-0 active:scale-95">
+                    Enregistrer l'entrée
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+      <AnimatePresence>
+        {isDetteModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] border border-gray-100"
+            >
+              <div className="flex justify-between items-center mb-8 shrink-0">
+                <h3 className="text-2xl font-black text-dmn-green-900 flex items-center gap-3">
+                  <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600">
+                    <Banknote size={24} />
+                  </div>
+                  Enregistrer une dette
+                </h3>
+                <button onClick={() => setIsDetteModalOpen(false)} className="p-3 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all active:scale-90">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleSaveDette} className="space-y-6 overflow-y-auto pr-2 scrollbar-thin">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Motif / Bénéficiaire</label>
+                  <input name="motif" defaultValue={editingDette.motif} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-amber-500/10 focus:bg-white transition-all shadow-sm" placeholder="Ex: Achat matériel, Prêt à X..." />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Montant (FCFA)</label>
+                  <input type="number" name="montant" defaultValue={editingDette.montant || ''} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-amber-500/10 focus:bg-white transition-all shadow-sm" />
+                </div>
+                <AdminDateInput userRole={userRole} />
+                <div className="pt-4 sticky bottom-0 bg-white">
+                  <button type="submit" className="w-full py-5 bg-dmn-green-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-dmn-green-900/20 hover:shadow-2xl hover:shadow-dmn-green-900/30 transition-all hover:-translate-y-1 active:translate-y-0 active:scale-95">
+                    Enregistrer la dette
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+      {/* QR Code Modal */}
+      <AnimatePresence>
+        {isQRModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative border border-gray-100"
+            >
+              <button 
+                onClick={() => setIsQRModalOpen(false)} 
+                className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 transition-all active:scale-90"
+              >
+                <X size={20} />
+              </button>
+              
+              <div className="text-center space-y-6">
+                <div className="w-16 h-16 bg-dmn-green-50 rounded-2xl flex items-center justify-center mx-auto text-dmn-green-600 mb-2">
+                  <Share2 size={32} />
+                </div>
+                
+                <div className="space-y-1">
+                  <h3 className="text-2xl font-black text-dmn-green-900">Partager l'App</h3>
+                  <p className="text-dmn-green-600 text-xs font-black uppercase tracking-widest">Commission Sociale DMN</p>
+                </div>
+
+                <div className="bg-white p-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 inline-block mx-auto transform hover:scale-105 transition-transform duration-500">
+                  <QRCodeSVG 
+                    value={window.location.href}
+                    size={200}
+                    level="H"
+                    includeMargin={true}
+                    imageSettings={{
+                      src: appSettings.logoUrl || "logo.png",
+                      x: undefined,
+                      y: undefined,
+                      height: 40,
+                      width: 40,
+                      excavate: true,
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-gray-500 text-xs font-medium leading-relaxed px-4">
+                    Scannez ce QR code avec votre téléphone pour accéder instantanément à l'application.
+                  </p>
+                  
+                  <div className="flex flex-col gap-2 pt-2">
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        showToast('Lien copié ✅');
+                      }}
+                      className="w-full py-4 bg-gray-900 text-white rounded-[1.5rem] text-xs font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95 shadow-lg shadow-gray-900/10"
+                    >
+                      Copier le lien
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       {/* Confirmation Modal */}
-      {confirmModal.isOpen && (
-        <div className="fixed inset-0 bg-dmn-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
-              <AlertTriangle size={32} />
-            </div>
-            <h3 className="text-2xl font-heading font-black text-gray-900 mb-3">{confirmModal.title}</h3>
-            <p className="text-gray-500 text-sm mb-8 leading-relaxed font-medium">
-              {confirmModal.message}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button 
-                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
-                className="px-6 py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors"
-              >
-                Annuler
-              </button>
-              <button 
-                onClick={() => {
-                  confirmModal.onConfirm();
-                  setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                }} 
-                className="px-6 py-3 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/20 active:scale-95"
-              >
-                Confirmer l'action
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-md z-[500] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[3rem] p-10 w-full max-w-sm shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] border border-gray-100 text-center"
+            >
+              <div className="w-24 h-24 bg-red-50 text-red-600 rounded-[2.5rem] flex items-center justify-center mb-8 mx-auto shadow-inner transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+                <AlertTriangle size={48} />
+              </div>
+              <h3 className="text-3xl font-black text-gray-900 mb-4">{confirmModal.title}</h3>
+              <p className="text-gray-500 text-sm mb-10 leading-relaxed font-medium px-4">
+                {confirmModal.message}
+              </p>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => {
+                    confirmModal.onConfirm();
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                  }} 
+                  className="w-full py-5 bg-red-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-red-700 transition-all shadow-xl shadow-red-600/20 active:scale-95"
+                >
+                  Confirmer l'action
+                </button>
+                <button 
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
+                  className="w-full py-5 bg-gray-50 text-gray-400 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-gray-100 hover:text-gray-600 transition-all active:scale-95"
+                >
+                  Annuler
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Mobile Menu Drawer */}
       <AnimatePresence>
@@ -3682,29 +3850,47 @@ export default function App() {
       {/* Network Status Indicator */}
       <NetworkIndicator />
 
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-8 fade-in duration-300">
-          <div className={`flex items-center gap-4 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-md ${
-            toast.type === 'success' 
-              ? 'bg-white/95 border-emerald-100 text-emerald-900 shadow-emerald-900/10' 
-              : 'bg-white/95 border-red-100 text-red-900 shadow-red-900/10'
-          }`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-              toast.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+      {/* Toast Notification (Modernized) */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9, filter: 'blur(10px)' }}
+            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.95, filter: 'blur(5px)', transition: { duration: 0.2 } }}
+            className="fixed bottom-24 sm:bottom-10 left-1/2 -translate-x-1/2 sm:left-auto sm:right-10 z-[300] w-[90%] sm:w-auto"
+          >
+            <div className={`flex items-center gap-4 px-6 py-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border backdrop-blur-2xl ${
+              toast.type === 'success' 
+                ? 'bg-white/90 border-emerald-100 text-emerald-950' 
+                : toast.type === 'error'
+                  ? 'bg-white/90 border-red-100 text-red-950'
+                  : 'bg-white/90 border-blue-100 text-blue-950'
             }`}>
-              {toast.type === 'success' ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
+                toast.type === 'success' ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 
+                toast.type === 'error' ? 'bg-red-500 text-white shadow-red-500/20' :
+                'bg-blue-500 text-white shadow-blue-500/20'
+              }`}>
+                {toast.type === 'success' ? <CheckCircle2 size={24} /> : 
+                 toast.type === 'error' ? <XCircle size={24} /> :
+                 <Info size={24} />}
+              </div>
+              <div className="flex-1 min-w-0 pr-4">
+                <h4 className="font-black text-xs uppercase tracking-widest opacity-40 mb-0.5">
+                  {toast.type === 'success' ? 'Succès' : toast.type === 'error' ? 'Erreur' : 'Information'}
+                </h4>
+                <p className="text-sm font-bold leading-tight">{toast.message}</p>
+              </div>
+              <button 
+                onClick={() => setToast(null)} 
+                className="p-2 bg-gray-100/50 hover:bg-gray-100 rounded-full transition-colors active:scale-90"
+              >
+                <X size={16} />
+              </button>
             </div>
-            <div>
-              <h4 className="font-bold text-sm">{toast.type === 'success' ? 'Succès' : 'Erreur'}</h4>
-              <p className="text-sm opacity-80 font-medium">{toast.message}</p>
-            </div>
-            <button onClick={() => setToast(null)} className="ml-4 p-2 hover:bg-gray-100 rounded-full transition-colors opacity-50 hover:opacity-100">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
 
     </div>

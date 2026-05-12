@@ -287,15 +287,16 @@ export function StatsAndReports({
                 { id: 'annuel', label: 'Année' },
                 { id: 'personnalise', label: 'Perso.' }
               ].map(p => (
-                <button
+                <motion.button
                   key={p.id}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setFilterPeriod(p.id as any)}
                   className={`flex-1 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
                     filterPeriod === p.id ? 'bg-white text-dmn-green-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'
                   }`}
                 >
                   {p.label}
-                </button>
+                </motion.button>
               ))}
             </div>
 
@@ -393,8 +394,10 @@ export function StatsAndReports({
           { id: 'tickets', label: 'Tickets & Repas', icon: Ticket, color: 'amber', isVisible: userRole === 'admin' || userRole === 'tickets' || userRole === 'lecteur' },
           { id: 'cafe', label: 'Module Café', icon: Coffee, color: 'orange', isVisible: userRole === 'admin' || userRole === 'cafe' || userRole === 'revendeur' || userRole === 'lecteur' }
         ].filter(t => t.isVisible).map(tab => (
-          <button
+          <motion.button
             key={tab.id}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex items-center gap-3 px-8 py-4 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] transition-all border-2 ${
               activeTab === tab.id 
@@ -404,7 +407,7 @@ export function StatsAndReports({
           >
             <tab.icon size={18} className={activeTab === tab.id ? 'text-dmn-gold' : 'text-gray-300'} />
             {tab.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 

@@ -67,6 +67,8 @@ export function CafeModule({
   const [prodCost, setProdCost] = useState<number>(0);
   const [selectedVersementSellerId, setSelectedVersementSellerId] = useState<string>('');
   const [selectedDistFormat, setSelectedDistFormat] = useState<'1kg' | '500g'>('1kg');
+  const [selectedDepenseType, setSelectedDepenseType] = useState<string>('matières premières');
+  const [editingDepenseType, setEditingDepenseType] = useState<string>('');
   
   // Edit State
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -295,7 +297,7 @@ export function CafeModule({
         createdAt: Date.now()
       });
       logAudit(userRole, 'cafe.production.create', 'Café', 'Nouvelle production', { qty, format, cost });
-      showToast("Production enregistrée avec succès !", "success");
+      showToast("Production enregistrée ✅", "success");
       (e.target as any).reset();
     } catch (err) { 
       showToast("Erreur lors de l'enregistrement de la production", "error"); 
@@ -414,7 +416,7 @@ export function CafeModule({
         createdAt: Date.now()
       });
       logAudit(userRole, 'cafe.production.create', 'Café', 'Distribution stock', { sellerId, qty, format });
-      showToast("Stock distribué avec succès ! ✅", "success");
+      showToast("Distribution réussie ! ✅", "success");
       setDistQty(0);
       (e.target as any).reset();
     } catch (err) { 
@@ -427,8 +429,8 @@ export function CafeModule({
     if (!canExpense) return;
     const fd = new FormData(e.currentTarget);
     const amount = Number(fd.get('amount'));
-    const motif = fd.get('motif') as string;
     const type = fd.get('type') as string;
+    const motif = type === 'autres' ? (fd.get('motif') as string) : type;
 
     try {
       await addDoc(collection(db, 'cafe_depenses'), {
@@ -508,9 +510,10 @@ export function CafeModule({
         updates.mode = fd.get('mode');
         updates.typeVente = fd.get('type');
       } else if (editingType === 'depense') {
+        const type = fd.get('type') as string;
         updates.montant = Number(fd.get('amount'));
-        updates.motif = fd.get('motif');
-        updates.categorie = fd.get('type');
+        updates.motif = type === 'autres' ? (fd.get('motif') as string) : type;
+        updates.categorie = type;
       } else if (editingType === 'distribution') {
         const qty = Number(fd.get('qty'));
         const price = Number(fd.get('price'));
@@ -1243,13 +1246,41 @@ export function CafeModule({
            <Plus className="text-red-500" /> Nouvelle Dépense
         </h3>
         <form onSubmit={handleAddDepense} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-           <input name="motif" placeholder="Motif (ex: Achat emballage)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" required />
-           <select name="type" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10">
+           <select 
+             name="type" 
+             value={selectedDepenseType}
+             onChange={(e) => setSelectedDepenseType(e.target.value)}
+             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10"
+           >
               <option value="matières premières">Matières premières</option>
               <option value="transport">Transport</option>
               <option value="emballage">Emballage</option>
               <option value="autres">Autres</option>
            </select>
+            <AnimatePresence mode="wait">
+              {selectedDepenseType === 'autres' ? (
+                <motion.input 
+                  key="autres-input"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  name="motif" 
+                  placeholder="Précisez le motif..." 
+                  className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" 
+                  required 
+                />
+              ) : (
+                <motion.div 
+                  key="auto-motif"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold text-gray-400 flex items-center"
+                >
+                  Motif auto: {selectedDepenseType}
+                </motion.div>
+              )}
+            </AnimatePresence>
            <input name="amount" type="number" placeholder="Montant (F)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" required />
            <button type="submit" className="bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-red-600 shadow-[0_8px_16px_-6px_rgba(220,38,38,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(220,38,38,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none h-[48px]">
              Valider Dépense
@@ -1270,7 +1301,7 @@ export function CafeModule({
              <div className="flex items-center gap-4">
                 <p className="font-black text-red-600">{formats.price(d.montant)}</p>
                 <div className="flex gap-1">
-                   <button onClick={() => { setEditingItem(d); setEditingType('depense'); }} className="p-1 px-2 text-gray-300 hover:text-amber-500 border border-transparent hover:border-gray-100 rounded-lg">
+                   <button onClick={() => { setEditingItem(d); setEditingType('depense'); setEditingDepenseType(d.categorie || 'autres'); }} className="p-1 px-2 text-gray-300 hover:text-amber-500 border border-transparent hover:border-gray-100 rounded-lg">
                       <Edit2 size={14} />
                    </button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete('cafe_depenses', d.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95">
@@ -1332,7 +1363,11 @@ export function CafeModule({
                     {item._type === 'vente' || item._type === 'versement' ? '+' : '-'}{formats.price(item.total || item.montant)}
                   </p>
                   <div className="flex gap-1">
-                    <button onClick={() => { setEditingItem(item); setEditingType(item._type); }} className="p-2 text-gray-400 hover:text-orange-500 transition-colors active:scale-95">
+                    <button onClick={() => { 
+                      setEditingItem(item); 
+                      setEditingType(item._type); 
+                      if (item._type === 'depense') setEditingDepenseType(item.categorie || 'autres');
+                    }} className="p-2 text-gray-400 hover:text-orange-500 transition-colors active:scale-95">
                       <Edit2 size={14} />
                     </button>
                     <button onClick={(e) => { 
@@ -1373,7 +1408,7 @@ export function CafeModule({
         responsable: currentUser?.displayName || currentUser?.email || 'Manager',
         createdAt: Date.now()
       });
-      showToast("Versement enregistré avec succès !", "success");
+      showToast("Versement enregistré ✅", "success");
       (e.target as any).reset();
     } catch (err) { 
       handleFirestoreError(err, OperationType.WRITE, 'cafe_versements');
@@ -2048,14 +2083,15 @@ export function CafeModule({
 
                 {editingType === 'depense' && (
                   <>
-                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Motif</label>
-                        <input name="motif" defaultValue={editingItem.motif} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
-                     </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Catégorie</label>
-                           <select name="type" defaultValue={editingItem.categorie} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none">
+                           <select 
+                             name="type" 
+                             defaultValue={editingItem.categorie} 
+                             onChange={(e) => setEditingDepenseType(e.target.value)}
+                             className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none"
+                           >
                               <option value="matières premières">Matières premières</option>
                               <option value="transport">Transport</option>
                               <option value="emballage">Emballage</option>
@@ -2066,6 +2102,16 @@ export function CafeModule({
                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Montant</label>
                            <input name="amount" type="number" defaultValue={editingItem.montant} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
                         </div>
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Motif</label>
+                        {editingDepenseType === 'autres' ? (
+                          <input name="motif" defaultValue={editingItem.motif} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
+                        ) : (
+                          <div className="w-full bg-gray-100/50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold text-gray-400 flex items-center">
+                            Motif auto: {editingDepenseType}
+                          </div>
+                        )}
                      </div>
                   </>
                 )}
@@ -2203,8 +2249,10 @@ export function CafeModule({
         <div className="w-full md:w-auto -mx-2 px-2 sm:mx-0 sm:px-0">
           <div className="flex bg-gray-50/80 p-1.5 rounded-[1.5rem] sm:rounded-[2.5rem] overflow-x-auto no-scrollbar border border-gray-100/50 shadow-inner snap-x snap-mandatory">
              {availableTabs.map(tab => (
-                <button
+                <motion.button
                   key={tab.id}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setActiveTab(tab.id as TabType)}
                   className={`snap-center shrink-0 flex items-center gap-2 px-4 sm:px-5 py-3 sm:py-4 rounded-[1.25rem] sm:rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                     activeTab === tab.id 
@@ -2214,7 +2262,7 @@ export function CafeModule({
                 >
                   <tab.icon size={16} className={`transition-all duration-300 ${activeTab === tab.id ? 'text-brown-600' : ''}`} />
                   <span>{tab.label}</span>
-                </button>
+                </motion.button>
               ))}
           </div>
         </div>
