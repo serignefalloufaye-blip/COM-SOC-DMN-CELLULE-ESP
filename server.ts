@@ -13,16 +13,12 @@ async function startServer() {
   app.post("/api/wave-checkout", async (req, res) => {
     const { amount, client_reference, success_url, error_url } = req.body;
     
-    // Pour que ça marche en prod, il faudra la vraie clé secrète Wave
+    // Il faut la vraie clé secrète Wave
     const WAVE_API_KEY = process.env.WAVE_API_KEY;
     
     if (!WAVE_API_KEY) {
-      console.warn("WAVE_API_KEY non définie, mode test activé");
-      // Simulation pour l'environnement sans clé
-      return res.json({
-        id: "session_test_" + Date.now(),
-        wave_launch_url: success_url // redirige directement sur succes pour la demo si pas de clé
-      });
+      console.error("WAVE_API_KEY non définie");
+      return res.status(500).json({ error: "Configuration Wave manquante sur le serveur." });
     }
 
     try {
@@ -44,19 +40,14 @@ async function startServer() {
       if (!response.ok) {
         const errData = await response.text();
         console.error("Erreur Wave:", errData);
-        
+        let parsedData = null;
         try {
-           const parsedErr = JSON.parse(errData);
-           if (parsedErr.code === 'no-matching-api-key' || parsedErr.code === 'unauthorized' || response.status === 401) {
-              console.warn("Clé Wave invalide ou non autorisée, activation du mode simulation pour la démo");
-              return res.json({
-                id: "session_test_" + Date.now(),
-                wave_launch_url: success_url
-              });
-           }
+          parsedData = JSON.parse(errData);
         } catch(e) {}
-
-        return res.status(500).json({ error: "Erreur lors de la création de la session Wave", details: errData });
+        return res.status(response.status).json({ 
+          error: "Erreur lors de la création de la session Wave", 
+          details: parsedData || errData 
+        });
       }
 
       const data = await response.json();
@@ -72,13 +63,8 @@ async function startServer() {
     const { sessionId } = req.body;
     const WAVE_API_KEY = process.env.WAVE_API_KEY;
 
-    // Mode simulation: on accepte si c'était une session de test, même si la clé est définie (elle peut être invalide)
-    if (sessionId && sessionId.startsWith("session_test_")) {
-      return res.json({ payment_status: "succeeded" });
-    }
-
     if (!WAVE_API_KEY) {
-      return res.status(400).json({ error: "Session invalide ou Mode simulation échoué" });
+      return res.status(500).json({ error: "Configuration Wave manquante sur le serveur." });
     }
 
     try {

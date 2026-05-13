@@ -223,9 +223,33 @@
         "lastUpdated": { "type": "number" }
       },
       "required": ["prices", "lastUpdated"]
+    },
+    "PaiementAttente": {
+      "title": "Paiement en Attente",
+      "description": "Demande de validation de paiement signalée par un membre",
+      "type": "object",
+      "properties": {
+        "mId": { "type": "string" },
+        "membreNomComplet": { "type": "string" },
+        "mois": { "type": "array", "items": { "type": "string" } },
+        "annee": { "type": "number" },
+        "montantTotal": { "type": "number" },
+        "mode": { "type": "string", "enum": ["WAVE", "OM"] },
+        "reference": { "type": "string" },
+        "statut": { "type": "string", "enum": ["EN_ATTENTE", "VALIDE", "REJETE"] },
+        "dateSignalee": { "type": "number" },
+        "dateValidation": { "type": "number" },
+        "validePar": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["mId", "membreNomComplet", "mois", "annee", "montantTotal", "mode", "statut", "dateSignalee"]
     }
   },
   "firestore": {
+    "/demandes_paiement/{id}": {
+      "schema": { "$ref": "#/entities/PaiementAttente" },
+      "description": "Suivi des paiements signalés manuellement pour validation"
+    },
     "/settings/{settingId}": {
       "schema": { "$ref": "#/entities/AppSettings" },
       "description": "Paramètres globaux de l'application"

@@ -44,6 +44,11 @@ export const formatMoisPreposition = (mois: string) => {
   return `de ${normalizedMois}`;
 };
 
+export const formatMoisSimple = (mois: string) => {
+  if (!mois) return '';
+  return mois.charAt(0).toUpperCase() + mois.slice(1).toLowerCase();
+};
+
 export const getAutoDateData = (customDateVal?: string | Date | null) => {
   const dt = customDateVal ? new Date(customDateVal) : new Date();
   return {

@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Membre, Cotisation } from '../types';
+import { Membre, Cotisation, PaiementAttente } from '../types';
 import { 
   CheckCircle2, XCircle, AlertTriangle, Wallet, Calendar, CalendarDays, 
-  TrendingUp, Download, PieChart as PieChartIcon, Activity, Printer, Info, UserCheck, Loader2, Smartphone
+  TrendingUp, Download, PieChart as PieChartIcon, Activity, Printer, Info, UserCheck, Loader2, Smartphone, Clock
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { formalizeDate } from '../utils/date';
@@ -13,17 +13,19 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { User as FirebaseUser } from 'firebase/auth';
 
-interface LecteurDashboardProps {
+interface MemberDashboardProps {
   myMembre: Membre | null;
   membres: Membre[];
   currentUser: FirebaseUser | null;
   cotisations: Cotisation[];
   globalYear: number;
   MOIS: string[];
-  onDirectPaymentClick?: (mode: 'WAVE', amount: number, unpaidMonths: string[]) => void;
+  paiementsAttente: PaiementAttente[];
+  defaultPrice: number;
+  onDirectPaymentClick?: (mode: 'WAVE' | 'OM', amount: number, unpaidMonths: string[]) => void;
 }
 
-const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS, onDirectPaymentClick }) => {
+const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS, paiementsAttente, defaultPrice, onDirectPaymentClick }) => {
   const [linkingMembreId, setLinkingMembreId] = useState('');
   const [linkingSearch, setLinkingSearch] = useState('');
   const [isLinking, setIsLinking] = useState(false);
@@ -77,6 +79,11 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
   };
 
   const unpaidMonths = useMemo(() => getUnpaidMonths(), [myMembre, globalYear, currentYearCotisations, MOIS]);
+  
+  const myPendingPayments = useMemo(() => {
+    if (!myMembre) return [];
+    return paiementsAttente.filter(p => p.mId === myMembre.id && p.statut === 'EN_ATTENTE');
+  }, [paiementsAttente, myMembre]);
 
   const handleLinkProfile = async () => {
     if (!linkingMembreId) {
@@ -168,7 +175,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
 
   const totalPaid = currentYearCotisations.reduce((acc, c) => acc + c.montant, 0);
   const allTimeTotalPaid = myCotisations.reduce((acc, c) => acc + c.montant, 0);
-  const montantRestant = unpaidMonths.length * 500; // assuming 500 FCFA
+  const montantRestant = unpaidMonths.length * defaultPrice;
 
   const isEnRetard = unpaidMonths.length > 0;
   const isRetardLeger = unpaidMonths.length === 1;
@@ -294,29 +301,52 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20 md:pb-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
+      {/* Header Mobile avec Statut rapide */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 animate-in fade-in slide-in-from-top-4 duration-500">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-black text-gray-900">
-            Espace Personnel
+          <h1 className="text-2xl md:text-3xl font-heading font-black text-gray-900 tracking-tight leading-tight">
+            Bonjour, <span className="text-dmn-green-600">{myMembre.prenom} !</span>
           </h1>
-          <p className="text-gray-500 mt-1 flex items-center gap-2">
-            <span className="font-semibold text-dmn-green-600">{myMembre.prenom} {myMembre.nom}</span>
-            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full uppercase font-bold text-gray-600 tracking-widest border border-gray-200">Mode Lecture</span>
+          <p className="text-gray-400 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] mt-1 italic">
+            Tableau de bord personnel • {globalYear}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-dmn-green-900 text-white px-6 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-dmn-green-900/20 border border-dmn-green-800 flex items-center gap-2">
-            <Calendar size={16} /> <span>Année {globalYear}</span>
+        
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="hidden sm:flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl text-[10px] font-black text-gray-400 uppercase tracking-widest border border-gray-100">
+            <UserCheck size={14} className="text-dmn-green-500" /> Profil lié
           </div>
           <button 
             onClick={exportPDF}
-            className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-black shadow-sm transition-all flex items-center gap-2 active:scale-95"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95 shadow-lg shadow-gray-900/10"
           >
-            <Download size={16} /> Exporter
+            <Download size={16} /> Reçu Annuel
           </button>
         </div>
       </div>
+
+      {/* Pending Payments Alert */}
+      {myPendingPayments.length > 0 && (
+        <div className="bg-[#1dc6f8]/10 border border-[#1dc6f8]/30 p-5 rounded-[2rem] flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 animate-in zoom-in-95 duration-500">
+          <div className="w-12 h-12 bg-[#1dc6f8] text-white rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-[#1dc6f8]/20">
+            <Clock size={24} />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-[10px] font-black text-[#1dc6f8] uppercase tracking-[0.2em]">Validation en cours</h4>
+            <p className="text-xs text-[#15b2e0] font-black mt-1">
+              Vous avez {myPendingPayments.length} signalement{myPendingPayments.length > 1 ? 's' : ''} de paiement en attente de vérification.
+            </p>
+            <div className="mt-3 flex flex-wrap justify-center sm:justify-start gap-2">
+              {myPendingPayments.map(p => (
+                <div key={p.id} className="bg-white/80 px-3 py-1.5 rounded-xl text-[10px] font-black text-gray-700 border border-[#1dc6f8]/10 shadow-sm flex items-center gap-2">
+                   <div className="w-1.5 h-1.5 bg-[#1dc6f8] rounded-full animate-pulse"></div>
+                   {formatPrice(p.montantTotal)} FCFA • {p.mode}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {unpaidMonths.length > 0 && (
          <div className="bg-white border-2 border-rose-100 rounded-[2.5rem] overflow-hidden shadow-xl shadow-rose-900/5 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -325,10 +355,10 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
                 <div className="p-2 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20">
                   <AlertTriangle size={20} />
                 </div>
-                <h4 className="font-heading font-black text-rose-900 uppercase tracking-wider text-xs">Régulariser mes cotisations</h4>
+                <h4 className="font-heading font-black text-rose-900 uppercase tracking-wider text-xs">Payer mes mois de retard</h4>
               </div>
               <span className="text-[10px] bg-rose-100 text-rose-600 px-3 py-1 rounded-full font-black uppercase tracking-tighter">
-                {unpaidMonths.length} {unpaidMonths.length > 1 ? 'Mois' : 'Mois'} impayé{unpaidMonths.length > 1 ? 's' : ''}
+                {unpaidMonths.length} Mois impayé{unpaidMonths.length > 1 ? 's' : ''}
               </span>
             </div>
             
@@ -337,9 +367,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
                 <div className="space-y-4">
                   <div className="space-y-3">
                     {unpaidMonths.map(month => {
-                      // Example showed some months at 500F and some at 1000F. 
-                      // In this app current logic uses 500F. I will stick to 500F for now but make it clear.
-                      const amount = 500; 
+                      const amount = defaultPrice; 
                       return (
                         <div key={month} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 transition-all hover:bg-white hover:shadow-md group">
                           <div className="flex items-center gap-3">
@@ -372,15 +400,22 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
                 <div className="relative group">
                   <div className="absolute inset-x-0 -bottom-2 h-4 bg-dmn-green-900/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   {onDirectPaymentClick ? (
-                    <button 
-                      onClick={() => onDirectPaymentClick('WAVE', montantRestant, unpaidMonths)} 
-                      className="w-full bg-[#1dc6f8] hover:bg-[#15b2e0] text-white py-5 sm:py-6 px-6 sm:px-8 rounded-[2rem] font-black text-sm sm:text-base uppercase tracking-widest flex items-center justify-center gap-3 sm:gap-4 transition-all shadow-[0_20px_40px_-10px_rgba(29,198,248,0.4)] hover:shadow-[0_25px_50px_-12px_rgba(29,198,248,0.5)] active:scale-95 group"
-                    >
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform shrink-0">
-                        <Smartphone size={20} className="sm:w-6 sm:h-6" />
-                      </div>
-                      <span className="text-lg">Payer avec Wave</span>
-                    </button>
+                    <div className="flex flex-col gap-3">
+                      <button 
+                        onClick={() => onDirectPaymentClick('WAVE', montantRestant, unpaidMonths)} 
+                        className="w-full bg-[#1dc6f8] hover:bg-[#15b2e0] text-white py-4 sm:py-5 px-6 sm:px-8 rounded-[1.5rem] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg hover:shadow-[#1dc6f8]/30 active:scale-95 group"
+                      >
+                        <Smartphone size={20} className="sm:w-5 sm:h-5" />
+                        <span>Payer avec Wave</span>
+                      </button>
+                      <button 
+                        onClick={() => onDirectPaymentClick('OM', montantRestant, unpaidMonths)} 
+                        className="w-full bg-[#FF6600] hover:bg-[#e65c00] text-white py-4 sm:py-5 px-6 sm:px-8 rounded-[1.5rem] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg hover:shadow-[#FF6600]/30 active:scale-95 group"
+                      >
+                        <Smartphone size={20} className="sm:w-5 sm:h-5" />
+                        <span>Payer avec Orange Money</span>
+                      </button>
+                    </div>
                   ) : (
                     <div className="text-center p-6 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
                       <p className="text-xs text-gray-500 font-medium">Contactez un administrateur pour activer le paiement en ligne.</p>
@@ -535,4 +570,4 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
   );
 };
 
-export default LecteurDashboard;
+export default MemberDashboard;

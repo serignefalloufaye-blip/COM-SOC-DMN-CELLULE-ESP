@@ -141,7 +141,28 @@ service cloud.firestore {
       return data.userId is string && data.action is string && data.createdAt is number;
     }
 
+    function isValidPaiementAttente(data) {
+      return data.mId is string &&
+             data.membreNomComplet is string &&
+             data.mois is list &&
+             data.annee is number &&
+             data.montantTotal is number &&
+             data.mode in ['WAVE', 'OM'] &&
+             data.statut in ['EN_ATTENTE', 'VALIDE', 'REJETE'] &&
+             data.dateSignalee is number;
+    }
+
     // --- Rules ---
+
+    match /demandes_paiement/{id} {
+      allow read: if isLecteur();
+      allow create: if isAuthenticated() && isValidPaiementAttente(incoming()) && incoming().createdBy == request.auth.uid;
+      allow update: if (isCaisse() && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['statut', 'dateValidation', 'validePar'])
+      )) || (isAuthenticated() && existing().createdBy == request.auth.uid && existing().statut == 'EN_ATTENTE' && 
+            incoming().diff(existing()).affectedKeys().hasOnly(['reference', 'mois', 'montantTotal']));
+      allow delete: if isAdmin();
+    }
 
     match /settings/{settingId} {
       allow read: if true;

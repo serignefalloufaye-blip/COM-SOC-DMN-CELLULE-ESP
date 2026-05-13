@@ -65,6 +65,22 @@ export interface Dette {
   createdBy?: string;
 }
 
+export interface PaiementAttente {
+  id: string;
+  mId: string;
+  membreNomComplet: string;
+  mois: string[];
+  annee: number;
+  montantTotal: number;
+  mode: ModePaiement;
+  reference?: string;
+  statut: 'EN_ATTENTE' | 'VALIDE' | 'REJETE';
+  dateSignalee: number;
+  dateValidation?: number;
+  validePar?: string;
+  createdBy?: string;
+}
+
 export type UserRole = 'admin' | 'caisse' | 'tickets' | 'cafe' | 'revendeur' | 'lecteur';
 
 export interface CafeVersement {
@@ -83,6 +99,17 @@ export interface AppUser {
   nom: string;
   role: UserRole;
   createdAt?: number;
+}
+
+export interface AppSettings {
+  logoUrl?: string;
+  prices: {
+    default: number;
+    conjoint: number;
+    [key: string]: number;
+  };
+  wave_merchant_url?: string;
+  lastUpdated: number;
 }
 
 export interface TicketCollecte {

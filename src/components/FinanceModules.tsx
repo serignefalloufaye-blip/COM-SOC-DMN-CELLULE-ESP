@@ -1,8 +1,121 @@
 import React from 'react';
 import { CreditCard, Plus, Users, Printer, Search, Edit3, Trash2, TrendingDown, TrendingUp, Banknote, Smartphone, CheckCircle2 } from 'lucide-react';
-import { Membre, Cotisation, Recette, Depense, Dette } from '../types';
+import { Membre, Cotisation, Recette, Depense, Dette, PaiementAttente } from '../types';
 import { MOIS } from '../data';
 import { formatPrice } from '../utils/format';
+
+
+// --- VALIDATIONS TABLE ---
+interface ValidationsTableProps {
+  paiementsAttente: PaiementAttente[];
+  handleValidate: (pp: PaiementAttente, decision: 'VALIDE' | 'REJETE') => Promise<void>;
+  isAdmin: boolean;
+  isCaisse: boolean;
+}
+
+export const ValidationsTable: React.FC<ValidationsTableProps> = ({
+  paiementsAttente, handleValidate, isAdmin, isCaisse
+}) => {
+  const pending = paiementsAttente.filter(p => p.statut === 'EN_ATTENTE');
+  const history = paiementsAttente.filter(p => p.statut !== 'EN_ATTENTE').sort((a, b) => (b.dateValidation || 0) - (a.dateValidation || 0));
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Liste des paiements en attente */}
+      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
+          <span className="flex items-center gap-2"><CheckCircle2 size={18} className="text-dmn-gold-light" /> Paiements à Valider</span>
+        </div>
+        <div className="overflow-x-auto">
+          {pending.length === 0 ? (
+            <div className="p-10 text-center text-gray-400 font-medium italic">Aucun paiement en attente de validation.</div>
+          ) : (
+            <table className="w-full text-sm text-center">
+              <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-4 font-semibold text-xs uppercase text-left">Membre</th>
+                  <th className="px-6 py-4 font-semibold text-xs uppercase">Mois</th>
+                  <th className="px-6 py-4 font-semibold text-xs uppercase">Montant Total</th>
+                  <th className="px-6 py-4 font-semibold text-xs uppercase">Mode / Réf</th>
+                  <th className="px-6 py-4 font-semibold text-xs uppercase">Date</th>
+                  {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {pending.map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4 text-left font-bold text-gray-900">{p.membreNomComplet}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        {p.mois.map(m => <span key={m} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black">{m}</span>)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-black text-dmn-green-600">{formatPrice(p.montantTotal)} F</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col items-center">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black ${p.mode === 'WAVE' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{p.mode}</span>
+                        {p.reference && <span className="text-[10px] text-gray-400 font-mono mt-1">{p.reference}</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-500 text-xs font-medium">{new Date(p.dateSignalee).toLocaleString()}</td>
+                    {(isAdmin || isCaisse) && (
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2 justify-center">
+                          <button onClick={() => handleValidate(p, 'VALIDE')} className="bg-dmn-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-black uppercase shadow-sm active:scale-95">Valider</button>
+                          <button onClick={() => handleValidate(p, 'REJETE')} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-black uppercase border border-red-100 active:scale-95">Rejeter</button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Historiques des validations */}
+      {history.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden opacity-80">
+          <div className="bg-gray-100 text-gray-700 px-6 py-4 font-heading font-semibold text-sm flex justify-between items-center">
+            <span className="flex items-center gap-2">Historique des Validations</span>
+          </div>
+          <div className="overflow-x-auto max-h-[400px]">
+             <table className="w-full text-xs text-center">
+                <thead className="bg-gray-50 text-gray-400 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 font-bold uppercase text-left">Membre</th>
+                    <th className="px-4 py-3 font-bold uppercase">Mois / Montant</th>
+                    <th className="px-4 py-3 font-bold uppercase">Statut</th>
+                    <th className="px-4 py-3 font-bold uppercase">Date Validation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {history.map(p => (
+                    <tr key={p.id}>
+                      <td className="px-4 py-3 text-left font-bold text-gray-700">{p.membreNomComplet}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-bold text-gray-800">{formatPrice(p.montantTotal)} F</p>
+                        <p className="text-[9px] text-gray-400">{p.mois.join(', ')}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${p.statut === 'VALIDE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {p.statut}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 font-medium italic">
+                        {p.dateValidation ? new Date(p.dateValidation).toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+             </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 // --- COTISATIONS TABLE ---
