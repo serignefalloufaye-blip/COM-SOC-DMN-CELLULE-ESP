@@ -33,7 +33,7 @@ import { Skeleton, DashboardSkeleton } from './components/ui/Skeleton';
 const Tickets = lazy(() => import('./components/Tickets').then(m => ({ default: m.Tickets })));
 const CafeModule = lazy(() => import('./components/cafe/CafeModule').then(m => ({ default: m.CafeModule })));
 const PremiumDashboard = lazy(() => import('./components/PremiumDashboard').then(m => ({ default: m.PremiumDashboard })));
-const LecteurDashboard = lazy(() => import('./components/LecteurDashboard').then(m => ({ default: m.LecteurDashboard })));
+const LecteurDashboard = lazy(() => import('./components/LecteurDashboard'));
 const UserRoles = lazy(() => import('./components/UserRoles').then(m => ({ default: m.UserRoles })));
 const Annuel = lazy(() => import('./components/Annuel').then(m => ({ default: m.Annuel })));
 const StatsAndReports = lazy(() => import('./components/StatsAndReports').then(m => ({ default: m.StatsAndReports })));
@@ -738,8 +738,8 @@ export default function App() {
     const paymentTotalAmount = paymentAmountExFee + paymentFee;
 
     // Redirection vers Wave avec montant préchargé
-    // Utilisation du format standard : /c/{montant}
-    const url = `https://pay.wave.com/m/M_sn_pRX2DhJGTmqm/c/${paymentTotalAmount}`;
+    // Utilisation du format spécifique : /c/sn/.{montant}
+    const url = `https://pay.wave.com/m/M_sn_pRX2DhJGTmqm/c/sn/.${paymentTotalAmount}`;
     
     window.open(url, '_blank');
     
@@ -1947,20 +1947,20 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
                   })}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button 
                     onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'WAVE')}
                     disabled={selectedMonths.length === 0 || currentAmount === ''}
-                    className="bg-[#00a1ff] flex items-center justify-center gap-2 text-white py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-30 transition-all"
+                    className="bg-[#1dc6f8] hover:bg-[#15b2e0] flex items-center justify-center gap-2 text-white py-3.5 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-30 transition-all"
                   >
-                    WAVE
+                    <Smartphone size={16} /> WAVE
                   </button>
                   <button 
                     onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'OM')}
                     disabled={selectedMonths.length === 0 || currentAmount === ''}
-                    className="bg-[#ff6600] flex items-center justify-center gap-2 text-white py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 disabled:opacity-30 transition-all"
+                    className="bg-[#ff6600] hover:bg-[#e65c00] flex items-center justify-center gap-2 text-white py-3.5 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 disabled:opacity-30 transition-all"
                   >
-                    ORANGE
+                    <Smartphone size={16} className="text-orange-200" /> ORANGE
                   </button>
                 </div>
               </div>
@@ -2062,7 +2062,7 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 min-[400px]:grid-cols-3 gap-2">
                   <button 
                     onClick={() => { openAddCot(m.id, undefined, globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
                     className="flex flex-col items-center justify-center gap-1.5 py-3 bg-dmn-green-50 hover:bg-dmn-green-100 rounded-2xl text-dmn-green-700 active:scale-95 transition-all outline-none border border-dmn-green-100/50"
@@ -2080,13 +2080,13 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
                   {(isAdmin || isCaisse) ? (
                     <button 
                       onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }}
-                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-orange-50 hover:bg-orange-100 rounded-2xl text-orange-700 active:scale-95 transition-all outline-none border border-orange-100/50"
+                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-orange-50 hover:bg-orange-100 rounded-2xl text-orange-700 active:scale-95 transition-all outline-none border border-orange-100/50 col-span-2 min-[400px]:col-span-1"
                     >
                       <Edit2 size={18} />
                       <span className="text-[9px] font-black uppercase tracking-wider">Modifier</span>
                     </button>
                   ) : (
-                    <div className="flex flex-col items-center justify-center gap-1.5 py-3 bg-gray-50 rounded-2xl text-gray-400 border border-gray-100/50 opacity-40">
+                    <div className="flex flex-col items-center justify-center gap-1.5 py-3 bg-gray-50 rounded-2xl text-gray-400 border border-gray-100/50 opacity-40 col-span-2 min-[400px]:col-span-1">
                       <Shield size={18} />
                       <span className="text-[9px] font-black uppercase tracking-wider">Lecteur</span>
                     </div>
@@ -2094,10 +2094,10 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
                   {isAdmin && (
                     <button 
                       onClick={() => handleDeleteMembre(m.id)}
-                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-700 active:scale-95 transition-all outline-none border border-red-100/50"
+                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-700 active:scale-95 transition-all outline-none border border-red-100/50 col-span-3 min-[400px]:col-span-3"
                     >
                       <Trash2 size={18} />
-                      <span className="text-[9px] font-black uppercase tracking-wider">Supprimer</span>
+                      <span className="text-[9px] font-black uppercase tracking-wider">Supprimer le Membre</span>
                     </button>
                   )}
                 </div>
@@ -3252,40 +3252,40 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white/50 backdrop-blur-md border-b border-gray-100 px-6 py-3 sticky top-[72px] z-[90]"
+          className="bg-white/50 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-2 sm:py-3 sticky top-[72px] z-[90]"
         >
-          <div className="max-w-7xl mx-auto flex gap-3 overflow-x-auto no-scrollbar pb-1">
-            <div className="flex items-center bg-white px-4 py-2 rounded-2xl border border-gray-100 shadow-soft">
-              <Calendar size={14} className="text-dmn-green-500 mr-2" />
+          <div className="max-w-7xl mx-auto flex gap-1.5 sm:gap-3 overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center bg-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl border border-gray-100 shadow-soft shrink-0">
+              <Calendar size={12} className="text-dmn-green-500 mr-1.5 sm:mr-2 sm:w-4 sm:h-4" />
               <select 
                 value={globalYear} 
                 onChange={e => setGlobalYear(Number(e.target.value))} 
-                className="bg-transparent font-black text-dmn-green-900 focus:outline-none cursor-pointer text-xs uppercase"
+                className="bg-transparent font-black text-dmn-green-900 focus:outline-none cursor-pointer text-[10px] sm:text-xs uppercase"
               >
                 {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
             
-            <div className="flex items-center bg-white px-4 py-2 rounded-2xl border border-gray-100 shadow-soft min-w-[120px]">
-              <Clock size={14} className="text-dmn-green-500 mr-2" />
+            <div className="flex items-center bg-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl border border-gray-100 shadow-soft min-w-[90px] sm:min-w-[120px] shrink-0">
+              <Clock size={12} className="text-dmn-green-500 mr-1.5 sm:mr-2 sm:w-4 sm:h-4" />
               <select 
                 value={globalMonth} 
                 onChange={e => setGlobalMonth(e.target.value)} 
-                className="bg-transparent font-black text-dmn-green-900 focus:outline-none cursor-pointer text-xs uppercase w-full"
+                className="bg-transparent font-black text-dmn-green-900 focus:outline-none cursor-pointer text-[9px] sm:text-xs uppercase w-full"
               >
-                <option value="">Tous les mois</option>
+                <option value="">Tous</option>
                 {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
 
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+            <div className="relative flex-1 min-w-[140px] sm:min-w-[200px]">
+              <Search className="absolute left-2.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
               <input 
                 type="text" 
-                placeholder="Rechercher..." 
+                placeholder="Chercher..." 
                 value={globalSearch}
                 onChange={e => setGlobalSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 shadow-soft"
+                className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-100 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-bold focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 shadow-soft"
               />
             </div>
           </div>
@@ -3299,9 +3299,9 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="max-w-7xl mx-auto px-6 overflow-hidden"
+            className="max-w-7xl mx-auto px-4 sm:px-6 overflow-hidden"
           >
-            <div className="flex gap-2 overflow-x-auto no-scrollbar py-3">
+            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-2 sm:py-3">
               {activeTab === 'finance' && [
                 ...((userRole === 'admin' || userRole === 'caisse') ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
                 { id: 'cotisations', label: 'Cotis.', icon: CreditCard },
@@ -3314,13 +3314,13 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setFinanceSubTab(sub.id as any)} 
-                  className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
+                  className={`flex items-center gap-1.5 sm:gap-3 px-3.5 sm:px-6 py-2.5 sm:py-4 rounded-xl sm:rounded-[1.5rem] text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
                     financeSubTab === sub.id 
                       ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10' 
                       : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
-                   <sub.icon size={14} className={financeSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
+                   <sub.icon size={12} className={financeSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
                    <span>{sub.label}</span>
                 </motion.button>
               ))}
@@ -3512,11 +3512,11 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
       </nav>
 
       {/* Floating Bottom Navigation Apple Wallet Style (Mobile) */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-[150] pb-[env(safe-area-inset-bottom,20px)] pt-10 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-[150] pb-[env(safe-area-inset-bottom,12px)] pt-10 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
         <motion.nav 
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2.5rem] h-[72px] flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-[92%]"
+          className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2rem] h-[64px] flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-[94%]"
         >
           {navigationTabs.map(tab => (
             <button
@@ -3524,14 +3524,14 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
               onClick={() => setActiveTab(tab.id as Tab)}
               className="flex flex-col items-center justify-center flex-1 h-full relative group outline-none"
             >
-              <div className={`p-2 rounded-2xl transition-all duration-300 ${
+              <div className={`p-1.5 rounded-xl transition-all duration-300 ${
                 activeTab === tab.id 
                   ? 'bg-dmn-green-500 text-gray-900 scale-110 shadow-lg shadow-dmn-green-500/20' 
                   : 'text-gray-400 active:scale-95'
               }`}>
-                <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-2 opacity-70'} />
+                <tab.icon size={20} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-2 opacity-70'} />
               </div>
-              <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 transition-all duration-300 ${
+              <span className={`text-[7px] font-black uppercase tracking-tighter mt-1 transition-all duration-300 ${
                 activeTab === tab.id ? 'opacity-100 text-white translate-y-0' : 'opacity-40 text-gray-400'
               }`}>
                 {tab.label}
@@ -3619,7 +3619,7 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
                     <option value="Autre">Autre</option>
                   </select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Mois d'intégration</label>
                     <select name="moisIntegration" defaultValue={editingMembre?.moisIntegration || MOIS[new Date().getMonth()]} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm">

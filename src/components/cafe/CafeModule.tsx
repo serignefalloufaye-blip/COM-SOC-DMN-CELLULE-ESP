@@ -977,8 +977,8 @@ export function CafeModule({
         <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
            <Plus className="text-blue-500" /> Enregistrer une production
         </h3>
-        <form onSubmit={handleAddProduction} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-           <select name="format" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" required>
+        <form onSubmit={handleAddProduction} className="flex flex-col md:grid md:grid-cols-4 gap-4">
+           <select name="format" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" required>
               <option value="1kg">Format 1 Kg</option>
               <option value="500g">Format 500 g</option>
            </select>
@@ -986,7 +986,7 @@ export function CafeModule({
              name="qty" 
              type="number" 
              placeholder="Quantité (Uts)" 
-             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" 
+             className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" 
              min="1" 
              onChange={(e) => setProdQty(Number(e.target.value))}
              required 
@@ -995,12 +995,12 @@ export function CafeModule({
              name="cost" 
              type="number" 
              placeholder="Coût Total (F)" 
-             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" 
+             className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/10" 
              min="0" 
              onChange={(e) => setProdCost(Number(e.target.value))}
              required 
            />
-           <button type="submit" className="bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 shadow-[0_8px_16px_-6px_rgba(37,99,235,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(37,99,235,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-[48px]">
+           <button type="submit" className="w-full bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 shadow-[0_8px_16px_-6px_rgba(37,99,235,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(37,99,235,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 min-h-[48px]">
              <Package size={16} /> Valider Prod.
            </button>
            <div className="md:col-span-4 flex items-center justify-between px-6 py-3 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] font-black uppercase text-blue-600">
@@ -1077,16 +1077,16 @@ export function CafeModule({
         <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
            <Plus className="text-emerald-500" /> Enregistrer une vente (Prix Fixe)
         </h3>
-        <form onSubmit={handleAddVente} className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 gap-4">
+        <form onSubmit={handleAddVente} className="flex flex-col md:grid md:grid-cols-4 lg:grid-cols-7 gap-4">
             {!isOnlySeller ? (
-              <select name="sellerId" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10">
+              <select name="sellerId" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10">
                 <option value="">Vente Directe (Stock Daara)</option>
                 {sellers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
               </select>
             ) : (
               <input type="hidden" name="sellerId" value={identifiedSellerId} />
             )}
-           <select name="type" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10">
+           <select name="type" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10">
               <option value="sur place">Sur place</option>
               <option value="commande">Commande</option>
            </select>
@@ -1094,7 +1094,7 @@ export function CafeModule({
              name="format" 
              value={selectedFormat}
              onChange={(e) => setSelectedFormat(e.target.value as any)}
-             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" 
+             className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" 
              required
            >
               <option value="1kg">Format 1 Kg</option>
@@ -1104,21 +1104,21 @@ export function CafeModule({
              name="qty" 
              type="number" 
              placeholder="Quantité" 
-             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" 
+             className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" 
              min="1" 
              onChange={(e) => setSaleQty(Number(e.target.value))}
              required 
            />
-           <select name="mode" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" required>
+           <select name="mode" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-emerald-500/10" required>
               <option value="ESPÈCES">Espèces</option>
               <option value="WAVE">Wave</option>
               <option value="OM">OM</option>
            </select>
-           <div className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black text-gray-400 flex flex-col items-center justify-center">
+           <div className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black text-gray-400 flex flex-col items-center justify-center">
              <span className="text-[8px] uppercase">Total Estimé</span>
              <span>{formats.price((priceConfig?.prices?.[selectedFormat]?.price || (selectedFormat === '1kg' ? 2500 : 1300)) * (saleQty || 0))}</span>
            </div>
-           <button type="submit" className="bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-full min-h-[48px]">
+           <button type="submit" className="w-full bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 min-h-[48px]">
               Valider Vente
            </button>
         </form>
@@ -1130,7 +1130,7 @@ export function CafeModule({
           <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
              <Wallet className="text-emerald-500" /> Enregistrer un Versement
           </h3>
-          <form onSubmit={handleAddVersement} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <form onSubmit={handleAddVersement} className="flex flex-col md:grid md:grid-cols-3 gap-4">
              <select 
                name="sellerId" 
                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" 
@@ -1141,13 +1141,13 @@ export function CafeModule({
                 {sellers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
              </select>
              <input name="amount" type="number" placeholder="Montant Versé (F)" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required />
-             <div className="flex gap-2">
-               <select name="mode" className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
+             <div className="flex flex-col sm:flex-row gap-2">
+               <select name="mode" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none" required>
                   <option value="ESPÈCES">Espèces</option>
                   <option value="WAVE">Wave</option>
                   <option value="OM">OM</option>
                </select>
-               <button type="submit" className="bg-emerald-600 text-white px-6 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2">
+               <button type="submit" className="w-full sm:w-auto min-w-[80px] bg-emerald-600 text-white px-6 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 min-h-[48px]">
                  OK
                </button>
              </div>
@@ -1245,12 +1245,12 @@ export function CafeModule({
         <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
            <Plus className="text-red-500" /> Nouvelle Dépense
         </h3>
-        <form onSubmit={handleAddDepense} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <form onSubmit={handleAddDepense} className="flex flex-col md:grid md:grid-cols-4 gap-4">
            <select 
              name="type" 
              value={selectedDepenseType}
              onChange={(e) => setSelectedDepenseType(e.target.value)}
-             className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10"
+             className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10"
            >
               <option value="matières premières">Matières premières</option>
               <option value="transport">Transport</option>
@@ -1266,7 +1266,7 @@ export function CafeModule({
                   exit={{ opacity: 0, x: 10 }}
                   name="motif" 
                   placeholder="Précisez le motif..." 
-                  className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" 
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" 
                   required 
                 />
               ) : (
@@ -1275,14 +1275,14 @@ export function CafeModule({
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 10 }}
-                  className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold text-gray-400 flex items-center"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold text-gray-400 flex items-center"
                 >
                   Motif auto: {selectedDepenseType}
                 </motion.div>
               )}
             </AnimatePresence>
-           <input name="amount" type="number" placeholder="Montant (F)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" required />
-           <button type="submit" className="bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-red-600 shadow-[0_8px_16px_-6px_rgba(220,38,38,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(220,38,38,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none h-[48px]">
+           <input name="amount" type="number" placeholder="Montant (F)" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-red-500/10" required />
+           <button type="submit" className="w-full bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-red-600 shadow-[0_8px_16px_-6px_rgba(220,38,38,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(220,38,38,0.6)] hover:-translate-y-0.5 active:scale-95 transition-all outline-none flex items-center justify-center min-h-[48px]">
              Valider Dépense
            </button>
         </form>
@@ -1457,18 +1457,18 @@ export function CafeModule({
         <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
            <User className="text-amber-600" /> Nouveau Revendeur (Cellule)
         </h3>
-        <form onSubmit={handleAddSeller} className="grid grid-cols-1 md:grid-cols-6 gap-4">
-           <input name="nom" placeholder="Prénom & Nom" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required />
-           <select name="cellule" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required>
+        <form onSubmit={handleAddSeller} className="flex flex-col md:grid md:grid-cols-6 gap-4">
+           <input name="nom" placeholder="Prénom & Nom" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required />
+           <select name="cellule" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required>
               <option value="ESP">ESP</option>
               <option value="CAMPUS">CAMPUS</option>
               <option value="PARCELLE">PARCELLE</option>
               <option value="AUTRES">AUTRES</option>
            </select>
-           <input name="telephone" placeholder="Téléphone" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required />
-           <input name="email" type="email" placeholder="Email Connexion" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" />
-           <input name="codeAcces" placeholder="Code (4 chiffres)" className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" maxLength={4} />
-           <button type="submit" className="bg-brown-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-brown-700 shadow-[0_8px_16px_-6px_rgba(120,53,15,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(120,53,15,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none h-[48px]">
+           <input name="telephone" placeholder="Téléphone" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" required />
+           <input name="email" type="email" placeholder="Email Connexion" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" />
+           <input name="codeAcces" placeholder="Code (4 chiffres)" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-brown-500/10" maxLength={4} />
+           <button type="submit" className="w-full bg-brown-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-brown-700 shadow-[0_8px_16px_-6px_rgba(120,53,15,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(120,53,15,0.6)] hover:-translate-y-0.5 active:scale-95 transition-all outline-none flex items-center justify-center min-h-[48px]">
              Enregistrer
            </button>
         </form>
@@ -1511,7 +1511,7 @@ export function CafeModule({
                     {formats.price((priceConfig?.prices?.[selectedDistFormat]?.price || (selectedDistFormat === '1kg' ? 2500 : 1300)) * (distQty || 0))}
                 </span>
              </div>
-             <button type="submit" className="w-full bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-amber-700 shadow-[0_8px_16px_-6px_rgba(217,119,6,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(217,119,6,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-12">
+             <button type="submit" className="w-full bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-amber-700 shadow-[0_8px_16px_-6px_rgba(217,119,6,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(217,119,6,0.6)] hover:-translate-y-0.5 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 min-h-[48px]">
                <Tag size={16} /> Effectuer Transfert
              </button>
           </form>
@@ -1534,7 +1534,7 @@ export function CafeModule({
                     <option value="OM">OM</option>
                  </select>
               </div>
-              <button type="submit" className="w-full bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 h-12">
+              <button type="submit" className="w-full bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 shadow-[0_8px_16px_-6px_rgba(5,150,105,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(5,150,105,0.6)] hover:-translate-y-0.5 active:scale-95 transition-all outline-none flex items-center justify-center gap-2 min-h-[48px]">
                 <TrendingUp size={16} /> Valider Versement
               </button>
            </form>

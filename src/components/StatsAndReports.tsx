@@ -261,10 +261,10 @@ export function StatsAndReports({
       className="max-w-6xl mx-auto space-y-10 pb-40 px-4 sm:px-6"
     >
       {/* 🧭 HEADER & FILTERS */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-8 sm:p-10 rounded-[3.5rem] shadow-soft border border-gray-100">
-        <div className="space-y-2">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 sm:gap-8 bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] shadow-soft border border-gray-100">
+        <div className="space-y-1 sm:space-y-2">
           <h2 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tighter">Centre d'Analyses</h2>
-          <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.4em] flex items-center gap-2">
+          <p className="text-[9px] sm:text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.2em] sm:tracking-[0.4em] flex items-center gap-2">
              <BarChart3 size={14} /> Intelligence de Gestion ({selectedYear})
           </p>
         </div>
@@ -414,13 +414,13 @@ export function StatsAndReports({
 
       {/* COMPREHENSIVE FINANCIAL STATS */}
       {activeTab === 'caisse' && (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         <div className="space-y-6">
-          <div className="premium-card p-10 bg-dmn-green-950 text-white relative overflow-hidden h-52 flex flex-col justify-between shadow-2xl shadow-dmn-green-950/30">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24 blur-[80px]"></div>
+          <div className="premium-card p-6 sm:p-10 bg-dmn-green-950 text-white relative overflow-hidden h-44 sm:h-52 flex flex-col justify-between shadow-2xl shadow-dmn-green-950/30">
+            <div className="absolute top-0 right-0 w-32 sm:w-48 h-32 sm:h-48 bg-white/5 rounded-full -mr-16 sm:-mr-24 -mt-16 sm:-mt-24 blur-[60px] sm:blur-[80px]"></div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-dmn-green-400 mb-2">Trésorerie Disponible</p>
-              <h4 className="text-5xl font-black tabular-nums tracking-tighter">{formatPrice(soldeCaisse)}</h4>
+              <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] text-dmn-green-400 mb-2">Trésorerie Disponible</p>
+              <h4 className="text-3xl sm:text-5xl font-black tabular-nums tracking-tighter">{formatPrice(soldeCaisse)}</h4>
             </div>
             <div className="flex items-center gap-3">
               <span className={`text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest ${soldeCaisse >= 0 ? 'bg-dmn-green-500/20 text-dmn-green-400 border border-dmn-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
@@ -429,12 +429,12 @@ export function StatsAndReports({
             </div>
           </div>
 
-          <div className="premium-card p-8 bg-white border border-gray-100 space-y-10">
+          <div className="premium-card p-6 sm:p-8 bg-white border border-gray-100 space-y-6 sm:space-y-10">
             <div className="space-y-4">
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Entrées</p>
-                  <p className="text-3xl font-black text-dmn-green-600">{formatPrice(totEntrees)} <span className="text-xs">F</span></p>
+                  <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Entrées</p>
+                  <p className="text-2xl sm:text-3xl font-black text-dmn-green-600">{formatPrice(totEntrees)} <span className="text-xs">F</span></p>
                 </div>
                 <div className="w-12 h-12 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-600">
                   <TrendingUp size={24} />
@@ -462,13 +462,13 @@ export function StatsAndReports({
           </div>
         </div>
 
-        <div className="lg:col-span-2 premium-card p-10">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-12">
+        <div className="lg:col-span-2 premium-card p-6 sm:p-10">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 sm:mb-12">
             <div>
-              <h3 className="text-base font-black text-gray-900 uppercase tracking-widest">Analyse de Performance ({selectedYear})</h3>
-              <p className="text-[10px] font-bold text-gray-400 mt-1">Comparatif Entrées / Dépenses Mensuelles</p>
+              <h3 className="text-sm sm:text-base font-black text-gray-900 uppercase tracking-widest">Analyse de Performance</h3>
+              <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 mt-1">Comparatif Entrées / Dépenses ({selectedYear})</p>
             </div>
-            <div className="flex gap-6">
+            <div className="flex gap-4 sm:gap-6">
                <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-sm bg-dmn-green-500"></div>
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Recettes</span>

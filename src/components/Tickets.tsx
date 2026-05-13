@@ -202,7 +202,9 @@ Barakallahou fikoum.`;
       }
       return baseName;
     };
-    const filteredMembres = membres.filter(m => nomComplet(m).toLowerCase().includes(searchMembre.toLowerCase()));
+    const filteredMembres = membres
+      .filter(m => m.statut === 'Boursier')
+      .filter(m => nomComplet(m).toLowerCase().includes(searchMembre.toLowerCase()));
 
     return (
       <div className="space-y-4">
@@ -275,19 +277,19 @@ Barakallahou fikoum.`;
                   </div>
                 ) : (
                   isTickets ? (
-                    <div className="mt-4 space-y-3">
-                      <button 
-                        onClick={() => handleCollecte(m.id, 'argent', 0, 0)}
-                        className="w-full py-2.5 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-dmn-green-600/20"
-                      >
-                        <Plus size={16} /> 500 FCFA (Argent)
-                      </button>
-                      
-                      <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
-                        <p className="text-[10px] font-black text-orange-800 uppercase tracking-widest mb-3 text-center">Ajouter Tickets Resto</p>
-                        <TicketForm onSubmit={(pd, r) => handleCollecte(m.id, 'tickets', pd, r)} />
-                      </div>
-                    </div>
+                <div className="mt-4 flex flex-col gap-2.5">
+                  <button 
+                    onClick={() => handleCollecte(m.id, 'argent', 0, 0)}
+                    className="w-full py-4 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-dmn-green-600/20 active:scale-95"
+                  >
+                    <Plus size={16} /> Encaisser 500 FCFA
+                  </button>
+                  
+                  <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100 space-y-3">
+                    <p className="text-[9px] font-black text-orange-800 uppercase tracking-[0.2em] text-center">Déposer des Tickets</p>
+                    <TicketForm onSubmit={(pd, r) => handleCollecte(m.id, 'tickets', pd, r)} />
+                  </div>
+                </div>
                   ) : (
                     <div className="mt-4 p-4 text-center border-2 border-dashed border-gray-100 rounded-2xl">
                       <p className="text-xs text-gray-400 font-medium">Non payé - En attente</p>
@@ -391,17 +393,19 @@ Barakallahou fikoum.`;
             Total Tickets : {(convPD * 50) + (convRepas * 100)} FCFA
           </div>
 
-          <button type="submit" className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none mb-4">
-            Convertir
-          </button>
+          <div className="flex flex-col gap-3">
+            <button type="submit" className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none min-h-[48px]">
+              Convertir
+            </button>
 
-          <button 
-            type="button"
-            onClick={() => setIsAnnouncementModalOpen(true)}
-            className="w-full py-4 bg-dmn-green-50 text-dmn-green-700 rounded-xl font-bold border border-dmn-green-100 flex items-center justify-center gap-2 hover:bg-dmn-green-100 transition-all active:scale-95 mb-4"
-          >
-            <Share2 size={18} /> Annoncer la disponibilité
-          </button>
+            <button 
+              type="button"
+              onClick={() => setIsAnnouncementModalOpen(true)}
+              className="w-full py-4 bg-dmn-green-50 text-dmn-green-700 rounded-xl font-bold border border-dmn-green-100 flex items-center justify-center gap-2 hover:bg-dmn-green-100 transition-all active:scale-95 min-h-[48px]"
+            >
+              <Share2 size={18} /> Annoncer la disponibilité
+            </button>
+          </div>
         </form>
       </div>
     );
@@ -452,7 +456,7 @@ Barakallahou fikoum.`;
         </h3>
 
         <form onSubmit={handleDistribute} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Petit Dèj (Dispo: {stockPetitDej})</label>
               <div className="flex items-center gap-3">
@@ -471,7 +475,7 @@ Barakallahou fikoum.`;
             </div>
           </div>
 
-          <button type="submit" className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(249,115,22,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(249,115,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none">
+          <button type="submit" className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold shadow-[0_8px_16px_-6px_rgba(249,115,22,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(249,115,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none min-h-[48px]">
             Valider la sortie de stock
           </button>
         </form>
@@ -822,13 +826,13 @@ Pour plus d'information contactez
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button 
                     onClick={handleCopy}
-                    className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 min-h-[48px] active:scale-95"
                   >
                     <Copy size={16} /> Copier le texte
                   </button>
                   <button 
                     onClick={handleShare}
-                    className="flex-1 py-4 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-dmn-green-600/20"
+                    className="flex-1 py-4 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-dmn-green-600/20 min-h-[48px] active:scale-95"
                   >
                     <MessageCircle size={16} /> Partager via WhatsApp
                   </button>
@@ -878,7 +882,7 @@ function TicketForm({ onSubmit }: { onSubmit: (pd: number, repas: number) => voi
           onSubmit(pd, repas);
           setPd(0); setRepas(0);
         }}
-        className="w-full p-4 mt-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"
+        className="w-full py-4 mt-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 min-h-[48px]"
       >
         <Ticket size={18} />
         Enregistrer les tickets

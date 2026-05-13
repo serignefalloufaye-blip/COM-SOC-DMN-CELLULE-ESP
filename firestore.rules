@@ -47,6 +47,12 @@ service cloud.firestore {
       return isAdmin() || (isAuthenticated() && getRole() == 'caisse');
     }
 
+    function isCotisationOwner(mId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/membres/$(mId)) && 
+             get(/databases/$(database)/documents/membres/$(mId)).data.userId == request.auth.uid;
+    }
+
     function isTickets() {
       return isAdmin() || (isAuthenticated() && getRole() == 'tickets');
     }
@@ -155,7 +161,9 @@ service cloud.firestore {
 
     match /cotisations/{id} {
       allow read: if isLecteur();
-      allow create, update: if isCaisse() && isValidCotisation(incoming());
+      allow create, update: if isValidCotisation(incoming()) && (
+        isCaisse() || isCotisationOwner(incoming().mId)
+      );
       allow delete: if isAdmin();
     }
 
@@ -181,7 +189,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(incoming());
       allow update: if (isAuthenticated() && request.auth.uid == userId && 
-                        incoming().diff(existing()).affectedKeys().hasOnly(['nom', 'email', 'avatarUrl', 'role'])) || 
+                        incoming().diff(existing()).affectedKeys().hasOnly(['nom', 'email', 'avatarUrl'])) || 
                     (isAdmin() && isValidUser(incoming()));
       allow delete: if isAdmin();
     }

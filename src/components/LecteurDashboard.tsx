@@ -22,7 +22,7 @@ interface LecteurDashboardProps {
   onDirectPaymentClick?: (mode: 'WAVE', amount: number, unpaidMonths: string[]) => void;
 }
 
-export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS, onDirectPaymentClick }) => {
+const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS, onDirectPaymentClick }) => {
   const [selectedYear, setSelectedYear] = useState(globalYear);
   const [linkingMembreId, setLinkingMembreId] = useState('');
   const [linkingSearch, setLinkingSearch] = useState('');
@@ -126,17 +126,47 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
     );
   }
 
-  // Statut
-  const startMonthIndex = (myMembre.anneeIntegration === selectedYear && myMembre.moisIntegration) ? MOIS.indexOf(myMembre.moisIntegration) : (myMembre.anneeIntegration && myMembre.anneeIntegration > selectedYear ? 12 : 0);
-  const currentMonthIndex = selectedYear === new Date().getFullYear() ? new Date().getMonth() : 11;
-  
-  const unpaidMonths = [];
-  for (let i = startMonthIndex; i <= currentMonthIndex; i++) {
-    const month = MOIS[i];
-    if (!currentYearCotisations.some(c => c.mois === month)) {
-      unpaidMonths.push(month);
+  // Statut - Alignement avec la logique de la Caisse (App.tsx)
+  const getUnpaidMonths = () => {
+    if (!myMembre) return [];
+    
+    let startMonthIndex = 0;
+    if (myMembre.anneeIntegration && myMembre.moisIntegration) {
+      if (Number(myMembre.anneeIntegration) === Number(selectedYear)) {
+        startMonthIndex = MOIS.indexOf(myMembre.moisIntegration) + 1; // Commence le mois suivant
+      } else if (Number(myMembre.anneeIntegration) > Number(selectedYear)) {
+        return []; // Pas encore de cotisations dues pour cette année passée
+      }
+    } else if (myMembre.createdAt) {
+      const createdDate = new Date(myMembre.createdAt);
+      if (createdDate.getFullYear() === Number(selectedYear)) {
+        startMonthIndex = createdDate.getMonth() + 1; // Commence le mois suivant
+      } else if (createdDate.getFullYear() > Number(selectedYear)) {
+        return [];
+      }
     }
-  }
+
+    const currentYear = new Date().getFullYear();
+    const currentActualMonthIndex = new Date().getMonth();
+    
+    // Si on regarde une année future, pas encore de dettes
+    if (Number(selectedYear) > currentYear) return [];
+
+    // Si on regarde l'année en cours, on s'arrête au mois actuel. 
+    // Sinon on regarde toute l'année (jusqu'à décembre).
+    const currentMonthIndex = Number(selectedYear) === currentYear ? currentActualMonthIndex : 11;
+    
+    const unpaid = [];
+    for (let i = startMonthIndex; i <= currentMonthIndex; i++) {
+      const month = MOIS[i];
+      if (!currentYearCotisations.some(c => c.mois === month)) {
+        unpaid.push(month);
+      }
+    }
+    return unpaid;
+  };
+
+  const unpaidMonths = useMemo(() => getUnpaidMonths(), [myMembre, selectedYear, currentYearCotisations, MOIS]);
 
   const totalPaid = currentYearCotisations.reduce((acc, c) => acc + c.montant, 0);
   const allTimeTotalPaid = myCotisations.reduce((acc, c) => acc + c.montant, 0);
@@ -146,9 +176,9 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
   const isRetardLeger = unpaidMonths.length === 1;
 
   const getStatusDisplay = () => {
-    if (!isEnRetard) return { icon: CheckCircle2, text: 'À jour', color: 'text-green-600', bg: 'bg-green-100' };
-    if (isRetardLeger) return { icon: AlertTriangle, text: 'Retard léger', color: 'text-orange-600', bg: 'bg-orange-100' };
-    return { icon: XCircle, text: 'En retard', color: 'text-red-600', bg: 'bg-red-100' };
+    if (!isEnRetard) return { icon: CheckCircle2, text: 'À jour', color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', border: 'border-dmn-green-100', glow: 'shadow-dmn-green-500/10' };
+    if (isRetardLeger) return { icon: AlertTriangle, text: 'Retard léger', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', glow: 'shadow-amber-500/10' };
+    return { icon: XCircle, text: 'En retard', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', glow: 'shadow-rose-500/10' };
   };
 
   const status = getStatusDisplay();
@@ -200,6 +230,70 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
     doc.save(`Rapport_Cotisations_${myMembre.nom}_${selectedYear}.pdf`);
   };
 
+  const downloadReceipt = (cot: Cotisation) => {
+    const doc = new jsPDF({
+      unit: 'mm',
+      format: [80, 150] // Receipt style format
+    });
+    
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(22, 163, 74);
+    doc.text("COMMISSION SOCIALE DMN", 40, 15, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text("Cellule ESP - Dakar, Sénégal", 40, 20, { align: 'center' });
+    
+    doc.setDrawColor(220);
+    doc.line(10, 25, 70, 25);
+    
+    // Receipt Info
+    doc.setFontSize(12);
+    doc.setTextColor(30);
+    doc.text("REÇU DE COTISATION", 40, 35, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text(`N°: ${cot.id.substring(0, 8).toUpperCase()}`, 40, 40, { align: 'center' });
+    
+    // Details
+    doc.setFont("helvetica", "normal");
+    doc.text("Membre:", 10, 55);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${myMembre!.prenom} ${myMembre!.nom}`, 35, 55);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("Mois:", 10, 65);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${cot.mois} ${cot.annee}`, 35, 65);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("Mode:", 10, 75);
+    doc.setFont("helvetica", "bold");
+    doc.text(cot.mode, 35, 75);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("Date:", 10, 85);
+    doc.setFont("helvetica", "bold");
+    doc.text(formalizeDate(cot.createdAt), 35, 85);
+    
+    doc.line(10, 95, 70, 95);
+    
+    // Amount
+    doc.setFontSize(14);
+    doc.text("MONTANT:", 10, 110);
+    doc.setFontSize(18);
+    doc.setTextColor(22, 163, 74);
+    doc.text(`${cot.montant.toLocaleString()} FCFA`, 40, 125, { align: 'center' });
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.setFont("helvetica", "italic");
+    doc.text("Merci pour votre contribution.", 40, 140, { align: 'center' });
+    
+    doc.save(`Recu_${cot.mois}_${cot.annee}.pdf`);
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20 md:pb-8">
       {/* Header */}
@@ -233,30 +327,79 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
       </div>
 
       {unpaidMonths.length > 0 && (
-         <div className="bg-red-50 border border-red-100 p-4 md:p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-start gap-4">
-              <div className="p-2 bg-white rounded-full shrink-0 shadow-sm">
-                  <AlertTriangle className="text-red-500" size={24} />
+         <div className="bg-white border-2 border-rose-100 rounded-[2.5rem] overflow-hidden shadow-xl shadow-rose-900/5 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="bg-rose-50/50 px-6 py-4 border-b border-rose-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20">
+                  <AlertTriangle size={20} />
+                </div>
+                <h4 className="font-heading font-black text-rose-900 uppercase tracking-wider text-xs">Régulariser mes cotisations</h4>
               </div>
-              <div>
-                  <h4 className="font-bold text-red-800 text-sm md:text-base">Rappel de cotisation</h4>
-                  <p className="text-red-600 text-xs md:text-sm mt-1">
-                      Vous avez {unpaidMonths.length} mois de retard ({unpaidMonths.join(', ')}). 
-                      Montant restant estimé : <strong className="font-black">{montantRestant} FCFA</strong>.
-                  </p>
-              </div>
+              <span className="text-[10px] bg-rose-100 text-rose-600 px-3 py-1 rounded-full font-black uppercase tracking-tighter">
+                {unpaidMonths.length} {unpaidMonths.length > 1 ? 'Mois' : 'Mois'} impayé{unpaidMonths.length > 1 ? 's' : ''}
+              </span>
             </div>
             
-            {onDirectPaymentClick && (
-              <div className="flex gap-2 w-full md:w-auto shrink-0 mt-2 md:mt-0">
-                <button 
-                  onClick={() => onDirectPaymentClick('WAVE', montantRestant, unpaidMonths)} 
-                  className="flex-1 md:flex-none bg-[#1dc6f8] hover:bg-[#15b2e0] text-white py-2 px-4 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md shadow-[#1dc6f8]/20 active:scale-95 whitespace-nowrap"
-                >
-                  <Smartphone size={14} /> Régler via Wave
-                </button>
+            <div className="p-6 md:p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    {unpaidMonths.map(month => {
+                      // Example showed some months at 500F and some at 1000F. 
+                      // In this app current logic uses 500F. I will stick to 500F for now but make it clear.
+                      const amount = 500; 
+                      return (
+                        <div key={month} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 transition-all hover:bg-white hover:shadow-md group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-rose-500 font-black text-xs border border-rose-50 group-hover:scale-110 transition-transform">
+                              {month.charAt(0)}
+                            </div>
+                            <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{month} {selectedYear}</span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-sm font-black text-gray-900">{amount.toLocaleString()} FCFA</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">Dû</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="pt-4 border-t border-dashed border-gray-200">
+                    <div className="flex justify-between items-center px-2">
+                      <div className="flex flex-col">
+                        <span className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">Total Retard</span>
+                        <span className="text-gray-400 text-[9px] font-bold">{unpaidMonths.length} mois impayés</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-2xl font-heading font-black text-dmn-green-600 leading-tight">👉 {montantRestant.toLocaleString()} <span className="text-xs font-medium">FCFA</span></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative group">
+                  <div className="absolute inset-x-0 -bottom-2 h-4 bg-dmn-green-900/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {onDirectPaymentClick ? (
+                    <button 
+                      onClick={() => onDirectPaymentClick('WAVE', montantRestant, unpaidMonths)} 
+                      className="w-full bg-[#1dc6f8] hover:bg-[#15b2e0] text-white py-5 sm:py-6 px-6 sm:px-8 rounded-[2rem] font-black text-sm sm:text-base uppercase tracking-widest flex items-center justify-center gap-3 sm:gap-4 transition-all shadow-[0_20px_40px_-10px_rgba(29,198,248,0.4)] hover:shadow-[0_25px_50px_-12px_rgba(29,198,248,0.5)] active:scale-95 group"
+                    >
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform shrink-0">
+                        <Smartphone size={20} className="sm:w-6 sm:h-6" />
+                      </div>
+                      <span className="text-lg">Payer avec Wave</span>
+                    </button>
+                  ) : (
+                    <div className="text-center p-6 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
+                      <p className="text-xs text-gray-500 font-medium">Contactez un administrateur pour activer le paiement en ligne.</p>
+                    </div>
+                  )}
+                  <p className="text-center mt-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                    <CheckCircle2 size={12} className="text-dmn-green-500" /> Paiement sécurisé • Mise à jour instantanée
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
          </div>
       )}
 
@@ -272,9 +415,9 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
           <p className="text-xl md:text-3xl font-heading font-black text-gray-900">{totalPaid.toLocaleString()} <span className="text-sm font-medium text-gray-500">FCFA</span></p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100">
+        <div className="bg-white p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 group hover:shadow-md transition-shadow">
           <div className="flex items-center gap-3 mb-2">
-            <div className={`p-2 md:p-2.5 ${status.bg} rounded-xl`}>
+            <div className={`p-2 md:p-2.5 ${status.bg} rounded-xl shadow-inner ${status.glow} transition-all group-hover:scale-110`}>
               <StatusIcon size={18} className={status.color} />
             </div>
             <p className="text-[10px] md:text-xs text-gray-500 uppercase font-black tracking-wider">Statut</p>
@@ -326,11 +469,33 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
                   <tr key={cot.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 text-left font-bold text-gray-900">{cot.mois}</td>
                     <td className="px-6 py-4 text-gray-500">{formalizeDate(cot.createdAt)}</td>
-                    <td className="px-6 py-4 text-right font-black text-dmn-green-600">{cot.montant.toLocaleString()} FCFA</td>
+                    <td className="px-6 py-4 text-right font-black text-dmn-green-600">
+                      <div className="flex flex-col items-end">
+                        <span>{cot.montant.toLocaleString()} FCFA</span>
+                        {cot.mode === 'WAVE' && (
+                          <span className="text-[8px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full uppercase tracking-tighter mt-1 flex items-center gap-1">
+                            <CheckCircle2 size={8} /> Payé via Wave
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-gray-100 rounded-md text-gray-600">
-                        {cot.mode}
-                      </span>
+                      <div className="flex items-center justify-center gap-2">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
+                          cot.mode === 'WAVE' ? 'bg-[#1dc6f8]/10 text-[#1dc6f8]' : 
+                          cot.mode === 'OM' ? 'bg-orange-50 text-orange-600' : 
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {cot.mode}
+                        </span>
+                        <button 
+                          onClick={() => downloadReceipt(cot)}
+                          className="p-1.5 bg-gray-50 text-gray-400 hover:text-dmn-green-600 hover:bg-dmn-green-50 rounded-lg transition-colors group"
+                          title="Télécharger le reçu"
+                        >
+                          <Printer size={14} className="group-hover:scale-110 transition-transform" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )) : (
@@ -377,3 +542,5 @@ export const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, me
     </div>
   );
 };
+
+export default LecteurDashboard;

@@ -233,24 +233,24 @@ export function PremiumDashboard({
       className="max-w-5xl mx-auto space-y-6 sm:space-y-10 pb-32 pt-4 sm:pt-12 px-2 sm:px-6"
     >
       {/* WELCOME & LOGO */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-4">
-        <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-center sm:justify-start">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 px-2 sm:px-4">
+        <div className="flex items-center gap-3 sm:gap-6 w-full sm:w-auto justify-center sm:justify-start">
           <div className="relative group shrink-0">
-            <div className="absolute inset-0 bg-dmn-green-500/10 rounded-[1.5rem] sm:rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-[1.5rem] sm:rounded-[2rem] p-1 sm:p-1.5 shadow-soft border border-gray-100/80 overflow-hidden relative z-10 transition-transform group-hover:scale-105 duration-500">
+            <div className="absolute inset-0 bg-dmn-green-500/10 rounded-[1.2rem] sm:rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-[1.2rem] sm:rounded-[2rem] p-1 sm:p-1.5 shadow-soft border border-gray-100/80 overflow-hidden relative z-10 transition-transform group-hover:scale-105 duration-500">
               {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1.2rem] sm:rounded-[1.5rem]" />
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1rem] sm:rounded-[1.5rem]" />
               ) : (
                 <div className="w-full h-full bg-dmn-green-50 flex items-center justify-center text-dmn-green-700">
-                  <Building2 size={32} strokeWidth={2.5} />
+                  <Building2 size={24} strokeWidth={2.5} className="sm:w-8 sm:h-8" />
                 </div>
               )}
             </div>
           </div>
           <div className="text-center sm:text-left">
-            <h1 className="text-xl sm:text-3xl lg:text-4xl fintech-heading leading-tight max-w-[250px] sm:max-w-none">Daara Madjmahoune Noreyni UCAD</h1>
-            <p className="text-[9px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.2em] sm:tracking-[0.4em] mt-1 sm:mt-2 flex items-center justify-center sm:justify-start gap-2 sm:gap-3">
-              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Système de Gestion DMN
+            <h1 className="text-lg sm:text-3xl lg:text-4xl fintech-heading leading-tight max-w-[220px] sm:max-w-none">Daara Madjmahoune Noreyni UCAD</h1>
+            <p className="text-[8px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.2em] sm:tracking-[0.4em] mt-1 sm:mt-2 flex items-center justify-center sm:justify-start gap-1.5 sm:gap-3">
+              <span className="w-1 h-1 sm:w-2 sm:h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Système de Gestion DMN
             </p>
           </div>
         </div>
@@ -269,30 +269,30 @@ export function PremiumDashboard({
 
       {/* MAIN WALLET CARD */}
       {(isCaisse || isStats) && (
-      <motion.div variants={itemVariants} className="relative group px-2 sm:px-0">
-        <div className="absolute inset-x-0 -bottom-6 h-12 bg-dmn-green-900/10 blur-3xl rounded-full scale-95 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-        <div className="relative h-64 sm:h-80 w-full bg-dmn-green-900 rounded-[2.5rem] sm:rounded-[3.5rem] p-6 sm:p-10 shadow-2xl shadow-dmn-green-900/30 overflow-hidden transition-all duration-700 group-hover:translate-y-[-4px]">
+      <motion.div variants={itemVariants} className="relative group px-1 sm:px-0">
+        <div className="absolute inset-x-0 -bottom-4 h-10 bg-dmn-green-900/10 blur-3xl rounded-full scale-95 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+        <div className="relative h-60 sm:h-80 w-full bg-dmn-green-900 rounded-[2rem] sm:rounded-[3.5rem] p-5 sm:p-10 shadow-2xl shadow-dmn-green-900/30 overflow-hidden transition-all duration-700 group-hover:translate-y-[-4px]">
           {/* Background Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-dmn-green-500/20 rounded-full blur-[80px] sm:blur-[120px] -mr-32 -mt-32 sm:-mr-48 sm:-mt-48 transition-transform group-hover:scale-110 duration-1000"></div>
           <div className="absolute bottom-0 left-0 w-40 h-40 sm:w-60 h-60 bg-dmn-gold/20 rounded-full blur-[60px] sm:blur-[100px] -ml-20 -mb-20 sm:-ml-30 sm:-mb-30 transition-transform group-hover:scale-110 duration-1000"></div>
           
           <div className="relative z-10 h-full flex flex-col justify-between">
             <div className="flex justify-between items-start">
-              <div className="space-y-2 sm:space-y-4">
-                <div className="flex items-center gap-3">
-                  <p className="text-white/40 text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.4em]">Solde Trésorerie Centrale</p>
-                  <Shield size={12} className="text-white/20 sm:block hidden" />
+              <div className="space-y-1 sm:space-y-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <p className="text-white/40 text-[7px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.4em]">Solde Trésorerie Centrale</p>
+                  <Shield size={10} className="text-white/20 sm:block hidden" />
                 </div>
-                <div className="flex items-baseline gap-2 sm:gap-4">
-                  <span className="text-xl sm:text-3xl font-heading font-black text-dmn-gold opacity-80 tracking-tighter">FCFA</span>
-                  <h2 className="text-4xl sm:text-7xl lg:text-8xl fintech-kpi text-white drop-shadow-2xl">
+                <div className="flex items-baseline gap-1.5 sm:gap-4">
+                  <span className="text-lg sm:text-3xl font-heading font-black text-dmn-gold opacity-80 tracking-tighter">FCFA</span>
+                  <h2 className="text-3xl sm:text-7xl lg:text-8xl fintech-kpi text-white drop-shadow-2xl">
                     {formatPrice(soldeGlobal)}
                   </h2>
                 </div>
               </div>
-              <div className="p-3 sm:p-4 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl sm:rounded-3xl shadow-lg ring-1 ring-white/20 hover:scale-110 transition-transform cursor-help">
-                <LayoutGrid size={20} className="text-dmn-gold-light sm:block hidden" />
-                <Zap size={20} className="text-dmn-gold-light sm:hidden" />
+              <div className="p-2.5 sm:p-4 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-xl sm:rounded-3xl shadow-lg ring-1 ring-white/20 hover:scale-110 transition-transform cursor-help">
+                <LayoutGrid size={18} className="text-dmn-gold-light sm:block hidden" />
+                <Zap size={18} className="text-dmn-gold-light sm:hidden" />
               </div>
             </div>
 
