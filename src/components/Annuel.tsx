@@ -44,35 +44,36 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
   
   const totDettesNonPayees = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
   const totDettesPayees = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
-  const solde = totCot + totRec - totDep + totDettesNonPayees;
+  const solde = totCot + totRec - (totDep + totDettesPayees);
   const moyenneMensuelle = Math.round(totCot / 12);
 
   const monthlyData = useMemo(() => {
     return MOIS.map(mois => {
-      const cot = annualCotisations.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
-      const rec = annualRecettes.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
-      const dep = annualDepenses.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      const cot = annualCotisations.filter(c => c.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, c) => sum + c.montant, 0);
+      const rec = annualRecettes.filter(r => r.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, r) => sum + r.montant, 0);
+      const dep = annualDepenses.filter(d => d.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, d) => sum + d.montant, 0);
       
-      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      const dp = annualDettes.filter(d => d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      const dnp = annualDettes.filter(d => !d.estPayee && d.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, d) => sum + d.montant, 0);
+      const dp = annualDettes.filter(d => d.estPayee && d.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, d) => sum + d.montant, 0);
       
       return { 
         name: mois.substring(0, 4),
         fullMonth: mois,
         Cotisations: cot + rec,
-        Dépenses: dep,
-        Solde: (cot + rec) - dep + dnp
+        Dépenses: dep + dp,
+        Solde: (cot + rec) - (dep + dp),
+        Dettes: dnp
       };
     });
   }, [annualCotisations, annualRecettes, annualDepenses, annualDettes]);
 
   const currentMonthIndex = new Date().getMonth();
   const currentMonthName = MOIS[currentMonthIndex];
-  const currentMonthData = monthlyData.find(d => d.fullMonth === currentMonthName) || { Cotisations: 0, Dépenses: 0, Solde: 0, fullMonth: currentMonthName };
+  const currentMonthData = monthlyData.find(d => d.fullMonth?.toUpperCase() === currentMonthName?.toUpperCase()) || { Cotisations: 0, Dépenses: 0, Solde: 0, fullMonth: currentMonthName };
 
   const membresAJourCeMois = useMemo(() => {
     return membres.filter(m => {
-      return cotisations.some(c => c.mId === m.id && c.annee === globalYear && c.mois === currentMonthName && c.montant > 0);
+      return cotisations.some(c => c.mId === m.id && c.annee === globalYear && c.mois?.toUpperCase() === currentMonthName?.toUpperCase() && c.montant > 0);
     }).length;
   }, [membres, cotisations, globalYear, currentMonthName]);
 
@@ -415,7 +416,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
                     <p className="text-xs font-black text-dmn-green-600">{tot.toLocaleString()} F</p>
                     <div className="flex gap-0.5 mt-1.5 justify-end">
                       {MOIS.map(mo => {
-                        const c = cotisations.find(x => x.mId === m.id && x.mois === mo && x.annee === globalYear);
+                        const c = cotisations.find(x => x.mId === m.id && x.mois?.toUpperCase() === mo?.toUpperCase() && x.annee === globalYear);
                         const isPaid = (c && c.montant > 0);
                         return <div key={mo} className={`w-1.5 h-1.5 rounded-full ${isPaid ? 'bg-dmn-green-500' : 'bg-gray-200'}`}></div>
                       })}
@@ -446,7 +447,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
                         </button>
                       </td>
                       {MOIS.map(mo => {
-                        const c = cotisations.find(x => x.mId === m.id && x.mois === mo && x.annee === globalYear);
+                        const c = cotisations.find(x => x.mId === m.id && x.mois?.toUpperCase() === mo?.toUpperCase() && x.annee === globalYear);
                         if (!c) return <td key={mo} className="px-1 py-3 text-gray-300 border-r border-gray-50 text-[10px]">—</td>;
                         if (c.montant > 0) return (
                           <td key={mo} className="px-1 py-3 bg-dmn-green-50/50 text-dmn-green-700 font-black border-r border-dmn-green-100/30 text-[9px]">

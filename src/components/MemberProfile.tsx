@@ -37,7 +37,7 @@ export const MemberProfile: React.FC<MemberProfileProps> = ({
 }) => {
   const memberCotisations = cotisations
     .filter(c => c.mId === membre.id)
-    .sort((a, b) => b.annee - a.annee || MOIS.indexOf(b.mois) - MOIS.indexOf(a.mois));
+    .sort((a, b) => b.annee - a.annee || MOIS.indexOf(b.mois?.toUpperCase()) - MOIS.indexOf(a.mois?.toUpperCase()));
   
   const totalPaid = memberCotisations.reduce((sum, c) => sum + c.montant, 0);
   const monthsPaid = memberCotisations.filter(c => c.montant > 0).length;

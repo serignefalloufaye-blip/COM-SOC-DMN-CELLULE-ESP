@@ -45,7 +45,7 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
     let startMonthIndex = 0;
     if (myMembre.anneeIntegration && myMembre.moisIntegration) {
       if (Number(myMembre.anneeIntegration) === Number(globalYear)) {
-        startMonthIndex = MOIS.indexOf(myMembre.moisIntegration);
+        startMonthIndex = MOIS.indexOf(myMembre.moisIntegration?.toUpperCase());
       } else if (Number(myMembre.anneeIntegration) > Number(globalYear)) {
         return []; // Pas encore de cotisations dues pour cette année passée
       }
@@ -71,7 +71,7 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
     const unpaid = [];
     for (let i = startMonthIndex; i <= currentMonthIndex; i++) {
       const month = MOIS[i];
-      if (!currentYearCotisations.some(c => c.mois === month)) {
+      if (!currentYearCotisations.some(c => c.mois?.toUpperCase() === month?.toUpperCase())) {
         unpaid.push(month);
       }
     }
@@ -195,7 +195,7 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
   }, {} as Record<string, number>)).sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] || 'N/A';
 
   const chartData = MOIS.map(m => {
-    const cots = currentYearCotisations.filter(c => c.mois === m);
+    const cots = currentYearCotisations.filter(c => c.mois?.toUpperCase() === m?.toUpperCase());
     const sum = cots.reduce((acc, c) => acc + c.montant, 0);
     return { name: m.substring(0, 3), montant: sum };
   });
@@ -492,7 +492,7 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {currentYearCotisations.length > 0 ? currentYearCotisations.sort((a,b)=>MOIS.indexOf(a.mois)-MOIS.indexOf(b.mois)).map(cot => (
+                {currentYearCotisations.length > 0 ? currentYearCotisations.sort((a,b)=>MOIS.indexOf(a.mois?.toUpperCase())-MOIS.indexOf(b.mois?.toUpperCase())).map(cot => (
                   <tr key={cot.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 text-left font-bold text-gray-900">{cot.mois}</td>
                     <td className="px-6 py-4 text-gray-500">{formalizeDate(cot.createdAt)}</td>

@@ -107,10 +107,10 @@ export function PremiumDashboard({
   const totCafeQtyProd = cafeProductions.reduce((s, p) => s + p.quantite, 0);
   const cafeStock = totCafeQtyProd - cafeVentes.reduce((s, v) => s + v.quantite, 0);
 
-  const filteredCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear && (!globalMonth || c.mois === globalMonth)), [cotisations, globalYear, globalMonth]);
-  const filteredDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear && (!globalMonth || d.mois === globalMonth)), [depenses, globalYear, globalMonth]);
-  const filteredRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear && (!globalMonth || r.mois === globalMonth)), [recettes, globalYear, globalMonth]);
-  const filteredDettes = useMemo(() => dettes.filter(d => d.annee === globalYear && (!globalMonth || d.mois === globalMonth)), [dettes, globalYear, globalMonth]);
+  const filteredCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear && (!globalMonth || c.mois?.toUpperCase() === globalMonth?.toUpperCase())), [cotisations, globalYear, globalMonth]);
+  const filteredDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear && (!globalMonth || d.mois?.toUpperCase() === globalMonth?.toUpperCase())), [depenses, globalYear, globalMonth]);
+  const filteredRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear && (!globalMonth || r.mois?.toUpperCase() === globalMonth?.toUpperCase())), [recettes, globalYear, globalMonth]);
+  const filteredDettes = useMemo(() => dettes.filter(d => d.annee === globalYear && (!globalMonth || d.mois?.toUpperCase() === globalMonth?.toUpperCase())), [dettes, globalYear, globalMonth]);
   
   const totCotisations = filteredCotisations.reduce((s, c) => s + c.montant, 0);
   const totRecettes = filteredRecettes.reduce((s, r) => s + r.montant, 0);
@@ -143,20 +143,20 @@ export function PremiumDashboard({
   const repasDistribues = ticketDistributions.reduce((s, d) => s + (d.repas || 0), 0);
   const stockRepas = repasGeneres + repasCollectes - repasDistribues;
 
-  const currentMonthIndex = MOIS.indexOf(globalMonth || MOIS[new Date().getMonth()]);
+  const currentMonthIndex = MOIS.indexOf(globalMonth?.toUpperCase() || MOIS[new Date().getMonth()]);
   const getMembreStatus = (mId: string) => {
     const membre = membres.find(m => m.id === mId);
     let startMonthIndex = 0;
     if (membre && membre.anneeIntegration && membre.moisIntegration) {
       if (membre.anneeIntegration > globalYear) return "Non membre";
       if (membre.anneeIntegration === globalYear) {
-        startMonthIndex = MOIS.indexOf(membre.moisIntegration);
+        startMonthIndex = MOIS.indexOf(membre.moisIntegration?.toUpperCase());
       }
     }
     let isEnRetard = false;
     for (let i = startMonthIndex; i <= currentMonthIndex; i++) {
         const month = MOIS[i];
-        if (!cotisations.some(c => c.mId === mId && c.mois === month && c.annee === globalYear && c.montant > 0)) {
+        if (!cotisations.some(c => c.mId === mId && c.mois?.toUpperCase() === month?.toUpperCase() && c.annee === globalYear && c.montant > 0)) {
             isEnRetard = true;
             break;
         }
@@ -173,9 +173,9 @@ export function PremiumDashboard({
   const sellerStock = mySeller ? (mySeller.stockActuel || 0) : 0;
 
   const evolutionSoldeData = MOIS.map(m => {
-    const moisCot = annualCotisations.filter(c => c.mois === m).reduce((s, c) => s + c.montant, 0);
-    const moisRec = annualRecettes.filter(c => c.mois === m).reduce((s, c) => s + c.montant, 0);
-    const moisDep = annualDepenses.filter(c => c.mois === m).reduce((s, d) => s + d.montant, 0);
+    const moisCot = annualCotisations.filter(c => c.mois?.toUpperCase() === m?.toUpperCase()).reduce((s, c) => s + c.montant, 0);
+    const moisRec = annualRecettes.filter(c => c.mois?.toUpperCase() === m?.toUpperCase()).reduce((s, c) => s + c.montant, 0);
+    const moisDep = annualDepenses.filter(c => c.mois?.toUpperCase() === m?.toUpperCase()).reduce((s, d) => s + d.montant, 0);
     return { name: m.substring(0, 3), Entrées: moisCot + moisRec, Dépenses: moisDep, Solde: moisCot + moisRec - moisDep };
   });
 

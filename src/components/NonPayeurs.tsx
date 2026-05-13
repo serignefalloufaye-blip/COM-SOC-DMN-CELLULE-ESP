@@ -147,7 +147,7 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                           <span className="font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg text-xs">{status.unpaidCount} mois dûs</span>
                           <div className="flex flex-wrap gap-1 justify-center">
                             {status.unpaidMonths.slice(0, 4).map(mois => (
-                              <span key={mois} className={`text-[9px] px-1.5 py-0.5 rounded-md uppercase font-bold shadow-sm ${npMois === mois ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                              <span key={mois} className={`text-[9px] px-1.5 py-0.5 rounded-md uppercase font-bold shadow-sm ${npMois?.toUpperCase() === mois?.toUpperCase() ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600 border border-red-100'}`}>
                                 {mois.substring(0, 3)}
                               </span>
                             ))}
@@ -230,7 +230,7 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                     <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-3">Mois dus ({status.unpaidCount})</p>
                     <div className="flex flex-wrap gap-1.5">
                       {status.unpaidMonths.map(mois => (
-                        <span key={mois} className={`text-[9px] px-2 py-1 rounded-lg uppercase font-black shadow-sm ${npMois === mois ? 'bg-red-600 text-white' : 'bg-white text-red-600 border border-red-100'}`}>
+                        <span key={mois} className={`text-[9px] px-2 py-1 rounded-lg uppercase font-black shadow-sm ${npMois?.toUpperCase() === mois?.toUpperCase() ? 'bg-red-600 text-white' : 'bg-white text-red-600 border border-red-100'}`}>
                           {mois.substring(0, 4)}
                         </span>
                       ))}

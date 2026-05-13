@@ -61,9 +61,9 @@ export class ReportService {
       }
 
       if (Number(itemAnnee) !== year) return false;
-      if (type === 'mensuel' && itemMois !== month) return false;
+      if (type === 'mensuel' && (itemMois as string)?.toUpperCase() !== (month as string)?.toUpperCase()) return false;
       if (type === 'trimestriel') {
-        const mIdx = MOIS.indexOf(itemMois as string);
+        const mIdx = MOIS.indexOf((itemMois as string)?.toUpperCase());
         if (mIdx === -1) return false;
         const q = Math.floor(mIdx / 3) + 1;
         return q === quarter;
@@ -187,9 +187,9 @@ export class ReportService {
       }
 
       if (Number(itemAnnee) !== year) return false;
-      if (type === 'mensuel' && itemMois !== month) return false;
+      if (type === 'mensuel' && (itemMois as string)?.toUpperCase() !== (month as string)?.toUpperCase()) return false;
       if (type === 'trimestriel') {
-        const mIdx = MOIS.indexOf(itemMois as string);
+        const mIdx = MOIS.indexOf((itemMois as string)?.toUpperCase());
         if (mIdx === -1) return false;
         const q = Math.floor(mIdx / 3) + 1;
         return q === quarter;

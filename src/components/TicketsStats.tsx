@@ -37,7 +37,7 @@ export function TicketsStats({ membres, collectes, conversions, distributions }:
   const filteredCollectes = useMemo(() => {
     return collectes.filter(c => {
       const matchYear = filterYear === '' || c.annee === filterYear;
-      const matchMonth = filterMonth === '' || c.mois === filterMonth;
+      const matchMonth = filterMonth === '' || c.mois?.toUpperCase() === filterMonth?.toUpperCase();
       const matchTrimestre = filterTrimestre === '' || trimestres[filterTrimestre as keyof typeof trimestres].includes(c.mois);
       const membre = membres.find(m => m.id === c.mId);
       const matchMembre = searchMembre === '' || (membre && `${membre.prenom} ${membre.nom}`.toLowerCase().includes(searchMembre.toLowerCase()));
@@ -63,7 +63,7 @@ export function TicketsStats({ membres, collectes, conversions, distributions }:
   const filteredDistributions = useMemo(() => {
     return distributions.filter(d => {
       const matchYear = filterYear === '' || d.annee === filterYear;
-      const matchMonth = filterMonth === '' || d.mois === filterMonth;
+      const matchMonth = filterMonth === '' || d.mois?.toUpperCase() === filterMonth?.toUpperCase();
       const matchTrimestre = filterTrimestre === '' || trimestres[filterTrimestre as keyof typeof trimestres].includes(d.mois);
       const membre = membres.find(m => m.id === d.mId);
       const matchMembre = searchMembre === '' || (membre && `${membre.prenom} ${membre.nom}`.toLowerCase().includes(searchMembre.toLowerCase()));
@@ -93,7 +93,7 @@ export function TicketsStats({ membres, collectes, conversions, distributions }:
 
   // Chart Data
   const collectesParMois = MOIS.map(mois => {
-    const cols = filteredCollectes.filter(c => c.mois === mois);
+    const cols = filteredCollectes.filter(c => c.mois?.toUpperCase() === mois?.toUpperCase());
     const pd = cols.reduce((s, c) => s + (c.petitDej || 0), 0);
     const repas = cols.reduce((s, c) => s + (c.repas || 0), 0);
     const argent = cols.reduce((s, c) => s + (c.montantArgent || 0), 0);
@@ -101,7 +101,7 @@ export function TicketsStats({ membres, collectes, conversions, distributions }:
   });
 
   const distParMois = MOIS.map(mois => {
-    const dist = filteredDistributions.filter(d => d.mois === mois);
+    const dist = filteredDistributions.filter(d => d.mois?.toUpperCase() === mois?.toUpperCase());
     const pd = dist.reduce((s, d) => s + (d.petitDej || 0), 0);
     const repas = dist.reduce((s, d) => s + (d.repas || 0), 0);
     return { name: mois.substring(0, 3), pd, repas };

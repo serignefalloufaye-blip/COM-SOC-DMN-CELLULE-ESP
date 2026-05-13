@@ -167,7 +167,7 @@ export const CotisationsTable: React.FC<CotisationsTableProps> = ({
     const monthToShare = fMois || MOIS[today.getMonth()];
     const paidInfos = membres
       .map(m => {
-        const cot = cotisations.find(c => c.mId === m.id && c.mois === monthToShare && Number(c.annee) === globalYear && c.montant > 0);
+        const cot = cotisations.find(c => c.mId === m.id && c.mois?.toUpperCase() === monthToShare?.toUpperCase() && Number(c.annee) === globalYear && c.montant > 0);
         return cot ? { member: m, cotisation: cot } : null;
       })
       .filter((info): info is { member: Membre; cotisation: Cotisation } => info !== null)
@@ -195,7 +195,7 @@ export const CotisationsTable: React.FC<CotisationsTableProps> = ({
   const filtered = cotisations.filter(c => {
     const m = getMembre(c.mId);
     return c.annee === globalYear &&
-           (!fMois || c.mois === fMois) && 
+           (!fMois || c.mois?.toUpperCase() === fMois?.toUpperCase()) && 
            (!fMode || c.mode === fMode) && 
            (!debouncedSearchCot || nomComplet(m).toLowerCase().includes(debouncedSearchCot.toLowerCase()));
   });
@@ -299,7 +299,7 @@ interface RecettesTableProps {
 export const RecettesTable: React.FC<RecettesTableProps> = ({
   recettes, globalYear, fMois, setFMois, isAdmin, isCaisse, setEditingRecette, setIsRecetteModalOpen, handleDeleteRecette
 }) => {
-  const filtered = recettes.filter(r => r.annee === globalYear && (!fMois || r.mois === fMois));
+  const filtered = recettes.filter(r => r.annee === globalYear && (!fMois || r.mois?.toUpperCase() === fMois?.toUpperCase()));
   const total = filtered.reduce((acc, r) => acc + r.montant, 0);
 
   return (
@@ -335,7 +335,7 @@ export const RecettesTable: React.FC<RecettesTableProps> = ({
           <tbody className="divide-y divide-gray-100">
             {filtered.map(r => (
               <tr key={r.id} className="hover:bg-gray-50/50">
-                <td className="px-6 py-4 text-left font-bold text-gray-900">{r.libelle}</td>
+                <td className="px-6 py-4 text-left font-bold text-gray-900">{r.motif}</td>
                 <td className="px-6 py-4 font-black uppercase text-[10px] text-gray-500">{r.mois}</td>
                 <td className="px-6 py-4 font-black text-dmn-green-600">{formatPrice(r.montant)} F</td>
                 <td className="px-6 py-4 flex justify-end gap-2">
@@ -371,7 +371,7 @@ interface DepensesTableProps {
 export const DepensesTable: React.FC<DepensesTableProps> = ({
   depenses, globalYear, fMois, setFMois, isAdmin, isCaisse, setEditingDep, setIsDepModalOpen, handleDeleteDepense
 }) => {
-  const filtered = depenses.filter(d => d.annee === globalYear && (!fMois || d.mois === fMois));
+  const filtered = depenses.filter(d => d.annee === globalYear && (!fMois || d.mois?.toUpperCase() === fMois?.toUpperCase()));
   const total = filtered.reduce((acc, d) => acc + d.montant, 0);
 
   return (
@@ -398,7 +398,7 @@ export const DepensesTable: React.FC<DepensesTableProps> = ({
         <table className="w-full text-sm text-center">
           <thead className="bg-gray-50/80 text-gray-600 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-4 font-semibold text-xs uppercase text-left">Motif</th>
+              <th className="px-6 py-4 font-semibold text-xs uppercase text-left">Événement</th>
               <th className="px-6 py-4 font-semibold text-xs uppercase">Mois</th>
               <th className="px-6 py-4 font-semibold text-xs uppercase">Montant</th>
               <th className="px-6 py-4 font-semibold text-xs uppercase text-right">Actions</th>
@@ -407,7 +407,7 @@ export const DepensesTable: React.FC<DepensesTableProps> = ({
           <tbody className="divide-y divide-gray-100">
             {filtered.map(d => (
               <tr key={d.id} className="hover:bg-gray-50/50">
-                <td className="px-6 py-4 text-left font-bold text-gray-900">{d.motif}</td>
+                <td className="px-6 py-4 text-left font-bold text-gray-900">{d.evenement}</td>
                 <td className="px-6 py-4 font-black uppercase text-[10px] text-gray-500">{d.mois}</td>
                 <td className="px-6 py-4 font-black text-red-600">{formatPrice(d.montant)} F</td>
                 <td className="px-6 py-4 flex justify-end gap-2">

@@ -224,7 +224,7 @@ Barakallahou fikoum.`;
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMembres.map(m => {
-            const collecteDuMois = collectes.find(c => c.mId === m.id && c.annee === globalYear && c.mois === effectiveMonth);
+            const collecteDuMois = collectes.find(c => c.mId === m.id && c.annee === globalYear && c.mois?.toUpperCase() === effectiveMonth?.toUpperCase());
             
             return (
               <div key={m.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative hover:shadow-md transition-all">

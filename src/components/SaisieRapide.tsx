@@ -114,7 +114,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                   const updates: Record<string, string[]> = {};
                   const amounts: Record<string, number> = {};
                   filteredMembres.forEach(m => {
-                    const unpaidInBulk = bulkMonths.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
+                    const unpaidInBulk = bulkMonths.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === globalYear && c.montant > 0));
                     if (unpaidInBulk.length > 0) {
                       updates[m.id] = unpaidInBulk;
                       amounts[m.id] = Number(bulkAmount) || 500;
@@ -151,7 +151,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
               const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
               const selectedMonths = quickMonths[m.id] !== undefined 
                 ? quickMonths[m.id] 
-                : (!cotisations.some(c => c.mId === m.id && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
+                : (!cotisations.some(c => c.mId === m.id && c.mois?.toUpperCase() === defaultMonth?.toUpperCase() && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
 
               return (
                 <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
@@ -169,7 +169,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                       <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sélection :</p>
                       <button 
                         onClick={() => {
-                          const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
+                          const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === globalYear && c.montant > 0));
                           setQuickMonths(prev => ({ ...prev, [m.id]: unpaid }));
                         }}
                         className="text-[9px] font-black text-dmn-green-600 hover:text-dmn-green-700 bg-dmn-green-50 px-2 py-1 rounded-lg uppercase tracking-widest transition-colors flex items-center gap-1"
@@ -185,7 +185,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                     </div>
                     <div className="flex flex-wrap gap-1.5 max-w-[280px]">
                       {MOIS.map(mois => {
-                        const existingCot = cotisations.find(c => c.mId === m.id && c.mois === mois && c.annee === globalYear);
+                        const existingCot = cotisations.find(c => c.mId === m.id && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === globalYear);
                         const isPaid = existingCot && existingCot.montant > 0;
                         const isSelected = selectedMonths.includes(mois);
                         
@@ -194,7 +194,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                             <button
                               onClick={() => {
                                 if (isPaid) {
-                                  setActiveActionMenu(activeActionMenu?.mId === m.id && activeActionMenu?.mois === mois ? null : { mId: m.id, mois });
+                                  setActiveActionMenu(activeActionMenu?.mId === m.id && activeActionMenu?.mois?.toUpperCase() === mois?.toUpperCase() ? null : { mId: m.id, mois });
                                   return;
                                 }
                                 setQuickMonths(prev => {
@@ -213,7 +213,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                               {mois.substring(0, 4)} {isPaid ? '✓' : ''}
                             </button>
                             
-                            {activeActionMenu?.mId === m.id && activeActionMenu?.mois === mois && isPaid && (
+                            {activeActionMenu?.mId === m.id && activeActionMenu?.mois?.toUpperCase() === mois?.toUpperCase() && isPaid && (
                               <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-1 min-w-[120px] animate-in zoom-in-95 duration-200">
                                 {(isAdmin || isCaisse) ? (
                                   <>
@@ -340,7 +340,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                 <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Mois à payer :</p>
                 <button 
                   onClick={() => {
-                    const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
+                    const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === globalYear && c.montant > 0));
                     setQuickMonths(prev => ({ ...prev, [m.id]: unpaid }));
                   }}
                   className="text-[8px] font-black text-dmn-green-600 bg-dmn-green-50 px-2 py-1 rounded-lg uppercase transition-colors"
@@ -356,7 +356,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
               </div>
               <div className="bg-gray-50/50 rounded-2xl p-2.5 flex flex-wrap gap-1.5 border border-gray-100">
                 {MOIS.map(mois => {
-                  const existingCot = cotisations.find(c => c.mId === m.id && c.mois === mois && c.annee === globalYear);
+                  const existingCot = cotisations.find(c => c.mId === m.id && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === globalYear);
                   const isPaid = existingCot && existingCot.montant > 0;
                   const isSelected = selectedMonths.includes(mois);
                   

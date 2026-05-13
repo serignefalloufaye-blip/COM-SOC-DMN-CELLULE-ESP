@@ -85,9 +85,9 @@ export function StatsAndReports({
     if (Number(annee) !== selectedYear) return false;
 
     if (filterPeriod === 'annuel') return true;
-    if (filterPeriod === 'mensuel') return mois === selectedMonth;
+    if (filterPeriod === 'mensuel') return mois?.toUpperCase() === selectedMonth?.toUpperCase();
     if (filterPeriod === 'trimestriel') {
-      const mIdx = MOIS.indexOf(mois);
+      const mIdx = MOIS.indexOf(mois?.toUpperCase());
       if (mIdx === -1) return false;
       const q = Math.floor(mIdx / 3) + 1;
       return q === selectedQuarter;
@@ -109,7 +109,11 @@ export function StatsAndReports({
 
   // --- KPIs Calculations ---
   const totEntrees = useMemo(() => filteredCots.reduce((s, c) => s + c.montant, 0) + filteredRecs.reduce((s, r) => s + r.montant, 0), [filteredCots, filteredRecs]);
-  const totDepenses = useMemo(() => filteredDeps.reduce((s, d) => s + d.montant, 0), [filteredDeps]);
+  const totDepenses = useMemo(() => {
+    const deps = filteredDeps.reduce((s, d) => s + d.montant, 0);
+    const paidDettes = filteredDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
+    return deps + paidDettes;
+  }, [filteredDeps, filteredDettes]);
   const soldeCaisse = totEntrees - totDepenses;
   const totDettesEnAttente = useMemo(() => filteredDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0), [filteredDettes]);
 
@@ -204,9 +208,9 @@ export function StatsAndReports({
     
     // Monthly aggregation for selectedYear
     const monthlyData = MOIS.map((m, i) => {
-      const yearCots = cotisations.filter(c => c.annee === selectedYear && c.mois === m).reduce((s, c) => s + c.montant, 0);
-      const yearRecs = recettes.filter(r => r.annee === selectedYear && r.mois === m).reduce((s, r) => s + r.montant, 0);
-      const yearDeps = depenses.filter(d => d.annee === selectedYear && d.mois === m).reduce((s, d) => s + d.montant, 0);
+      const yearCots = cotisations.filter(c => c.annee === selectedYear && c.mois?.toUpperCase() === m?.toUpperCase()).reduce((s, c) => s + c.montant, 0);
+      const yearRecs = recettes.filter(r => r.annee === selectedYear && r.mois?.toUpperCase() === m?.toUpperCase()).reduce((s, r) => s + r.montant, 0);
+      const yearDeps = depenses.filter(d => d.annee === selectedYear && d.mois?.toUpperCase() === m?.toUpperCase()).reduce((s, d) => s + d.montant, 0);
       return {
         name: m.substring(0, 3).toUpperCase(),
         Entrées: yearCots + yearRecs,

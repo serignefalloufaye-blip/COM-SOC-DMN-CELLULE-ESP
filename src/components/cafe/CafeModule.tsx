@@ -138,7 +138,7 @@ export function CafeModule({
       if (!v.date) return false;
       const d = new Date(v.date);
       const matchYear = d.getFullYear() === globalYear;
-      const matchMonth = !globalMonth || d.getMonth() === MOIS.indexOf(globalMonth);
+      const matchMonth = !globalMonth || d.getMonth() === MOIS.indexOf(globalMonth?.toUpperCase());
       return matchYear && matchMonth;
     });
     if (isOnlySeller) subset = subset.filter(v => v.vendeurId === identifiedSellerId);
@@ -149,7 +149,7 @@ export function CafeModule({
     if (!d.date) return false;
     const dt = new Date(d.date);
     const matchYear = dt.getFullYear() === globalYear;
-    const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+    const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth?.toUpperCase());
     return matchYear && matchMonth;
   }), [depenses, globalYear, globalMonth]);
   
@@ -157,7 +157,7 @@ export function CafeModule({
     if (!p.date) return false;
     const dt = new Date(p.date);
     const matchYear = dt.getFullYear() === globalYear;
-    const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+    const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth?.toUpperCase());
     return matchYear && matchMonth;
   }), [productions, globalYear, globalMonth]);
   
@@ -166,7 +166,7 @@ export function CafeModule({
       if (!v.date) return false;
       const dt = new Date(v.date);
       const matchYear = dt.getFullYear() === globalYear;
-      const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+      const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth?.toUpperCase());
       return matchYear && matchMonth;
     });
     if (isOnlySeller) subset = subset.filter(v => v.vendeurId === identifiedSellerId);
@@ -178,7 +178,7 @@ export function CafeModule({
       if (!d.date) return false;
       const dt = new Date(d.date);
       const matchYear = dt.getFullYear() === globalYear;
-      const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth);
+      const matchMonth = !globalMonth || dt.getMonth() === MOIS.indexOf(globalMonth?.toUpperCase());
       return matchYear && matchMonth;
     });
     if (isOnlySeller) subset = subset.filter(d => d.celluleId === identifiedSellerId);

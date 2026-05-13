@@ -332,7 +332,7 @@ export default function App() {
     
     let currentMonthIndex;
     if (globalMonth) {
-      currentMonthIndex = MOIS.indexOf(globalMonth);
+      currentMonthIndex = MOIS.indexOf(globalMonth?.toUpperCase());
     } else {
       currentMonthIndex = Number(globalYear) === currentYear ? currentActualMonthIndex : 11;
     }
@@ -342,7 +342,7 @@ export default function App() {
     if (membre) {
       if (membre.anneeIntegration && membre.moisIntegration) {
         if (Number(membre.anneeIntegration) === Number(globalYear)) {
-          startMonthIndex = MOIS.indexOf(membre.moisIntegration); // Commence le mois d'intégration
+          startMonthIndex = MOIS.indexOf(membre.moisIntegration?.toUpperCase()); // Commence le mois d'intégration
         } else if (Number(membre.anneeIntegration) > Number(globalYear)) {
           return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
         }
@@ -375,7 +375,7 @@ export default function App() {
     return cotisations.filter(c => {
       const m = membres.find(x => x.id === c.mId);
       const matchYear = c.annee === globalYear;
-      const matchMonth = !globalMonth || c.mois === globalMonth;
+      const matchMonth = !globalMonth || c.mois?.toUpperCase() === globalMonth?.toUpperCase();
       const matchMode = !globalMode || c.mode === globalMode;
       const matchSearch = !debouncedGlobalSearch || (m && `${m.prenom} ${m.nom}`.toLowerCase().includes(debouncedGlobalSearch.toLowerCase()));
       return matchYear && matchMonth && matchMode && matchSearch;
@@ -725,7 +725,7 @@ export default function App() {
     const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
     const selectedMonths = quickMonths[mId] !== undefined 
       ? quickMonths[mId] 
-      : (!cotisations.some(c => c.mId === mId && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
+      : (!cotisations.some(c => c.mId === mId && c.mois?.toUpperCase() === defaultMonth?.toUpperCase() && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
       
     if (selectedMonths.length === 0) {
       showToast("Veuillez sélectionner au moins un mois à payer.", 'error');
@@ -733,7 +733,7 @@ export default function App() {
     }
     try {
       await Promise.all(selectedMonths.map(async (mois) => {
-        const existing = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === globalYear);
+        const existing = cotisations.find(c => c.mId === mId && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === globalYear);
         if (existing) {
           await updateDoc(doc(db, 'cotisations', existing.id), { montant, mode, updatedAt: Date.now(), updatedBy: user?.uid });
         } else {
@@ -801,7 +801,7 @@ export default function App() {
       showToast("Paiement validé par Wave! Enregistrement en cours...");
       
       const promises = selectedMonths.map((mois: string) => {
-        const tIndex = MOIS.indexOf(mois);
+        const tIndex = MOIS.indexOf(mois?.toUpperCase());
         const trimestre = tIndex !== -1 ? Math.floor(tIndex / 3) + 1 : 1;
         const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         
@@ -980,7 +980,7 @@ export default function App() {
         
         // Register each month as a cotisation
         const promises = pp.mois.map(mois => {
-          const tIndex = MOIS.indexOf(mois);
+          const tIndex = MOIS.indexOf(mois?.toUpperCase());
           const trimestre = tIndex !== -1 ? Math.floor(tIndex / 3) + 1 : 1;
           const heure = new Date(pp.dateSignalee).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
           
@@ -1024,12 +1024,12 @@ export default function App() {
       showToast("Enregistrement de vos cotisations...");
       
       const promises = selectedMonths.map(mois => {
-        const tIndex = MOIS.indexOf(mois);
+        const tIndex = MOIS.indexOf(mois?.toUpperCase());
         const trimestre = tIndex !== -1 ? Math.floor(tIndex / 3) + 1 : 1;
         const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         
         // Vérifier si une cotisation existe déjà (sécurité)
-        const existing = cotisations.find(c => c.mId === membre.id && c.mois === mois && c.annee === currentYear);
+        const existing = cotisations.find(c => c.mId === membre.id && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === currentYear);
         
         if (existing) {
           return updateDoc(doc(db, 'cotisations', existing.id), {
@@ -1110,7 +1110,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
         logAudit(userRole, 'caisse.update', 'Caisse', 'Modification cotisation', { id: editingCot.id, mId, montant });
         showToast('Cotisation modifiée avec succès');
       } else {
-        const existing = cotisations.find(c => c.mId === mId && c.mois === mois && c.annee === annee);
+        const existing = cotisations.find(c => c.mId === mId && c.mois?.toUpperCase() === mois?.toUpperCase() && c.annee === annee);
         if (existing && existing.montant > 0) {
           showToast(`Ce membre a déjà payé pour le ${formatMoisPreposition(mois)} ${annee}`, 'error');
           return;
@@ -1325,33 +1325,34 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
     const annualDepensesFiltered = depenses.filter(d => d.annee === globalYear);
 
     const monthlyData = MOIS.map(mois => {
-      const cot = annualCotisationsFiltered.filter(c => c.mois === mois).reduce((sum, c) => sum + c.montant, 0);
-      const rec = annualRecettesFiltered.filter(r => r.mois === mois).reduce((sum, r) => sum + r.montant, 0);
-      const dep = annualDepensesFiltered.filter(d => d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
-      const dnp = annualDettes.filter(d => !d.estPayee && d.mois === mois).reduce((sum, d) => sum + d.montant, 0);
+      const cot = annualCotisationsFiltered.filter(c => c.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, c) => sum + c.montant, 0);
+      const rec = annualRecettesFiltered.filter(r => r.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, r) => sum + r.montant, 0);
+      const dep = annualDepensesFiltered.filter(d => d.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, d) => sum + d.montant, 0);
+      const dnp = annualDettes.filter(d => !d.estPayee && d.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, d) => sum + d.montant, 0);
+      const dp = annualDettes.filter(d => d.estPayee && d.mois?.toUpperCase() === mois?.toUpperCase()).reduce((sum, d) => sum + d.montant, 0);
       
       // Calculate participation
-      const uniquePayers = new Set(annualCotisationsFiltered.filter(c => c.mois === mois).map(c => c.mId)).size;
+      const uniquePayers = new Set(annualCotisationsFiltered.filter(c => c.mois?.toUpperCase() === mois?.toUpperCase()).map(c => c.mId)).size;
       
       return { 
         name: mois.substring(0, 4), 
         Cotisations: cot,
         Recettes: rec,
         Dettes: dnp,
-        Dépenses: dep,
+        Dépenses: dep + dp,
         Participations: uniquePayers,
-        Solde: (cot + rec + dnp) - dep
+        Solde: (cot + rec) - (dep + dp)
       };
     });
 
     const totalDettesUnpaid = annualDettes.filter(d => !d.estPayee).reduce((s, d) => s + d.montant, 0);
+    const totalDettesPaid = annualDettes.filter(d => d.estPayee).reduce((s, d) => s + d.montant, 0);
     const totalIncome = annualCotisationsFiltered.reduce((s, c) => s + c.montant, 0) + 
-                        annualRecettesFiltered.reduce((s, r) => s + r.montant, 0) + 
-                        totalDettesUnpaid;
+                        annualRecettesFiltered.reduce((s, r) => s + r.montant, 0);
     
-    const totalExpense = annualDepensesFiltered.reduce((s, d) => s + d.montant, 0);
+    const totalExpense = annualDepensesFiltered.reduce((s, d) => s + d.montant, 0) + totalDettesPaid;
     const totalUnpaidDebts = totalDettesUnpaid;
-    const globalPaymentRate = membres.length > 0 ? (new Set(annualCotisationsFiltered.filter(c => c.mois === globalMonth).map(c => c.mId)).size / membres.length) * 100 : 0;
+    const globalPaymentRate = membres.length > 0 ? (new Set(annualCotisationsFiltered.filter(c => c.mois?.toUpperCase() === globalMonth?.toUpperCase()).map(c => c.mId)).size / membres.length) * 100 : 0;
 
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1449,7 +1450,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
                 </div>
               </div>
               <p className="text-center text-xs font-semibold text-gray-500 mt-4">
-                {new Set(annualCotisationsFiltered.filter(c => c.mois === globalMonth).map(c => c.mId)).size} membres sur {membres.length}
+                {new Set(annualCotisationsFiltered.filter(c => c.mois?.toUpperCase() === globalMonth?.toUpperCase()).map(c => c.mId)).size} membres sur {membres.length}
               </p>
             </div>
 
@@ -1881,13 +1882,13 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
   const renderRecap = () => {
     const yearCots = cotisations.filter(c => Number(c.annee) === Number(globalYear));
     const moisDispo = [...new Set(yearCots.map(c => c.mois))];
-    const tots = moisDispo.map(m => yearCots.filter(c => c.mois === m).reduce((s, c) => s + c.montant, 0));
+    const tots = (moisDispo as string[]).map(m => yearCots.filter(c => c.mois?.toUpperCase() === m?.toUpperCase()).reduce((s, c) => s + c.montant, 0));
     const max = Math.max(...tots, 1);
 
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in fade-in duration-300">
         {MOIS.filter(m => moisDispo.includes(m)).map(m => {
-          const c = yearCots.filter(x => x.mois === m);
+          const c = yearCots.filter(x => x.mois?.toUpperCase() === m?.toUpperCase());
           const tot = c.reduce((s, x) => s + x.montant, 0);
           const nb = c.filter(x => x.montant > 0).length;
           const w = c.filter(x => x.mode === 'WAVE' && x.montant > 0).length;
@@ -2099,7 +2100,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
   return (
     <div className={`min-h-screen bg-dmn-bg text-gray-800 font-sans ${isMobile ? 'pb-32' : 'pb-10'} relative overflow-x-hidden`}>
       {/* Header Premium */}
-      <header className="bg-white/80 backdrop-blur-3xl border-b border-gray-100/50 flex justify-between items-center px-4 sm:px-6 py-4 sticky top-0 z-[100] shadow-soft">
+      <header className="bg-white/95 backdrop-blur-xl border-b border-gray-100/50 flex justify-between items-center px-4 sm:px-6 py-4 sticky top-0 z-[100] shadow-soft">
         <div className="flex items-center gap-3 sm:gap-5">
           <button 
             className="sm:hidden p-2 -ml-2 text-gray-500 hover:text-gray-900 focus:outline-none"
@@ -2157,13 +2158,8 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
         </div>
       </header>
       {/* Global Filters (Premium version) */}
-      <AnimatePresence>
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/50 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-2 sm:py-3 sticky top-[72px] z-[90]"
-        >
-          <div className="max-w-7xl mx-auto flex gap-1.5 sm:gap-3 overflow-x-auto no-scrollbar pb-1">
+      <div className="bg-white/80 border-b border-gray-100 px-4 sm:px-6 py-2 sm:py-3 sticky top-[72px] z-[90]">
+        <div className="max-w-7xl mx-auto flex gap-1.5 sm:gap-3 overflow-x-auto no-scrollbar pb-1">
             <div className="flex items-center bg-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl border border-gray-100 shadow-soft shrink-0">
               <Calendar size={12} className="text-dmn-green-500 mr-1.5 sm:mr-2 sm:w-4 sm:h-4" />
               <select 
@@ -2198,16 +2194,17 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
               />
             </div>
           </div>
-        </motion.div>
-      </AnimatePresence>
+      </div>
 
       {/* Sub-Navigation (Modernized) */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {(activeTab === 'finance' || activeTab === 'membres' || activeTab === 'tickets' || activeTab === 'cafe') && (
           <motion.div 
+            key={activeTab}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
             className="max-w-7xl mx-auto px-4 sm:px-6 overflow-hidden"
           >
             <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-2 sm:py-3">
@@ -2269,13 +2266,14 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
 
       {/* Main Content with Transition */}
       <main className="max-w-7xl mx-auto flex-1 min-h-[60vh] relative z-0">
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div
-            key={activeTab + financeSubTab + membreSubTab}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            key={activeTab + (activeTab === 'finance' ? financeSubTab : '') + (activeTab === 'membres' ? membreSubTab : '')}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            style={{ backfaceVisibility: 'hidden', transform: 'translate3d(0,0,0)' }}
             className="p-3 sm:p-6 lg:p-8"
           >
             <Suspense fallback={<DashboardSkeleton />}>
@@ -2441,7 +2439,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
         <motion.nav 
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2rem] h-[68px] flex items-center gap-1 overflow-x-auto no-scrollbar px-3 relative pointer-events-auto mx-auto max-w-[96%]"
+          className="bg-gray-900/98 border border-white/10 shadow-[0_-10px_50px_rgba(0,0,0,0.6)] rounded-[2rem] h-[68px] flex items-center gap-1 overflow-x-auto no-scrollbar px-3 relative pointer-events-auto mx-auto max-w-[96%]"
         >
           {navigationTabs.map(tab => (
             <button
@@ -2979,7 +2977,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
                               ...prev,
                               selectedMonths: isSelected 
                                 ? prev.selectedMonths.filter(m => m !== mois)
-                                : [...prev.selectedMonths, mois].sort((a, b) => MOIS.indexOf(a) - MOIS.indexOf(b))
+                                : [...prev.selectedMonths, mois].sort((a, b) => MOIS.indexOf(a?.toUpperCase()) - MOIS.indexOf(b?.toUpperCase()))
                             }));
                           }}
                           className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border ${isSelected ? (paymentModal.mode === 'WAVE' ? 'bg-[#1DC6F8] text-white border-[#1DC6F8]' : 'bg-[#FF6600] text-white border-[#FF6600]') : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}`}
