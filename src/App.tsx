@@ -17,6 +17,7 @@ import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { getAutoDateData, relativeDate, formalizeDate, simpleDate, formatMoisPreposition } from './utils/date';
+import { formatPrice } from './utils/format';
 import { User } from 'firebase/auth';
 
 import { useDebounce } from './utils/useDebounce';
@@ -25,6 +26,10 @@ import { RotatingMessages } from './components/RotatingMessages';
 import { NetworkIndicator } from './components/NetworkIndicator';
 import { ReportService } from './services/ReportService';
 import AdminDateInput from './components/AdminDateInput';
+import { SaisieRapide } from './components/SaisieRapide';
+import { NonPayeurs } from './components/NonPayeurs';
+import { CotisationsTable, RecettesTable, DepensesTable, DettesTable } from './components/FinanceModules';
+import { Badge, DateBadge } from './components/ui/Badges';
 import * as XLSX from 'xlsx';
 import { useAdaptive } from './hooks/useAdaptive';
 import { Skeleton, DashboardSkeleton } from './components/ui/Skeleton';
@@ -280,8 +285,6 @@ export default function App() {
   // Quick Entry State
   const [quickAmounts, setQuickAmounts] = useState<Record<string, number>>({});
   const [quickMonths, setQuickMonths] = useState<Record<string, string[]>>({});
-  const [bulkAmount, setBulkAmount] = useState<number | ''>(500);
-  const [bulkMonths, setBulkMonths] = useState<string[]>([]);
   const [activeActionMenu, setActiveActionMenu] = useState<{mId: string, mois: string} | null>(null);
 
   const [isCotModalOpen, setIsCotModalOpen] = useState(false);
@@ -317,29 +320,44 @@ export default function App() {
     return map;
   }, [cotisations, globalYear]);
 
-  const getMembreStatus = (mId: string, year: number, monthToCheck?: string) => {
+  const getMemberStatus = (mId: string) => {
+    const currentYear = new Date().getFullYear();
+    const currentActualMonthIndex = new Date().getMonth();
+    
+    let currentMonthIndex;
+    if (globalMonth) {
+      currentMonthIndex = MOIS.indexOf(globalMonth);
+    } else {
+      currentMonthIndex = Number(globalYear) === currentYear ? currentActualMonthIndex : 11;
+    }
     const membre = membres.find(m => m.id === mId);
-    if (!membre) return "Inconnu";
     
     let startMonthIndex = 0;
-    if (membre.anneeIntegration && membre.moisIntegration) {
-      if (membre.anneeIntegration > year) return "Non membre";
-      if (membre.anneeIntegration === year) {
-        startMonthIndex = MOIS.indexOf(membre.moisIntegration);
+    if (membre) {
+      if (membre.anneeIntegration && membre.moisIntegration) {
+        if (Number(membre.anneeIntegration) === Number(globalYear)) {
+          startMonthIndex = MOIS.indexOf(membre.moisIntegration); // Commence le mois d'intégration
+        } else if (Number(membre.anneeIntegration) > Number(globalYear)) {
+          return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
+        }
+      } else if (membre.createdAt) {
+        const createdDate = new Date(membre.createdAt);
+        if (createdDate.getFullYear() === Number(globalYear)) {
+          startMonthIndex = createdDate.getMonth(); // Commence le mois de création
+        } else if (createdDate.getFullYear() > Number(globalYear)) {
+          return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
+        }
       }
     }
 
-    const targetMonthIndex = monthToCheck ? MOIS.indexOf(monthToCheck) : new Date().getMonth();
-    if (targetMonthIndex === -1) return "Inconnu";
-
-    let isEnRetard = false;
-    for (let i = startMonthIndex; i <= targetMonthIndex; i++) {
-      if (!paymentMap[`${mId}_${year}_${MOIS[i]}`]) {
-        isEnRetard = true;
-        break;
-      }
-    }
-    return isEnRetard ? 'En retard' : 'À jour';
+    const unpaidMonths = MOIS.slice(startMonthIndex, currentMonthIndex + 1).filter(mois => {
+      return !paymentMap[`${mId}_${globalYear}_${mois}`];
+    });
+    return {
+      isLate: unpaidMonths.length > 0,
+      unpaidCount: unpaidMonths.length,
+      unpaidMonths
+    };
   };
 
   const availableYears = useMemo(() => {
@@ -561,7 +579,7 @@ export default function App() {
       console.log("Cleaning up data listeners");
       unsubs.forEach(u => u());
     };
-  }, [isAuthReady, user, userRole, isAdmin, isCaisse, isTickets, isCafe, isRevendeur]);
+  }, [isAuthReady, user, userRole, isAdmin, isCaisse, isTickets, isCafe, isRevendeur, globalYear]);
 
 
   useEffect(() => {
@@ -1022,233 +1040,6 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
     );
   };
 
-  const Badge = ({ mode, date }: { mode: ModePaiement, date?: number | string }) => {
-    const formattedDate = date ? simpleDate(date) : null;
-    const baseClass = "inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap";
-    let colorClass = "bg-emerald-100 text-emerald-700";
-    let label = "ESP";
-    
-    if (mode === 'WAVE') {
-      colorClass = "bg-blue-100 text-blue-600";
-      label = "WAVE";
-    } else if (mode === 'OM') {
-      colorClass = "bg-orange-100 text-orange-600";
-      label = "OM";
-    }
-
-    return (
-      <span className={`${baseClass} ${colorClass}`}>
-        {label} {formattedDate && `- ${formattedDate}`}
-      </span>
-    );
-  };
-  
-  const DateBadge = ({ date }: { date?: number | string }) => {
-    if (!date) return null;
-    const formattedDate = simpleDate(date);
-    return (
-      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap bg-gray-100 text-gray-500">
-        Enregistré le {formattedDate}
-      </span>
-    );
-  };
-
-  const getMemberStatus = (mId: string) => {
-    const currentMonthIndex = MOIS.indexOf(globalMonth || MOIS[new Date().getMonth()]);
-    const membre = membres.find(m => m.id === mId);
-    
-    let startMonthIndex = 0;
-    if (membre) {
-      if (membre.anneeIntegration && membre.moisIntegration) {
-        if (Number(membre.anneeIntegration) === Number(globalYear)) {
-          startMonthIndex = MOIS.indexOf(membre.moisIntegration) + 1; // Commence le mois suivant
-        } else if (Number(membre.anneeIntegration) > Number(globalYear)) {
-          return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
-        }
-      } else if (membre.createdAt) {
-        const createdDate = new Date(membre.createdAt);
-        if (createdDate.getFullYear() === Number(globalYear)) {
-          startMonthIndex = createdDate.getMonth() + 1; // Commence le mois suivant
-        } else if (createdDate.getFullYear() > Number(globalYear)) {
-          return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
-        }
-      }
-    }
-
-    const unpaidMonths = MOIS.slice(startMonthIndex, currentMonthIndex + 1).filter(mois => {
-      return !paymentMap[`${mId}_${globalYear}_${mois}`];
-    });
-    return {
-      isLate: unpaidMonths.length > 0,
-      unpaidCount: unpaidMonths.length,
-      unpaidMonths
-    };
-  };
-
-  const renderMemberProfile = (membre: Membre) => {
-    const status = getMemberStatus(membre.id);
-    const memberCotisations = cotisations.filter(c => c.mId === membre.id).sort((a, b) => b.annee - a.annee || MOIS.indexOf(b.mois) - MOIS.indexOf(a.mois));
-    const totalPaid = memberCotisations.reduce((sum, c) => sum + c.montant, 0);
-    const monthsPaid = memberCotisations.filter(c => c.montant > 0).length;
-
-    return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4"
-      >
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="bg-white rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-gray-100"
-        >
-          <div className="bg-dmn-green-900 p-10 text-white relative shrink-0">
-            <button onClick={() => setSelectedMemberProfile(null)} className="absolute top-8 right-8 text-white/50 hover:text-white transition-all p-3 hover:bg-white/10 rounded-full active:scale-90">
-              <X size={24} />
-            </button>
-            <div className="flex flex-col sm:flex-row items-center gap-8">
-              <div className="w-32 h-32 bg-white/10 rounded-[2.5rem] flex items-center justify-center text-5xl font-black border-4 border-white/20 shadow-inner transform -rotate-3">
-                {membre.prenom[0]}{membre.nom[0]}
-              </div>
-              <div className="text-center sm:text-left flex-1">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  <h2 className="text-3xl sm:text-4xl font-black tracking-tight">{membre.prenom} {membre.nom}</h2>
-                  <span className={`inline-block px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.2em] uppercase self-center sm:self-auto border-2 ${status.isLate ? 'border-red-400 text-red-100 bg-red-400/10' : 'border-dmn-green-400 text-dmn-green-100 bg-dmn-green-400/10'}`}>
-                    {status.isLate ? 'En Retard' : 'Régulier'}
-                  </span>
-                </div>
-                <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-6">
-                  <span className="bg-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-white/10">
-                    <Smartphone size={14} className="text-dmn-gold" /> 
-                    <span className="text-dmn-green-200">+221</span> {membre.telephone || 'Non renseigné'}
-                  </span>
-                  <span className="bg-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10">
-                    {membre.statut || 'Statut non défini'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            {status.isLate && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="mt-8 bg-white/5 border border-white/10 p-6 rounded-3xl"
-              >
-                <div className="flex items-center gap-2 mb-4">
-                  <AlertCircle size={16} className="text-red-400" />
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-white/90">
-                    Régularisation ({status.unpaidCount} mois)
-                  </h4>
-                </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <button 
-                    onClick={() => setPaymentModal({ isOpen: true, mode: 'WAVE', membre, unpaidMonths: status.unpaidMonths, selectedMonths: status.unpaidMonths, customAmountPerMonth: 500 })} 
-                    className="bg-[#1dc6f8] hover:bg-[#15b2e0] text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#1dc6f8]/20 active:scale-95"
-                  >
-                    <Smartphone size={14} /> Régler via Wave
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {userRole === 'admin' && (
-              <div className="absolute top-8 left-8 flex gap-3">
-                <button 
-                  onClick={() => { setEditingMembre(membre); setIsMembreModalOpen(true); setSelectedMemberProfile(null); }}
-                  className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
-                  title="Modifier"
-                >
-                  <Edit2 size={16} /> <span className="hidden sm:inline">Modifier</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-8 sm:p-10 space-y-10 bg-gray-50/30 scrollbar-thin">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <motion.div whileHover={{ y: -5 }} className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-5">
-                <div className="w-16 h-16 bg-dmn-green-50 text-dmn-green-600 rounded-2xl flex items-center justify-center">
-                  <Wallet size={32} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Total Cotisations</p>
-                  <p className="text-3xl font-black text-dmn-green-900">{formatPrice(totalPaid)} <span className="text-xs font-bold text-gray-400">F</span></p>
-                </div>
-              </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-5">
-                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                  <CalendarRange size={32} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Mois Payés</p>
-                  <p className="text-3xl font-black text-blue-900">{monthsPaid} <span className="text-xs font-bold text-gray-400">/ 12</span></p>
-                </div>
-              </motion.div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-3">
-                  <History size={16} className="text-dmn-green-600" /> Historique des Paiements
-                </h3>
-              </div>
-              <div className="relative pl-10 space-y-8 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-1 before:bg-gray-100/50 before:rounded-full">
-                {memberCotisations.length > 0 ? (
-                  memberCotisations.map((c, idx) => (
-                    <motion.div 
-                      key={c.id} 
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="relative"
-                    >
-                      <div className="absolute -left-[35px] top-1/2 -translate-y-1/2 w-10 h-10 bg-white border-4 border-gray-50 rounded-2xl z-10 flex items-center justify-center shadow-sm">
-                        <div className="w-3 h-3 bg-dmn-green-500 rounded-lg"></div>
-                      </div>
-                      <div className="bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-between group">
-                        <div className="space-y-1">
-                          <p className="font-black text-dmn-green-950 text-base">{c.mois} {c.annee}</p>
-                          <div className="flex items-center gap-3">
-                            <Badge mode={c.mode} date={c.createdAt || c.updatedAt} />
-                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Le {simpleDate(c.createdAt || Date.now())}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-black text-dmn-green-600 text-xl">+{formatPrice(c.montant)} F</p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="text-center py-16 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
-                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-200">
-                      <History size={40} />
-                    </div>
-                    <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">Aucun paiement enregistré</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    );
-  };
-
-  const formatPrice = (amount: number) => {
-    if (amount === undefined || amount === null) return "0";
-    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  };
-
-  const formatFCFA = (val: number) => {
-    if (val === undefined || val === null) return "0 FCFA";
-    return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' FCFA';
-  };
-
   const exportToExcel = () => {
     const data = membres.map(m => ({
       'Prénom': m.prenom,
@@ -1614,360 +1405,31 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
 
 
   const renderSaisieRapide = () => {
-    const filteredMembres = membres.filter(m => {
-      const matchSearch = !globalSearch || nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase());
-      return matchSearch;
-    });
-
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <span className="flex items-center gap-2"><Zap size={18} className="text-dmn-gold-light" /> Saisie Rapide ({globalYear})</span>
-          <div className="flex flex-wrap items-center gap-3">
-            <button 
-              onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
-              className="bg-white text-dmn-green-900 border-none px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-gray-100 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 outline-none"
-            >
-              <Plus size={14} strokeWidth={2.5} /> Recette
-            </button>
-            {globalMonth && <span className="hidden sm:inline-block bg-dmn-green-800/50 border border-dmn-green-700 px-3 py-1.5 rounded-lg text-xs font-medium">Mois : {globalMonth}</span>}
-          </div>
-        </div>
-
-        {/* Bulk Action Bar */}
-        <div className="bg-gray-50 border-b border-gray-100 p-4 sm:p-6 flex flex-col lg:flex-row gap-4 items-start lg:items-center">
-          <div className="flex-1 w-full">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Sélection groupée (Mois & Montant)</p>
-            <div className="flex flex-wrap gap-2">
-              <div className="flex flex-wrap gap-1 p-2 bg-white rounded-2xl border border-gray-200 shadow-sm flex-1">
-                {MOIS.map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setBulkMonths(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])}
-                    className={`text-[9px] font-black px-2 py-1.5 rounded-lg border transition-all ${
-                      bulkMonths.includes(m) 
-                        ? 'bg-dmn-green-600 text-white border-dmn-green-500 shadow-md shadow-dmn-green-600/10' 
-                        : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-gray-300'
-                    }`}
-                  >
-                    {m.substring(0, 3)}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="relative group">
-                  <input 
-                    type="number" 
-                    value={bulkAmount}
-                    onChange={(e) => setBulkAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="Montant"
-                    className="w-24 bg-white border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-dmn-green-500/20 outline-none transition-all pr-8"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300">F</span>
-                </div>
-                <button 
-                  onClick={() => {
-                    const updates: Record<string, string[]> = {};
-                    const amounts: Record<string, number> = {};
-                    filteredMembres.forEach(m => {
-                      // Filter out already paid months from selection
-                      const unpaidInBulk = bulkMonths.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
-                      if (unpaidInBulk.length > 0) {
-                        updates[m.id] = unpaidInBulk;
-                        amounts[m.id] = Number(bulkAmount) || 500;
-                      }
-                    });
-                    setQuickMonths(prev => ({ ...prev, ...updates }));
-                    setQuickAmounts(prev => ({ ...prev, ...amounts }));
-                    showToast(`${Object.keys(updates).length} membres mis à jour`);
-                  }}
-                  disabled={bulkMonths.length === 0}
-                  className="bg-dmn-green-600 hover:bg-dmn-green-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-dmn-green-600/20 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
-                >
-                  <Zap size={14} /> Appliquer à tous
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop Table View */}
-        <div className="hidden md:block overflow-x-auto max-h-[600px]">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Membre</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mois à payer</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Montant/Mois</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Action Rapide</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredMembres.map(m => {
-                const currentAmount = quickAmounts[m.id] || '';
-                const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
-                const selectedMonths = quickMonths[m.id] !== undefined 
-                  ? quickMonths[m.id] 
-                  : (!cotisations.some(c => c.mId === m.id && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
-
-                return (
-                  <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
-                    <td className="px-6 py-4">
-                      <button 
-                        onClick={() => setSelectedMemberHistory(m)}
-                        className="font-semibold text-gray-900 hover:text-dmn-green-600 flex items-center gap-2 text-left transition-colors"
-                      >
-                        {nomComplet(m)}
-                        <History size={14} className="text-gray-400" />
-                      </button>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sélection :</p>
-                        <button 
-                          onClick={() => {
-                            const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
-                            setQuickMonths(prev => ({ ...prev, [m.id]: unpaid }));
-                          }}
-                          className="text-[9px] font-black text-dmn-green-600 hover:text-dmn-green-700 bg-dmn-green-50 px-2 py-1 rounded-lg uppercase tracking-widest transition-colors flex items-center gap-1"
-                        >
-                          <CheckCircle2 size={10} /> Tout impayé
-                        </button>
-                        <button 
-                          onClick={() => setQuickMonths(prev => ({ ...prev, [m.id]: [] }))}
-                          className="text-[9px] font-black text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded-lg uppercase tracking-widest transition-colors"
-                        >
-                          Vider
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 max-w-[280px]">
-                        {MOIS.map(mois => {
-                          const existingCot = cotisations.find(c => c.mId === m.id && c.mois === mois && c.annee === globalYear);
-                          const isPaid = existingCot && existingCot.montant > 0;
-                          const isSelected = selectedMonths.includes(mois);
-                          
-                          return (
-                            <div className="relative" key={mois}>
-                              <button
-                                onClick={() => {
-                                  if (isPaid) {
-                                    setActiveActionMenu(activeActionMenu?.mId === m.id && activeActionMenu?.mois === mois ? null : { mId: m.id, mois });
-                                    return;
-                                  }
-                                  setQuickMonths(prev => {
-                                    const current = prev[m.id] !== undefined ? prev[m.id] : selectedMonths;
-                                    if (current.includes(mois)) return { ...prev, [m.id]: current.filter(x => x !== mois) };
-                                    return { ...prev, [m.id]: [...current, mois] };
-                                  });
-                                }}
-                                className={`text-[11px] px-2 py-1 rounded-md border transition-all duration-200 ${
-                                  isPaid ? 'bg-dmn-green-50 text-dmn-green-700 border-dmn-green-200 hover:bg-dmn-green-100' :
-                                  isSelected ? 'bg-dmn-gold text-white border-dmn-gold shadow-md transform scale-105 font-bold' :
-                                  'bg-white text-gray-500 border-gray-200 hover:border-dmn-green-300 hover:text-dmn-green-600'
-                                }`}
-                                title={isPaid ? `Payé: ${existingCot.montant}F (${existingCot.mode}) - Clic pour options` : `Sélectionner le ${formatMoisPreposition(mois)}`}
-                              >
-                                {mois.substring(0, 4)} {isPaid ? '✓' : ''}
-                              </button>
-                              
-                              {activeActionMenu?.mId === m.id && activeActionMenu?.mois === mois && isPaid && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-1 min-w-[120px] animate-in zoom-in-95 duration-200">
-                                  {(isAdmin || isCaisse) ? (
-                                    <>
-                                      <button 
-                                        onClick={() => {
-                                          setEditingCot(existingCot);
-                                          setIsCotModalOpen(true);
-                                          setActiveActionMenu(null);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-xs hover:bg-dmn-green-50 rounded-lg flex items-center gap-2 text-gray-700 font-medium"
-                                      >
-                                        <Edit3 size={12} className="text-dmn-green-600" /> Modifier
-                                      </button>
-                                      {isAdmin && (
-                                        <button 
-                                          onClick={() => {
-                                            handleDeleteCotisation(existingCot.id);
-                                            setActiveActionMenu(null);
-                                          }}
-                                          className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 rounded-lg flex items-center gap-2 text-red-600 font-medium"
-                                        >
-                                          <Trash2 size={12} /> Supprimer
-                                        </button>
-                                      )}
-                                      <div className="h-px bg-gray-100 my-1"></div>
-                                      <button 
-                                        onClick={() => setActiveActionMenu(null)}
-                                        className="w-full text-left px-3 py-1.5 text-[10px] text-gray-400 hover:text-gray-600"
-                                      >
-                                        Fermer
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <div className="px-3 py-2 text-[10px] text-gray-400 font-medium italic">
-                                      Lecture seule
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <input 
-                        type="number"
-                        placeholder="500"
-                        value={currentAmount}
-                        onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
-                        className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-500/20 bg-white shadow-sm transition-all w-24"
-                      />
-                      {selectedMonths.length > 1 && currentAmount !== '' && (
-                        <div className="text-xs font-bold text-dmn-green-700 bg-dmn-green-50 px-2 py-1 rounded-lg border border-dmn-green-100 mt-2 inline-block">
-                          Total: {formatPrice(selectedMonths.length * Number(currentAmount))} F
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button 
-                          onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'WAVE')}
-                          disabled={selectedMonths.length === 0 || currentAmount === ''}
-                          className="bg-[#00a1ff] hover:bg-[#008bde] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95"
-                        >
-                          WAVE
-                        </button>
-                        <button 
-                          onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'OM')}
-                          disabled={selectedMonths.length === 0 || currentAmount === ''}
-                          className="bg-[#ff6600] hover:bg-[#e65c00] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95"
-                        >
-                          OM
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Card View */}
-        <div className="md:hidden divide-y divide-gray-50 flex flex-col bg-white">
-          {filteredMembres.map(m => {
-            const currentAmount = quickAmounts[m.id] || '';
-            const defaultMonth = globalMonth || MOIS[new Date().getMonth()];
-            const selectedMonths = quickMonths[m.id] !== undefined 
-              ? quickMonths[m.id] 
-              : (!cotisations.some(c => c.mId === m.id && c.mois === defaultMonth && c.annee === globalYear && c.montant > 0) ? [defaultMonth] : []);
-
-            return (
-              <div key={m.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50 transition-colors">
-                <div className="flex justify-between items-center">
-                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-700 font-black text-sm">
-                      {m.prenom[0]}{m.nom[0]}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-dmn-green-900 text-sm leading-tight">{m.prenom} {m.nom}</h4>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Saisie directe</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 relative">
-                    <div className="flex gap-1.5 justify-end mb-1">
-                      <button onClick={(e) => { e.preventDefault(); setQuickAmounts({...quickAmounts, [m.id]: 500}); }} className="px-2 py-1 bg-gray-100 rounded-lg text-[10px] font-black text-gray-600 hover:bg-gray-200">500</button>
-                      <button onClick={(e) => { e.preventDefault(); setQuickAmounts({...quickAmounts, [m.id]: 1000}); }} className="px-2 py-1 bg-gray-100 rounded-lg text-[10px] font-black text-gray-600 hover:bg-gray-200">1000</button>
-                    </div>
-                    <div className="relative">
-                      <input 
-                        type="number"
-                        placeholder="500"
-                        value={currentAmount}
-                        onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
-                        className="border border-gray-200 rounded-2xl pl-3 pr-8 py-2.5 text-sm font-black focus:outline-none focus:border-dmn-green-500 bg-gray-50/50 shadow-inner w-24 text-right"
-                      />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-400">F</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2 px-1">
-                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Mois à payer :</p>
-                  <button 
-                    onClick={() => {
-                      const unpaid = MOIS.filter(mois => !cotisations.some(c => c.mId === m.id && c.mois === mois && c.annee === globalYear && c.montant > 0));
-                      setQuickMonths(prev => ({ ...prev, [m.id]: unpaid }));
-                    }}
-                    className="text-[8px] font-black text-dmn-green-600 bg-dmn-green-50 px-2 py-1 rounded-lg uppercase transition-colors"
-                  >
-                    Tout
-                  </button>
-                  <button 
-                    onClick={() => setQuickMonths(prev => ({ ...prev, [m.id]: [] }))}
-                    className="text-[8px] font-black text-red-600 bg-red-50 px-2 py-1 rounded-lg uppercase transition-colors"
-                  >
-                    Vider
-                  </button>
-                </div>
-                <div className="bg-gray-50/50 rounded-2xl p-2.5 flex flex-wrap gap-1.5 border border-gray-100">
-                  {MOIS.map(mois => {
-                    const existingCot = cotisations.find(c => c.mId === m.id && c.mois === mois && c.annee === globalYear);
-                    const isPaid = existingCot && existingCot.montant > 0;
-                    const isSelected = selectedMonths.includes(mois);
-                    
-                    return (
-                      <button
-                        key={mois}
-                        onClick={() => {
-                          if (isPaid) {
-                            if (isAdmin || isCaisse) {
-                              handleDeleteCotisation(existingCot.id);
-                            } else {
-                              showToast("Accès manager requis pour supprimer", 'error');
-                            }
-                            return;
-                          }
-                          setQuickMonths(prev => {
-                            const current = prev[m.id] !== undefined ? prev[m.id] : selectedMonths;
-                            if (current.includes(mois)) return { ...prev, [m.id]: current.filter(x => x !== mois) };
-                            return { ...prev, [m.id]: [...current, mois] };
-                          });
-                        }}
-                        className={`text-[9px] px-2.5 py-1.5 rounded-xl border transition-all flex items-center justify-center min-w-[42px] uppercase font-black tracking-tighter ${
-                          isPaid ? 'bg-dmn-green-50 text-dmn-green-700 border-dmn-green-200' :
-                          isSelected ? 'bg-dmn-gold text-white border-dmn-gold shadow-md shadow-dmn-gold/20' :
-                          'bg-white text-gray-400 border-gray-100'
-                        }`}
-                      >
-                        {mois.substring(0, 4)} {isPaid ? '✓' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'WAVE')}
-                    disabled={selectedMonths.length === 0 || currentAmount === ''}
-                    className="bg-[#1dc6f8] hover:bg-[#15b2e0] flex items-center justify-center gap-2 text-white py-3.5 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-30 transition-all"
-                  >
-                    <Smartphone size={16} /> WAVE
-                  </button>
-                  <button 
-                    onClick={() => handleQuickSaveCotisation(m.id, Number(currentAmount) || 500, 'OM')}
-                    disabled={selectedMonths.length === 0 || currentAmount === ''}
-                    className="bg-[#ff6600] hover:bg-[#e65c00] flex items-center justify-center gap-2 text-white py-3.5 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 disabled:opacity-30 transition-all"
-                  >
-                    <Smartphone size={16} className="text-orange-200" /> ORANGE
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <SaisieRapide 
+        membres={membres}
+        cotisations={cotisations}
+        globalYear={globalYear}
+        globalMonth={globalMonth}
+        globalSearch={globalSearch}
+        quickAmounts={quickAmounts}
+        setQuickAmounts={setQuickAmounts}
+        quickMonths={quickMonths}
+        setQuickMonths={setQuickMonths}
+        activeActionMenu={activeActionMenu}
+        setActiveActionMenu={setActiveActionMenu}
+        isAdmin={isAdmin}
+        isCaisse={isCaisse}
+        setEditingCot={setEditingCot}
+        setIsCotModalOpen={setIsCotModalOpen}
+        setEditingRecette={setEditingRecette}
+        setIsRecetteModalOpen={setIsRecetteModalOpen}
+        handleDeleteCotisation={handleDeleteCotisation}
+        handleQuickSaveCotisation={handleQuickSaveCotisation}
+        setSelectedMemberHistory={setSelectedMemberHistory}
+        showToast={showToast}
+        nomComplet={nomComplet}
+      />
     );
   };
 
@@ -2127,430 +1589,59 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
   };
 
   const renderCotisations = () => {
-    const shareWhatsAppSituation = () => {
-      const gYear = Number(globalYear);
-      const today = new Date();
-      const currentMonthIndex = today.getMonth();
-      const monthToShare = fMois || MOIS[currentMonthIndex];
-      
-      // Get all members who paid for THIS specific month in THIS specific year
-      // We also need to sort them by the time they paid (createdAt of the cotisation)
-      const paidInfos = membres
-        .map(m => {
-          const cot = cotisations.find(c => c.mId === m.id && c.mois === monthToShare && Number(c.annee) === gYear && c.montant > 0);
-          return cot ? { member: m, cotisation: cot } : null;
-        })
-        .filter((info): info is { member: Membre; cotisation: Cotisation } => info !== null)
-        .sort((a, b) => (a.cotisation.createdAt || 0) - (b.cotisation.createdAt || 0));
-
-      const totalMembers = membres.length;
-      const totalPaidCount = paidInfos.length;
-      
-      let message = `*📊 SITUATION MENSUELLE - ${monthToShare.toUpperCase()} ${gYear}*\n\n`;
-      message += `Assalamou halaykoum Mbokkou talibé,\n\n`;
-      message += `Voici la liste des membres qui ont déjà déposé leur participation pour le compte de ce mois :\n\n`;
-      
-      if (paidInfos.length > 0) {
-        paidInfos.forEach((info, index) => {
-            message += `${index + 1}. ${info.member.prenom} ${info.member.nom} ✅\n`;
-        });
-        message += `\n`;
-      } else {
-        message += `Aucune cotisation n'a été enregistrée pour le moment.\n\n`;
-      }
-      
-      const percentage = totalMembers > 0 ? Math.round((totalPaidCount / totalMembers) * 100) : 0;
-
-      message += `*📈 Statistiques*\n`;
-      message += `Participations : ${totalPaidCount} / ${totalMembers} (${percentage}%)\n\n`;
-      message += `Jazakoumoullahou khayran pour votre engagement et votre solidarité. 🙏\n\n`;
-      message += `Daara Madjmahoune Noreyni UCAD\nCommission Sociale Cellule ESP`;
-
-      navigator.clipboard.writeText(message).then(() => {
-        showToast('Situation prête ! Redirection...', 'success');
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank');
-      }).catch(() => {
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank');
-      });
-    };
-
-    const filtered = cotisations.filter(c => {
-      const m = getMembre(c.mId);
-      const matchYear = c.annee === globalYear;
-      return matchYear &&
-             (!fMois || c.mois === fMois) && 
-             (!fMode || c.mode === fMode) && 
-             (!debouncedSearchCot || nomComplet(m).toLowerCase().includes(debouncedSearchCot.toLowerCase()));
-    });
-
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <span className="flex items-center gap-2"><CreditCard size={18} className="text-dmn-gold-light" /> Cotisations ({globalYear})</span>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button 
-              onClick={shareWhatsAppSituation}
-              className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
-              title="Partager la situation"
-            >
-              <Users size={16} /> <span className="hidden sm:inline">Situation</span>
-            </button>
-            {(isAdmin || isCaisse) && (
-              <button 
-                onClick={() => openAddCot(undefined, undefined, globalYear)}
-                className="flex-1 sm:flex-none h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
-              >
-                <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-wrap gap-4 items-center">
-          <select value={fMois} onChange={e => setFMois(e.target.value)} className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:outline-none focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-500/20 bg-white shadow-sm transition-all flex-1 sm:flex-none">
-            <option value="">Tous les mois</option>
-            {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select value={fMode} onChange={e => setFMode(e.target.value)} className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:outline-none focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-500/20 bg-white shadow-sm transition-all flex-1 sm:flex-none">
-            <option value="">Tous modes</option>
-            <option value="WAVE">WAVE</option>
-            <option value="OM">OM</option>
-            <option value="ESPÈCES">ESPÈCES</option>
-          </select>
-          <div className="relative flex-1 min-w-[140px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Membre..." 
-              value={searchCot}
-              onChange={e => setSearchCot(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-500/20 shadow-sm transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Desktop Table */}
-        <div className="hidden md:block overflow-x-auto max-h-[500px]">
-          <table className="w-full text-sm text-center">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Membre</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mois</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Montant</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mode</th>
-                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map(c => (
-                <tr key={c.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
-                  <td className="px-6 py-4 text-left whitespace-nowrap font-medium text-gray-900">{nomComplet(getMembre(c.mId))}</td>
-                  <td className="px-6 py-4 text-gray-600">{c.mois}</td>
-                  <td className="px-6 py-4 font-bold text-dmn-green-700">{c.montant > 0 ? `${formatPrice(c.montant)} F` : <span className="text-gray-400">—</span>}</td>
-                  <td className="px-6 py-4"><Badge mode={c.mode} date={c.createdAt || c.updatedAt} /></td>
-                  {(isAdmin || isCaisse) && (
-                    <td className="px-6 py-4 flex justify-center gap-2">
-                      <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                        <Edit2 size={16} />
-                      </button>
-                      {isAdmin && (
-                        <button onClick={() => handleDeleteCotisation(c.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={5} className="p-8 text-gray-400 text-center">Aucune cotisation trouvée</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-50 bg-white">
-          {filtered.map(c => {
-            const m = getMembre(c.mId);
-            return (
-              <div key={c.id} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-gray-50/50 transition-colors">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400">
-                      <CreditCard size={20} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-dmn-green-900 text-sm leading-tight">{nomComplet(m)}</p>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{c.mois} {c.annee}</p>
-                    </div>
-                  </div>
-                  <Badge mode={c.mode} date={c.createdAt || c.updatedAt} />
-                </div>
-                
-                <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
-                  <p className="text-lg font-black text-dmn-green-600">{formatPrice(c.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
-                  {(isAdmin || isCaisse) && (
-                    <div className="flex gap-2">
-                       <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                        <Edit2 size={16} />
-                      </button>
-                      {isAdmin && (
-                        <button onClick={() => handleDeleteCotisation(c.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {filtered.length === 0 && (
-            <div className="p-12 text-center">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 opacity-50">
-                <Search size={32} className="text-gray-300" />
-              </div>
-              <p className="text-gray-400 font-medium">Aucune cotisation</p>
-            </div>
-          )}
-        </div>
-      </div>
+      <CotisationsTable 
+        membres={membres}
+        cotisations={cotisations}
+        globalYear={globalYear}
+        fMois={fMois}
+        setFMois={setFMois}
+        fMode={fMode}
+        setFMode={setFMode}
+        searchCot={searchCot}
+        setSearchCot={setSearchCot}
+        debouncedSearchCot={debouncedSearchCot}
+        isAdmin={isAdmin}
+        isCaisse={isCaisse}
+        openAddCot={openAddCot}
+        setEditingCot={setEditingCot}
+        setIsCotModalOpen={setIsCotModalOpen}
+        handleDeleteCotisation={handleDeleteCotisation}
+        showToast={showToast}
+        nomComplet={nomComplet}
+        getMembre={getMembre}
+      />
     );
   };
 
   const renderDettes = () => {
-    const filteredDettes = dettes.filter(d => {
-      const dbDate = d.date ? new Date(d.date) : new Date(d.createdAt || Date.now());
-      const itemAnnee = d.annee || dbDate.getFullYear();
-      const itemMois = (d.mois || ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'][dbDate.getMonth()]).toLowerCase();
-      
-      return (globalYear ? itemAnnee === globalYear : true) &&
-             (globalMonth ? itemMois === globalMonth.toLowerCase() : true);
-    }).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
-
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
-          <span className="flex items-center gap-2"><Banknote size={18} className="text-dmn-gold-light" /> Dettes ({globalYear})</span>
-          {(isAdmin || isCaisse) && (
-            <button 
-              onClick={() => { setEditingDette({ annee: globalYear, montant: 0, mois: globalMonth || MOIS[currentMonthIndex] }); setIsDetteModalOpen(true); }}
-              className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
-            >
-              <Plus size={16} /> Ajouter une Dette
-            </button>
-          )}
-        </div>
-        
-        {/* Desktop Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Motif / Bénéficiaire</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Période</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-right">Montant</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Statut</th>
-                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredDettes.map(d => (
-                <tr key={d.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
-                  <td className="px-6 py-4 font-medium text-gray-900">{d.motif}</td>
-                  <td className="px-6 py-4 text-gray-600">{d.mois} {d.annee}</td>
-                  <td className="px-6 py-4 text-right font-bold text-red-600">{formatPrice(d.montant)} F</td>
-                  <td className="px-6 py-4 text-center">
-                    {(isAdmin || isCaisse) ? (
-                      <button 
-                        onClick={() => handleToggleDetteStatus(d)}
-                        className={`px-3 py-1 text-xs font-bold rounded-full transition-colors ${d.estPayee ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-700 hover:bg-red-200'} whitespace-nowrap`}
-                      >
-                        {d.estPayee ? `Payée le ${simpleDate(d.updatedAt || d.createdAt || Date.now())}` : `Non Payée depuis le ${simpleDate(d.createdAt || Date.now())}`}
-                      </button>
-                    ) : (
-                      <span className={`px-3 py-1 text-xs font-bold rounded-full ${d.estPayee ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} whitespace-nowrap`}>
-                        {d.estPayee ? `Payée le ${simpleDate(d.updatedAt || d.createdAt || Date.now())}` : `Non Payée depuis le ${simpleDate(d.createdAt || Date.now())}`}
-                      </span>
-                    )}
-                  </td>
-                  {(isAdmin || isCaisse) && (
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                          <Edit2 size={16} />
-                        </button>
-                        {isAdmin && (
-                          <button onClick={() => handleDeleteDette(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filteredDettes.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500 font-medium">Aucune dette trouvée.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-50 bg-white">
-          {filteredDettes.map(d => (
-            <div key={d.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50/50 transition-colors">
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${d.estPayee ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'} rounded-2xl flex items-center justify-center`}>
-                    <Banknote size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-dmn-green-900 text-sm leading-tight">{d.motif}</p>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{d.mois} {d.annee}</p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1.5">
-                   {isCaisse ? (
-                      <button 
-                        onClick={() => handleToggleDetteStatus(d)}
-                        className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full transition-all border ${d.estPayee ? 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-sm shadow-emerald-600/5' : 'bg-red-50 text-red-700 border-red-100 animate-pulse-slow shadow-sm shadow-red-600/5'} whitespace-nowrap`}
-                      >
-                        {d.estPayee ? 'SOLDEE' : 'EN ATTENTE'}
-                      </button>
-                    ) : (
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${d.estPayee ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'} whitespace-nowrap`}>
-                        {d.estPayee ? 'SOLDEE' : 'EN ATTENTE'}
-                      </span>
-                    )}
-                </div>
-              </div>
-              
-              <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
-                <p className={`text-lg font-black ${d.estPayee ? 'text-emerald-600' : 'text-red-600'}`}>{formatPrice(d.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
-                {isCaisse && (
-                  <div className="flex gap-2">
-                    <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                      <Edit2 size={16} />
-                    </button>
-                    {isAdmin && (
-                      <button onClick={() => handleDeleteDette(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              {!d.estPayee && (
-                <p className="text-[9px] font-bold text-gray-400">Dette contractée le {simpleDate(d.createdAt || Date.now())}</p>
-              )}
-            </div>
-          ))}
-          {filteredDettes.length === 0 && (
-            <div className="p-12 text-center text-gray-400 font-medium">Aucune dette trouvée</div>
-          )}
-        </div>
-      </div>
+      <DettesTable 
+        dettes={dettes}
+        globalYear={globalYear}
+        isAdmin={isAdmin}
+        isCaisse={isCaisse}
+        setEditingDette={setEditingDette}
+        setIsDetteModalOpen={setIsDetteModalOpen}
+        handleDeleteDette={handleDeleteDette}
+        handlePayDette={handleToggleDetteStatus}
+      />
     );
   };
 
   const renderRecettes = () => {
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
-          <span className="flex items-center gap-2"><Plus size={18} className="text-dmn-gold-light" /> Autres Entrées ({globalYear})</span>
-          {isCaisse && (
-            <button 
-              onClick={() => { setEditingRecette({}); setIsRecetteModalOpen(true); }}
-              className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
-            >
-              <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
-            </button>
-          )}
-        </div>
-        
-        {/* Desktop Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm text-center">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Motif</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mois</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Montant</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Mode</th>
-                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredRecettes.map(r => (
-                <tr key={r.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
-                  <td className="px-6 py-4 text-left font-medium text-gray-900">{r.motif}</td>
-                  <td className="px-6 py-4 text-gray-600">{r.mois}</td>
-                  <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(r.montant)} F</td>
-                  <td className="px-6 py-4"><Badge mode={r.mode} date={r.createdAt || r.updatedAt} /></td>
-                  {(isAdmin || isCaisse) && (
-                    <td className="px-6 py-4 flex justify-center gap-2">
-                      <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                        <Edit2 size={16} />
-                      </button>
-                      {isAdmin && (
-                        <button onClick={() => handleDeleteRecette(r.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filteredRecettes.length === 0 && (
-                <tr><td colSpan={5} className="p-8 text-gray-400 text-center">Aucune autre entrée trouvée</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-50 bg-white">
-          {filteredRecettes.map(r => (
-            <div key={r.id} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-gray-50/50 transition-colors">
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-                    <Plus size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-dmn-green-900 text-sm leading-tight">{r.motif}</p>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{r.mois} {r.annee}</p>
-                  </div>
-                </div>
-                <Badge mode={r.mode} date={r.createdAt || r.updatedAt} />
-              </div>
-              
-              <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
-                <p className="text-lg font-black text-emerald-600">{formatPrice(r.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
-                {isCaisse && (
-                  <div className="flex gap-2">
-                    <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                      <Edit2 size={16} />
-                    </button>
-                    {isAdmin && (
-                      <button onClick={() => handleDeleteRecette(r.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {filteredRecettes.length === 0 && (
-            <div className="p-12 text-center text-gray-400 font-medium">Aucune entrée trouvée</div>
-          )}
-        </div>
-      </div>
+      <RecettesTable 
+        recettes={recettes}
+        globalYear={globalYear}
+        fMois={fMois}
+        setFMois={setFMois}
+        isAdmin={isAdmin}
+        isCaisse={isCaisse}
+        setEditingRecette={setEditingRecette}
+        setIsRecetteModalOpen={setIsRecetteModalOpen}
+        handleDeleteRecette={handleDeleteRecette}
+      />
     );
   };
 
@@ -2592,341 +1683,40 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
   };
 
   const renderNonPayeurs = () => {
-    const filteredMembres = membres.filter(m => {
-      const status = getMemberStatus(m.id);
-      
-      // Filtre de recherche
-      const matchSearch = !debouncedNpSearch || `${m.prenom} ${m.nom}`.toLowerCase().includes(debouncedNpSearch.toLowerCase());
-      
-      // Filtre de mois spécifique
-      let matchMonth = true;
-      if (npMois) {
-        matchMonth = status.unpaidMonths.includes(npMois);
-      }
-
-      return status.isLate && matchSearch && matchMonth;
-    });
-
     return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 text-center">
-            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Total Retards</p>
-            <p className="text-3xl font-heading font-black text-red-600">{filteredMembres.length}</p>
-          </div>
-          <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 text-center">
-            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Membres à jour</p>
-            <p className="text-3xl font-heading font-black text-dmn-green-600">{membres.length - filteredMembres.length}</p>
-          </div>
-          <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 text-center">
-            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Taux de Recouvrement</p>
-            <p className="text-3xl font-heading font-black text-blue-600">
-              {membres.length > 0 ? Math.round(((membres.length - filteredMembres.length) / membres.length) * 100) : 0}%
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-      <div className="bg-dmn-green-900 text-white px-8 py-6 font-heading font-bold text-lg flex justify-between items-center sm:flex-row flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <AlertTriangle size={24} className="text-dmn-gold-light" strokeWidth={2.5} /> 
-          Suivi des Retards de Paiement
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleGeneralReminderWhatsApp} className="bg-[#25D366] hover:bg-[#1da851] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm">
-            <MessageCircle size={14} /> Rappel Général
-          </button>
-          <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
-            <Printer size={14} /> Imprimer
-          </button>
-        </div>
-      </div>
-          <div className="p-8">
-            {/* Filtres */}
-            <div className="flex flex-col md:flex-row gap-4 mb-8">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher un membre..." 
-                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-dmn-green-500 outline-none transition-all font-medium"
-                  value={npSearch}
-                  onChange={(e) => setNpSearch(e.target.value)}
-                />
-              </div>
-              <div className="relative w-full md:w-64">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <select 
-                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-dmn-green-500 outline-none transition-all font-medium appearance-none"
-                  value={npMois}
-                  onChange={(e) => setNpMois(e.target.value)}
-                >
-                  <option value="">Tous les mois (Retards cumulés)</option>
-                  {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm text-center">
-                <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Membre</th>
-                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-x border-gray-100">Téléphone</th>
-                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Plus ancien retard</th>
-                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-x border-gray-100">Mois dus</th>
-                    <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Rappels</th>
-                    {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider border-l border-gray-100">Action</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredMembres.map((m, idx) => {
-                    const status = getMemberStatus(m.id);
-                    return (
-                      <tr key={m.id} className="hover:bg-red-50/30 transition-colors border-b border-gray-50 last:border-0 relative">
-                        <td className="px-6 py-4 text-left whitespace-nowrap">
-                          <button onClick={() => setSelectedMemberProfile(m)} className="font-bold text-gray-900 hover:text-red-600 transition-colors block">
-                            {m.prenom} {m.nom}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 border-x border-gray-50 border-dashed">
-                          <div className="inline-flex items-center gap-1.5 text-gray-600 font-medium">
-                            <Smartphone size={14} className="text-gray-400" /> +221 {m.telephone || '---'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm">
-                            {status.unpaidMonths[0]?.substring(0, 4)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 border-x border-gray-50 border-dashed min-w-[200px]">
-                          <div className="flex flex-col items-center gap-2">
-                            <span className="font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg text-xs">{status.unpaidCount} mois dûs</span>
-                            <div className="flex flex-wrap gap-1 justify-center">
-                              {status.unpaidMonths.slice(0, 4).map(mois => (
-                                <span key={mois} className={`text-[9px] px-1.5 py-0.5 rounded-md uppercase font-bold shadow-sm ${npMois === mois ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-                                  {mois.substring(0, 3)}
-                                </span>
-                              ))}
-                              {status.unpaidMonths.length > 4 && <span className="text-[9px] px-1.5 py-0.5 rounded-md uppercase font-bold bg-gray-100 text-gray-500 shadow-sm">+{status.unpaidMonths.length - 4}</span>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex justify-center gap-2">
-                            <a 
-                              href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum,\nCeci est un rappel pour votre contribution sociale mensuelle au Daara. Votre soutien est précieux pour nos actions. Paiement possible via Wave/OM au 770952647.\nQu’Allah vous récompense.`)}`}
-                              className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
-                              title="Rappel SMS"
-                            >
-                              <Smartphone size={18} />
-                            </a>
-                            <a 
-                              href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*📊 COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokkou talibé,\n\nNous vous rappelons la participation à la *Commission Sociale* pour le mois de *${fMois || MOIS[new Date().getMonth()]} ${globalYear}*. La mensualité est fixée à 500 FCFA (ou selon vos possibilités).\n\nVotre contribution est précieuse pour soutenir nos actions sociales et renforcer notre solidarité au sein de l'UCAD.\n\n*💡 Modalités de paiement*\n👉 *WAVE ou Orange Money* : *77 095 26 47* (Faye)\n\nJazakoumoullahou khayran pour votre engagement constant. 🙏`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-95 shadow-sm"
-                              title="Rappel WhatsApp"
-                            >
-                              <MessageCircle size={18} />
-                            </a>
-                          </div>
-                        </td>
-                        {(isAdmin || isCaisse) && (
-                          <td className="px-6 py-4 border-l border-gray-50 border-dashed">
-                            <button 
-                              onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
-                              className="px-4 py-2 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition-all shadow-md shadow-red-600/20 active:scale-95 whitespace-nowrap"
-                            >
-                              Régulariser {npMois ? `(${npMois.substring(0, 3)})` : ''}
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="md:hidden grid grid-cols-1 gap-6">
-              {filteredMembres.map((m, idx) => {
-                const status = getMemberStatus(m.id);
-                return (
-                  <div key={m.id} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden animate-in slide-in-from-bottom-4 duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
-                    <div className="absolute top-0 left-0 w-1.5 h-full bg-red-500"></div>
-                    <div className="flex justify-between items-start mb-6">
-                      <div>
-                        <button onClick={() => setSelectedMemberProfile(m)} className="font-heading font-bold text-gray-900 text-lg hover:text-red-600 transition-colors block text-left">
-                          {m.prenom} {m.nom}
-                        </button>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">
-                          <Smartphone size={12} className="text-gray-300" /> +221 {m.telephone || '---'}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
-                          {status.unpaidMonths[0]?.substring(0, 4)}
-                        </span>
-                        <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">Plus ancien</span>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gray-50 rounded-2xl p-4 mb-6">
-                      <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-3">Mois dus ({status.unpaidCount})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {status.unpaidMonths.map(mois => (
-                          <span key={mois} className={`text-[9px] px-2 py-1 rounded-lg uppercase font-black shadow-sm ${npMois === mois ? 'bg-red-600 text-white' : 'bg-white text-red-600 border border-red-100'}`}>
-                            {mois.substring(0, 4)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      {(isAdmin || isCaisse) && (
-                        <button 
-                          onClick={() => { openAddCot(m.id, npMois || status.unpaidMonths[0], globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl text-xs font-black transition-all shadow-lg shadow-red-600/20 active:scale-95 whitespace-nowrap"
-                        >
-                          Régulariser {npMois ? `(${npMois.substring(0, 3)})` : ''}
-                        </button>
-                      )}
-                      <a 
-                        href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum,\nNous vous rappelons votre contribution mensuelle (500F ou plus). Paiement par Wave/OM au 770952647.\nQu’Allah vous récompense.`)}`}
-                        className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
-                        title="Rappel SMS"
-                      >
-                        <Smartphone size={20} />
-                      </a>
-                      <a 
-                        href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*📊 COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokkou talibé,\n\nNous vous rappelons la participation à la *Commission Sociale* pour le mois de *${fMois || MOIS[new Date().getMonth()]} ${globalYear}*. La mensualité est fixée à 500 FCFA (ou selon vos possibilités).\n\nVotre contribution est précieuse pour soutenir nos actions sociales et renforcer notre solidarité au sein de l'UCAD.\n\n*💡 Modalités de paiement*\n👉 *WAVE ou Orange Money* : *77 095 26 47* (Faye)\n\nJazakoumoullahou khayran pour votre engagement constant. 🙏`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-all hover:scale-110 active:scale-90 shadow-sm"
-                        title="Rappel WhatsApp"
-                      >
-                        <MessageCircle size={20} />
-                      </a>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {filteredMembres.length === 0 && (
-              <div className="text-center py-20 bg-dmn-green-50/50 rounded-[40px] border-2 border-dashed border-dmn-green-100">
-                <div className="w-24 h-24 bg-dmn-green-100 text-dmn-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                  <CheckCircle2 size={48} />
-                </div>
-                <h3 className="text-2xl font-heading font-black text-dmn-green-900 mb-2">Tout est en ordre !</h3>
-                <p className="text-dmn-green-600 font-medium">Félicitations, tous les membres sont à jour de leurs cotisations.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <NonPayeurs 
+        membres={membres}
+        getMemberStatus={getMemberStatus}
+        npSearch={debouncedNpSearch}
+        setNpSearch={setNpSearch}
+        npMois={npMois}
+        setNpMois={setNpMois}
+        handleGeneralReminderWhatsApp={handleGeneralReminderWhatsApp}
+        isAdmin={isAdmin}
+        isCaisse={isCaisse}
+        setSelectedMemberProfile={setSelectedMemberProfile}
+        openAddCot={openAddCot}
+        fMois={fMois}
+        globalYear={globalYear}
+        setActiveTab={setActiveTab}
+        setFinanceSubTab={setFinanceSubTab}
+      />
     );
   };
 
   const renderDepenses = () => {
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
-          <span className="flex items-center gap-2"><TrendingDown size={18} className="text-dmn-gold-light" /> Dépenses ({globalYear})</span>
-          {(isAdmin || isCaisse) && (
-            <button 
-              onClick={() => { setEditingDepense({ annee: globalYear, montant: 0 }); setIsDepenseModalOpen(true); }}
-              className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
-            >
-              <Plus size={16} /> Ajouter
-            </button>
-          )}
-        </div>
-        {/* Desktop Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Événement</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Mois</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-right">Montant</th>
-                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredDepenses.map(d => (
-                <tr key={d.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
-                  <td className="px-6 py-4 font-medium text-gray-900">{d.evenement}</td>
-                  <td className="px-6 py-4 text-gray-600">
-                    <div>{d.mois} {d.annee}</div>
-                    <div className="mt-1"><DateBadge date={d.createdAt || d.updatedAt} /></div>
-                  </td>
-                  <td className="px-6 py-4 text-right font-bold text-red-600">{formatPrice(d.montant)} F</td>
-                  {(isAdmin || isCaisse) && (
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                          <Edit2 size={16} />
-                        </button>
-                        {isAdmin && (
-                          <button onClick={() => handleDeleteDepense(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filteredDepenses.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500 font-medium">Aucune dépense trouvée.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-50 bg-white">
-          {filteredDepenses.map(d => (
-            <div key={d.id} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-gray-50/50 transition-colors">
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-50 rounded-2xl flex items-center justify-center text-red-600">
-                    <TrendingDown size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-dmn-green-900 text-sm leading-tight">{d.evenement}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{d.mois} {d.annee}</p>
-                      <DateBadge date={d.createdAt || d.updatedAt} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-between items-center pt-3 border-t border-gray-50/50">
-                <p className="text-lg font-black text-red-600">{formatPrice(d.montant)} <span className="text-[10px] font-bold">FCFA</span></p>
-                {userRole === 'admin' && (
-                  <div className="flex gap-2">
-                    <button onClick={() => { setEditingDepense(d); setIsDepenseModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                      <Edit2 size={16} />
-                    </button>
-                    <button onClick={() => handleDeleteDepense(d.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {filteredDepenses.length === 0 && (
-            <div className="p-12 text-center text-gray-400 font-medium">Aucune dépense trouvée</div>
-          )}
-        </div>
-      </div>
+      <DepensesTable 
+        depenses={depenses}
+        globalYear={globalYear}
+        fMois={fMois}
+        setFMois={setFMois}
+        isAdmin={isAdmin}
+        isCaisse={isCaisse}
+        setEditingDep={setEditingDepense}
+        setIsDepModalOpen={setIsDepenseModalOpen}
+        handleDeleteDepense={handleDeleteDepense}
+      />
     );
   };
 
@@ -3516,13 +2306,13 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
         <motion.nav 
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2rem] h-[64px] flex items-center justify-around px-2 relative pointer-events-auto mx-auto max-w-[94%]"
+          className="bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] rounded-[2rem] h-[68px] flex items-center gap-1 overflow-x-auto no-scrollbar px-3 relative pointer-events-auto mx-auto max-w-[96%]"
         >
           {navigationTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as Tab)}
-              className="flex flex-col items-center justify-center flex-1 h-full relative group outline-none"
+              className="flex flex-col items-center justify-center min-w-[56px] flex-shrink-0 h-full relative group outline-none"
             >
               <div className={`p-1.5 rounded-xl transition-all duration-300 ${
                 activeTab === tab.id 
@@ -3562,7 +2352,21 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
 
       {renderMemberHistoryModal()}
       <AnimatePresence>
-        {selectedMemberProfile && renderMemberProfile(selectedMemberProfile)}
+        {selectedMemberProfile && (
+          <MemberProfile 
+            membre={selectedMemberProfile} 
+            onClose={() => setSelectedMemberProfile(null)}
+            onEdit={(m) => { setEditingMembre(m); setIsMembreModalOpen(true); setSelectedMemberProfile(null); }}
+            isAdmin={isAdmin}
+            isCaisse={isCaisse}
+            status={getMemberStatus(selectedMemberProfile.id)}
+            cotisations={cotisations}
+            setPaymentModal={setPaymentModal}
+            formatPrice={formatPrice}
+            simpleDate={simpleDate}
+            Badge={Badge}
+          />
+        )}
       </AnimatePresence>
 
       {/* Modals for Membre and Depense */}

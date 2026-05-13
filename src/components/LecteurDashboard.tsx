@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { formalizeDate } from '../utils/date';
+import { formatPrice } from '../utils/format';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -23,7 +24,6 @@ interface LecteurDashboardProps {
 }
 
 const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS, onDirectPaymentClick }) => {
-  const [selectedYear, setSelectedYear] = useState(globalYear);
   const [linkingMembreId, setLinkingMembreId] = useState('');
   const [linkingSearch, setLinkingSearch] = useState('');
   const [isLinking, setIsLinking] = useState(false);
@@ -34,9 +34,49 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
     return cotisations.filter(c => c.mId === myMembre.id && c.montant > 0);
   }, [cotisations, myMembre]);
 
-  const currentYearCotisations = useMemo(() => {
-    return myCotisations.filter(c => c.annee === selectedYear);
-  }, [myCotisations, selectedYear]);
+  const currentYearCotisations = myCotisations; // Already filtered by globalYear in App.tsx
+
+  // Statut - Alignement avec la logique de la Caisse (App.tsx)
+  const getUnpaidMonths = () => {
+    if (!myMembre) return [];
+    
+    let startMonthIndex = 0;
+    if (myMembre.anneeIntegration && myMembre.moisIntegration) {
+      if (Number(myMembre.anneeIntegration) === Number(globalYear)) {
+        startMonthIndex = MOIS.indexOf(myMembre.moisIntegration);
+      } else if (Number(myMembre.anneeIntegration) > Number(globalYear)) {
+        return []; // Pas encore de cotisations dues pour cette année passée
+      }
+    } else if (myMembre.createdAt) {
+      const createdDate = new Date(myMembre.createdAt);
+      if (createdDate.getFullYear() === Number(globalYear)) {
+        startMonthIndex = createdDate.getMonth();
+      } else if (createdDate.getFullYear() > Number(globalYear)) {
+        return [];
+      }
+    }
+
+    const currentYear = new Date().getFullYear();
+    const currentActualMonthIndex = new Date().getMonth();
+    
+    // Si on regarde une année future, pas encore de dettes
+    if (Number(globalYear) > currentYear) return [];
+
+    // Si on regarde l'année en cours, on s'arrête au mois actuel. 
+    // Sinon on regarde toute l'année (jusqu'à décembre).
+    const currentMonthIndex = Number(globalYear) === currentYear ? currentActualMonthIndex : 11;
+    
+    const unpaid = [];
+    for (let i = startMonthIndex; i <= currentMonthIndex; i++) {
+      const month = MOIS[i];
+      if (!currentYearCotisations.some(c => c.mois === month)) {
+        unpaid.push(month);
+      }
+    }
+    return unpaid;
+  };
+
+  const unpaidMonths = useMemo(() => getUnpaidMonths(), [myMembre, globalYear, currentYearCotisations, MOIS]);
 
   const handleLinkProfile = async () => {
     if (!linkingMembreId) {
@@ -126,48 +166,6 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
     );
   }
 
-  // Statut - Alignement avec la logique de la Caisse (App.tsx)
-  const getUnpaidMonths = () => {
-    if (!myMembre) return [];
-    
-    let startMonthIndex = 0;
-    if (myMembre.anneeIntegration && myMembre.moisIntegration) {
-      if (Number(myMembre.anneeIntegration) === Number(selectedYear)) {
-        startMonthIndex = MOIS.indexOf(myMembre.moisIntegration) + 1; // Commence le mois suivant
-      } else if (Number(myMembre.anneeIntegration) > Number(selectedYear)) {
-        return []; // Pas encore de cotisations dues pour cette année passée
-      }
-    } else if (myMembre.createdAt) {
-      const createdDate = new Date(myMembre.createdAt);
-      if (createdDate.getFullYear() === Number(selectedYear)) {
-        startMonthIndex = createdDate.getMonth() + 1; // Commence le mois suivant
-      } else if (createdDate.getFullYear() > Number(selectedYear)) {
-        return [];
-      }
-    }
-
-    const currentYear = new Date().getFullYear();
-    const currentActualMonthIndex = new Date().getMonth();
-    
-    // Si on regarde une année future, pas encore de dettes
-    if (Number(selectedYear) > currentYear) return [];
-
-    // Si on regarde l'année en cours, on s'arrête au mois actuel. 
-    // Sinon on regarde toute l'année (jusqu'à décembre).
-    const currentMonthIndex = Number(selectedYear) === currentYear ? currentActualMonthIndex : 11;
-    
-    const unpaid = [];
-    for (let i = startMonthIndex; i <= currentMonthIndex; i++) {
-      const month = MOIS[i];
-      if (!currentYearCotisations.some(c => c.mois === month)) {
-        unpaid.push(month);
-      }
-    }
-    return unpaid;
-  };
-
-  const unpaidMonths = useMemo(() => getUnpaidMonths(), [myMembre, selectedYear, currentYearCotisations, MOIS]);
-
   const totalPaid = currentYearCotisations.reduce((acc, c) => acc + c.montant, 0);
   const allTimeTotalPaid = myCotisations.reduce((acc, c) => acc + c.montant, 0);
   const montantRestant = unpaidMonths.length * 500; // assuming 500 FCFA
@@ -201,13 +199,13 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
 
     doc.setFontSize(22);
     doc.setTextColor(22, 163, 74); // green-600
-    doc.text(`Rapport Personnel - ${selectedYear}`, 14, 20);
+    doc.text(`Rapport Personnel - ${globalYear}`, 14, 20);
 
     doc.setFontSize(12);
     doc.setTextColor(50, 50, 50);
     doc.text(`Membre: ${myMembre.prenom} ${myMembre.nom}`, 14, 30);
     doc.text(`Statut: ${status.text}`, 14, 37);
-    doc.text(`Total payé en ${selectedYear}: ${totalPaid.toLocaleString()} FCFA`, 14, 44);
+    doc.text(`Total payé en ${globalYear}: ${formatPrice(totalPaid)} FCFA`, 14, 44);
     if (unpaidMonths.length > 0) {
       doc.text(`Mois non payés: ${unpaidMonths.join(', ')}`, 14, 51);
     }
@@ -227,7 +225,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
       headStyles: { fillColor: [22, 163, 74] },
     });
 
-    doc.save(`Rapport_Cotisations_${myMembre.nom}_${selectedYear}.pdf`);
+    doc.save(`Rapport_Cotisations_${myMembre.nom}_${globalYear}.pdf`);
   };
 
   const downloadReceipt = (cot: Cotisation) => {
@@ -283,7 +281,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
     doc.text("MONTANT:", 10, 110);
     doc.setFontSize(18);
     doc.setTextColor(22, 163, 74);
-    doc.text(`${cot.montant.toLocaleString()} FCFA`, 40, 125, { align: 'center' });
+    doc.text(`${formatPrice(cot.montant)} FCFA`, 40, 125, { align: 'center' });
     
     // Footer
     doc.setFontSize(8);
@@ -304,22 +302,16 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
           </h1>
           <p className="text-gray-500 mt-1 flex items-center gap-2">
             <span className="font-semibold text-dmn-green-600">{myMembre.prenom} {myMembre.nom}</span>
-            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full uppercase font-bold text-gray-600">Mode Lecture Seule</span>
+            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full uppercase font-bold text-gray-600 tracking-widest border border-gray-200">Mode Lecture</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <select 
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="bg-gray-50 border border-gray-200 text-gray-700 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-dmn-green-500 outline-none transition-all shadow-sm"
-          >
-            {[...new Set([globalYear, ...cotisations.map(c => c.annee)])].sort((a,b)=>b-a).map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          <div className="bg-dmn-green-900 text-white px-6 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-dmn-green-900/20 border border-dmn-green-800 flex items-center gap-2">
+            <Calendar size={16} /> <span>Année {globalYear}</span>
+          </div>
           <button 
             onClick={exportPDF}
-            className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 active:scale-95"
+            className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-black shadow-sm transition-all flex items-center gap-2 active:scale-95"
           >
             <Download size={16} /> Exporter
           </button>
@@ -354,10 +346,10 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
                             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-rose-500 font-black text-xs border border-rose-50 group-hover:scale-110 transition-transform">
                               {month.charAt(0)}
                             </div>
-                            <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{month} {selectedYear}</span>
+                            <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{month} {globalYear}</span>
                           </div>
                           <div className="flex flex-col items-end">
-                            <span className="text-sm font-black text-gray-900">{amount.toLocaleString()} FCFA</span>
+                            <span className="text-sm font-black text-gray-900">{formatPrice(amount)} FCFA</span>
                             <span className="text-[10px] text-gray-400 font-bold uppercase">Dû</span>
                           </div>
                         </div>
@@ -371,7 +363,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
                         <span className="text-gray-400 text-[9px] font-bold">{unpaidMonths.length} mois impayés</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-2xl font-heading font-black text-dmn-green-600 leading-tight">👉 {montantRestant.toLocaleString()} <span className="text-xs font-medium">FCFA</span></span>
+                        <span className="text-2xl font-heading font-black text-dmn-green-600 leading-tight">👉 {formatPrice(montantRestant)} <span className="text-xs font-medium">FCFA</span></span>
                       </div>
                     </div>
                   </div>
@@ -410,9 +402,9 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
             <div className="p-2 md:p-2.5 bg-dmn-green-50 rounded-xl">
               <Wallet size={18} className="text-dmn-green-600" />
             </div>
-            <p className="text-[10px] md:text-xs text-gray-500 uppercase font-black tracking-wider">Total {selectedYear}</p>
+            <p className="text-[10px] md:text-xs text-gray-500 uppercase font-black tracking-wider">Total {globalYear}</p>
           </div>
-          <p className="text-xl md:text-3xl font-heading font-black text-gray-900">{totalPaid.toLocaleString()} <span className="text-sm font-medium text-gray-500">FCFA</span></p>
+          <p className="text-xl md:text-3xl font-heading font-black text-gray-900">{formatPrice(totalPaid)} <span className="text-sm font-medium text-gray-500">FCFA</span></p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 group hover:shadow-md transition-shadow">
@@ -451,7 +443,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
         <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
             <h3 className="font-heading font-bold text-gray-900 flex items-center gap-2">
-              <Calendar size={18} className="text-dmn-green-500" /> Historique des Paiements ({selectedYear})
+              <Calendar size={18} className="text-dmn-green-500" /> Historique des Paiements ({globalYear})
             </h3>
           </div>
           <div className="overflow-x-auto">
@@ -471,7 +463,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
                     <td className="px-6 py-4 text-gray-500">{formalizeDate(cot.createdAt)}</td>
                     <td className="px-6 py-4 text-right font-black text-dmn-green-600">
                       <div className="flex flex-col items-end">
-                        <span>{cot.montant.toLocaleString()} FCFA</span>
+                        <span>{formatPrice(cot.montant)} FCFA</span>
                         {cot.mode === 'WAVE' && (
                           <span className="text-[8px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full uppercase tracking-tighter mt-1 flex items-center gap-1">
                             <CheckCircle2 size={8} /> Payé via Wave
@@ -513,7 +505,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
         {/* Charts */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
           <h3 className="font-heading font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <TrendingUp size={18} className="text-dmn-green-500" /> Régularité ({selectedYear})
+            <TrendingUp size={18} className="text-dmn-green-500" /> Régularité ({globalYear})
           </h3>
           <div className="h-64 mb-6">
             <ResponsiveContainer width="100%" height="100%">
@@ -533,7 +525,7 @@ const LecteurDashboard: React.FC<LecteurDashboardProps> = ({ myMembre, membres, 
           <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
              <div className="flex justify-between items-center text-sm mb-2">
                 <span className="text-gray-500 font-medium">Total cumulatif payé global</span>
-                <span className="font-black text-gray-900">{allTimeTotalPaid.toLocaleString()} FCFA</span>
+                <span className="font-black text-gray-900">{formatPrice(allTimeTotalPaid)} FCFA</span>
              </div>
              <p className="text-[10px] text-gray-400 flex items-center gap-1"><Info size={12}/> Depuis votre inscription</p>
           </div>

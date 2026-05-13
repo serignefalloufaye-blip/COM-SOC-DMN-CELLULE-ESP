@@ -1,0 +1,171 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- 1. Global Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Role-based access helpers
+    function getRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+
+    function hasRole(role) {
+      return isVerified() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getRole(request.auth.uid) == role;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == "serignefalloufaye@esp.sn" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getRole(request.auth.uid) == 'admin')
+      );
+    }
+
+    function isCaisse() { return isAdmin() || hasRole('caisse'); }
+    function isTickets() { return isAdmin() || hasRole('tickets'); }
+    function isCafe() { return isAdmin() || hasRole('cafe'); }
+    function isRevendeur() { return isAdmin() || hasRole('revendeur'); }
+    function isLecteur() { 
+      return isVerified() && (
+        isAdmin() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         getRole(request.auth.uid) in ['lecteur', 'caisse', 'tickets', 'cafe', 'revendeur'])
+      ); 
+    }
+
+    // --- 2. Validation Blueprints ---
+
+    function isValidMembre(data) {
+      return data.keys().hasAll(['prenom', 'nom']) &&
+             data.prenom is string && data.prenom.size() >= 1 && data.prenom.size() <= 100 &&
+             data.nom is string && data.nom.size() >= 1 && data.nom.size() <= 100 &&
+             (!('telephone' in data) || (data.telephone is string && data.telephone.size() <= 20)) &&
+             (!('statut' in data) || (data.statut in ['Boursier', 'Non Boursier', 'Professionnel', 'Autre'])) &&
+             (!('userId' in data) || (data.userId is string && data.userId.size() <= 128)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 254));
+    }
+
+    function isValidCotisation(data) {
+      return data.keys().hasAll(['mId', 'mois', 'annee', 'montant', 'mode']) &&
+             data.mId is string && isValidId(data.mId) &&
+             data.mois is string && data.mois.size() >= 2 && data.mois.size() <= 20 &&
+             data.annee is number && data.annee >= 2020 && data.annee <= 2100 &&
+             data.montant is number && data.montant >= 0 && data.montant <= 1000000 &&
+             data.mode in ['WAVE', 'OM', 'ESPÈCES'];
+    }
+
+    function isValidDepense(data) {
+      return data.keys().hasAll(['evenement', 'mois', 'annee', 'montant']) &&
+             data.evenement is string && data.evenement.size() >= 3 && data.evenement.size() <= 500 &&
+             data.mois is string && data.annee is number &&
+             data.montant is number && data.montant >= 0;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'nom', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.nom is string &&
+             data.role in ['admin', 'caisse', 'tickets', 'cafe', 'revendeur', 'lecteur'];
+    }
+
+    // --- 3. Rules ---
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if isVerified();
+      allow write: if isAdmin();
+    }
+
+    // Membres
+    match /membres/{membreId} {
+      allow read: if isLecteur();
+      allow create: if isCaisse() && isValidMembre(incoming());
+      allow update: if (isCaisse() && isValidMembre(incoming())) ||
+                       (isVerified() && 
+                        (existing().userId == request.auth.uid) &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['email', 'telephone', 'userId', 'updatedAt']) &&
+                        incoming().userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Cotisations
+    match /cotisations/{id} {
+      allow read: if isLecteur();
+      allow create: if (isCaisse() || (isVerified() && get(/databases/$(database)/documents/membres/$(incoming().mId)).data.userId == request.auth.uid)) && isValidCotisation(incoming());
+      allow update: if (isCaisse() || (isVerified() && get(/databases/$(database)/documents/membres/$(existing().mId)).data.userId == request.auth.uid)) && isValidCotisation(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // Finances (Caisse)
+    match /depenses/{id} {
+      allow read: if isLecteur();
+      allow write: if isCaisse() && isValidDepense(incoming());
+    }
+    match /recettes/{id} {
+      allow read: if isLecteur();
+      allow write: if isCaisse();
+    }
+    match /dettes/{id} {
+      allow read: if isLecteur();
+      allow write: if isCaisse();
+    }
+
+    // Users & Roles
+    match /users/{userId} {
+      allow read: if isVerified() && (request.auth.uid == userId || isAdmin());
+      allow create: if isVerified() && request.auth.uid == userId && isValidUser(incoming()) && incoming().role == 'lecteur'; // Self-assign only 'lecteur'
+      allow update: if isVerified() && (
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['nom', 'email', 'avatarUrl', 'updatedAt'])) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Tickets
+    match /tickets_collectes/{id} {
+      allow read: if isLecteur();
+      allow write: if isTickets();
+    }
+    match /tickets_conversions/{id} {
+      allow read: if isLecteur();
+      allow write: if isTickets();
+    }
+    match /tickets_distributions/{id} {
+      allow read: if isLecteur();
+      allow write: if isTickets();
+    }
+
+    // Cafe
+    match /cafe_productions/{id} {
+      allow read: if isLecteur() || isRevendeur();
+      allow write: if isCafe();
+    }
+    match /cafe_ventes/{id} {
+      allow read: if isLecteur() || isRevendeur();
+      allow write: if isCafe() || isRevendeur();
+    }
+    match /cafe_depenses/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
+    match /cafe_transferts/{id} { allow read: if isLecteur(); allow write: if isCafe(); }
+    match /cafe_distributions/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe(); }
+    match /cafe_versements/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
+    match /cafe_sellers/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe(); }
+    match /cafe_clients/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
+    match /cafe_orders/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
+
+    // Audit
+    match /audit_logs/{id} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+  }
+}

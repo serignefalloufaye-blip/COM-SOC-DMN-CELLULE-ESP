@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAdaptive } from '../hooks/useAdaptive';
+import { formatPrice } from '../utils/format';
 import { hasPermission } from '../utils/permissions';
 import { simpleDate, relativeDate } from '../utils/date';
 
@@ -40,11 +41,6 @@ interface PremiumDashboardProps {
   onLogoUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onQuickAction?: (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => void;
 }
-
-const formatPrice = (p: number) => {
-  if (p === undefined || p === null) return "0";
-  return p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -183,38 +179,98 @@ export function PremiumDashboard({
     return { name: m.substring(0, 3), Entrées: moisCot + moisRec, Dépenses: moisDep, Solde: moisCot + moisRec - moisDep };
   });
 
-  const historyItems = [];
-  if (isCaisse) {
-    historyItems.push(...cotisations.map(c => ({ date: c.createdAt || 0, label: `Cotisation de ${membres.find(m => m.id === c.mId)?.prenom} ${membres.find(m => m.id === c.mId)?.nom}`, amount: c.montant, type: 'in', icon: Wallet })));
-    historyItems.push(...depenses.map(d => ({ date: d.createdAt || d.updatedAt || 0, label: `Dépense : ${d.evenement}`, amount: d.montant, type: 'out', icon: ArrowDownRight })));
-    historyItems.push(...recettes.map(r => ({ date: r.createdAt || r.updatedAt || 0, label: `Recette : ${r.motif}`, amount: r.montant, type: 'in', icon: ArrowUpRight })));
-  }
-  if (isTickets) {
-    historyItems.push(...ticketDistributions.map(d => ({ date: d.createdAt || 0, label: `Tickets à ${membres.find(m => m.id === d.mId)?.prenom} ${membres.find(m => m.id === d.mId)?.nom}`, amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, type: 'ticket', icon: Ticket })));
-  }
-  if (isCafe) {
-    historyItems.push(...cafeVentes.map(v => ({ date: v.createdAt || v.date, label: `Vente Café (${v.quantite})`, amount: v.total, type: 'cafe', icon: Coffee })));
-  }
-
-  // Personal history for regular members
-  if (isMembreSimple && currentUser?.email) {
-    if (myMembre) {
-      historyItems.push(...cotisations.filter(c => c.mId === myMembre.id).map(c => ({ date: c.createdAt || 0, label: `Ma cotisation (${c.mois} ${c.annee})`, amount: c.montant, type: 'in', icon: Wallet })));
-      historyItems.push(...ticketDistributions.filter(d => d.mId === myMembre.id).map(d => ({ date: d.createdAt || 0, label: `Mes tickets (${d.petitDej || 0} PD, ${d.repas || 0} R)`, amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, type: 'ticket', icon: Ticket })));
+  const history = useMemo(() => {
+    const historyItems = [];
+    if (isCaisse) {
+      historyItems.push(...cotisations.map(c => ({ 
+        id: `cot-${c.id}`,
+        date: c.createdAt || 0, 
+        label: `Cotisation de ${membres.find(m => m.id === c.mId)?.prenom} ${membres.find(m => m.id === c.mId)?.nom}`, 
+        amount: c.montant, 
+        type: 'in' as const, 
+        icon: Wallet 
+      })));
+      historyItems.push(...depenses.map(d => ({ 
+        id: `dep-${d.id}`,
+        date: d.createdAt || d.updatedAt || 0, 
+        label: `Dépense : ${d.evenement}`, 
+        amount: d.montant, 
+        type: 'out' as const, 
+        icon: ArrowDownRight 
+      })));
+      historyItems.push(...recettes.map(r => ({ 
+        id: `rec-${r.id}`,
+        date: r.createdAt || r.updatedAt || 0, 
+        label: `Recette : ${r.motif}`, 
+        amount: r.montant, 
+        type: 'in' as const, 
+        icon: ArrowUpRight 
+      })));
     }
-  }
-  
-  if (isRevendeur && mySeller) {
-    historyItems.push(...cafeVentes.filter(v => v.vendeurId === mySeller.id).map(v => ({ date: v.createdAt || v.date, label: `Mes ventes CAFE (${v.quantite})`, amount: v.total, type: 'cafe', icon: Coffee })));
-  }
+    if (isTickets) {
+      historyItems.push(...ticketDistributions.map(d => ({ 
+        id: `tick-${d.id}`,
+        date: d.createdAt || 0, 
+        label: `Tickets à ${membres.find(m => m.id === d.mId)?.prenom} ${membres.find(m => m.id === d.mId)?.nom}`, 
+        amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, 
+        type: 'ticket' as const, 
+        icon: Ticket 
+      })));
+    }
+    if (isCafe) {
+      historyItems.push(...cafeVentes.map(v => ({ 
+        id: `cafe-${v.id}`,
+        date: v.createdAt || v.date, 
+        label: `Vente Café (${v.quantite})`, 
+        amount: v.total, 
+        type: 'cafe' as const, 
+        icon: Coffee 
+      })));
+    }
 
-  const history = historyItems.sort((a, b) => b.date - a.date);
-  const recentHistory = history.slice(0, 8);
+    if (isMembreSimple && currentUser?.email && myMembre) {
+      historyItems.push(...cotisations.filter(c => c.mId === myMembre.id).map(c => ({ 
+        id: `mycot-${c.id}`,
+        date: c.createdAt || 0, 
+        label: `Ma cotisation (${c.mois} ${c.annee})`, 
+        amount: c.montant, 
+        type: 'in' as const, 
+        icon: Wallet 
+      })));
+      historyItems.push(...ticketDistributions.filter(d => d.mId === myMembre.id).map(d => ({ 
+        id: `mytick-${d.id}`,
+        date: d.createdAt || 0, 
+        label: `Mes tickets (${d.petitDej || 0} PD, ${d.repas || 0} R)`, 
+        amount: (d.petitDej || 0) * 50 + (d.repas || 0) * 100, 
+        type: 'ticket' as const, 
+        icon: Ticket 
+      })));
+    }
+    
+    if (isRevendeur && mySeller) {
+      historyItems.push(...cafeVentes.filter(v => v.vendeurId === mySeller.id).map(v => ({ 
+        id: `mysell-${v.id}`,
+        date: v.createdAt || v.date, 
+        label: `Mes ventes CAFE (${v.quantite})`, 
+        amount: v.total, 
+        type: 'cafe' as const, 
+        icon: Coffee 
+      })));
+    }
 
-  const today = new Date().setHours(0,0,0,0);
-  const todayTransactions = history.filter(h => new Date(h.date).setHours(0,0,0,0) === today);
-  const todayIn = todayTransactions.filter(t => t.type === 'in' || t.type === 'cafe').reduce((s, t) => s + t.amount, 0);
-  const todayOut = todayTransactions.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0);
+    return historyItems.sort((a, b) => b.date - a.date);
+  }, [isCaisse, isTickets, isCafe, isMembreSimple, isRevendeur, cotisations, depenses, recettes, ticketDistributions, cafeVentes, membres, myMembre, mySeller, currentUser?.email]);
+
+  const recentHistory = useMemo(() => history.slice(0, 8), [history]);
+
+  const todayStats = useMemo(() => {
+    const today = new Date().setHours(0,0,0,0);
+    const todayTransactions = history.filter(h => new Date(h.date).setHours(0,0,0,0) === today);
+    return {
+      in: todayTransactions.filter(t => t.type === 'in' || t.type === 'cafe').reduce((s, t) => s + t.amount, 0),
+      out: todayTransactions.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
+    };
+  }, [history]);
 
   // --- Smart Insights ---
   const smartInsights = useMemo(() => {
@@ -547,7 +603,7 @@ export function PremiumDashboard({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.05 }}
-                key={i}
+                key={h.id}
                 className="premium-card p-5 sm:p-6 flex items-center justify-between group cursor-pointer"
               >
                 <div className="flex items-center gap-5 min-w-0 flex-1">
