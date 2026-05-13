@@ -28,6 +28,8 @@ import { ReportService } from './services/ReportService';
 import AdminDateInput from './components/AdminDateInput';
 import { SaisieRapide } from './components/SaisieRapide';
 import { NonPayeurs } from './components/NonPayeurs';
+import { MemberProfile } from './components/MemberProfile';
+import { MembersTable } from './components/MembersTable';
 import { CotisationsTable, RecettesTable, DepensesTable, DettesTable } from './components/FinanceModules';
 import { Badge, DateBadge } from './components/ui/Badges';
 import * as XLSX from 'xlsx';
@@ -278,9 +280,6 @@ export default function App() {
     return map;
   }, [membres]);
 
-
-  // Member History Modal
-  const [selectedMemberHistory, setSelectedMemberHistory] = useState<Membre | null>(null);
 
   // Quick Entry State
   const [quickAmounts, setQuickAmounts] = useState<Record<string, number>>({});
@@ -731,6 +730,91 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    // Vérification retour API Wave - on attend d'être authentifié
+    if (!user || (!userRole && user)) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('wave_success') === 'true') {
+      const pendingStr = localStorage.getItem('pendingWavePayment');
+      if (pendingStr) {
+        try {
+          const pending = JSON.parse(pendingStr);
+          // On le finalise
+          finalizePendingWavePayment(pending);
+        } catch(e) {
+          console.error("Erreur parsing pending payment", e);
+        }
+      }
+      // Nettoyer l'URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get('wave_error') === 'true') {
+      showToast("Paiement Wave annulé ou échoué", "error");
+      localStorage.removeItem('pendingWavePayment');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [user, userRole]);
+
+  const finalizePendingWavePayment = async (pending: any) => {
+    const { sessionId, membre, selectedMonths, customAmountPerMonth, mode, globalYear: year } = pending;
+    if (!membre || !selectedMonths.length || !sessionId) return;
+    
+    try {
+      showToast("Vérification du paiement Wave...");
+      
+      const verifyRes = await fetch("/api/wave-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId })
+      });
+
+      if (!verifyRes.ok) {
+         throw new Error("Erreur de vérification côté serveur");
+      }
+
+      const verifyData = await verifyRes.json();
+      
+      if (verifyData.payment_status !== "succeeded") {
+         showToast(`Paiement Wave non validé (statut courant: ${verifyData.payment_status || "inconnu"}). Action annulée.`, "error");
+         return; // N'enregistre pas la cotisation
+      }
+
+      showToast("Paiement validé par Wave! Enregistrement en cours...");
+      
+      const promises = selectedMonths.map((mois: string) => {
+        const tIndex = MOIS.indexOf(mois);
+        const trimestre = tIndex !== -1 ? Math.floor(tIndex / 3) + 1 : 1;
+        const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        
+        return addDoc(collection(db, 'cotisations'), {
+          mId: membre.id,
+          mois,
+          annee: year,
+          trimestre,
+          heure,
+          montant: customAmountPerMonth,
+          mode: mode || 'WAVE',
+          createdAt: Date.now(),
+          createdBy: user?.uid
+        });
+      });
+
+      await Promise.all(promises);
+      
+      logAudit(userRole, 'caisse.create', 'Caisse', 'Paiement Wave via API validé', { 
+        mId: membre.id, 
+        mois: selectedMonths, 
+        total: selectedMonths.length * customAmountPerMonth 
+      });
+      
+      localStorage.removeItem('pendingWavePayment');
+      showToast('Bravo ! Paiement Wave enregistré avec succès.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast("Erreur lors de l'enregistrement final du paiement. Veuillez contacter l'admin.", 'error');
+    }
+  };
+
   const handleDeleteCotisation = async (id: string) => {
     confirmAction(
       'Supprimer Cotisation',
@@ -748,23 +832,75 @@ export default function App() {
     );
   };
 
-  const handleConfirmDirectPayment = () => {
+  const handleConfirmDirectPayment = async () => {
     if (!paymentModal.membre || paymentModal.unpaidMonths.length === 0) return;
     
+    if (paymentModal.mode === "OM" || paymentModal.mode === "MAIN") {
+        setPaymentModal(prev => ({ ...prev, isWaitingForValidation: true }));
+        return;
+    }
+
     const paymentAmountExFee = paymentModal.selectedMonths.length * paymentModal.customAmountPerMonth;
     const paymentFee = 0; // Wave marchand, pas de frais
     const paymentTotalAmount = paymentAmountExFee + paymentFee;
 
-    // Redirection vers Wave avec montant préchargé
-    // Utilisation du format spécifique : /c/sn/.{montant}
-    const url = `https://pay.wave.com/m/M_sn_pRX2DhJGTmqm/c/sn/.${paymentTotalAmount}`;
-    
-    window.open(url, '_blank');
-    
-    showToast(`Redirection vers Wave pour le montant de ${formatPrice(paymentTotalAmount)} FCFA.`);
-    
-    // Passer en mode attente de validation
-    setPaymentModal(prev => ({ ...prev, isWaitingForValidation: true }));
+    try {
+      showToast(`Création de la session Wave pour ${formatPrice(paymentTotalAmount)} F...`);
+      
+      // Ouvrir la fenêtre de manière synchrone pour éviter le bloqueur de popups
+      const waveWindow = window.open('about:blank', '_blank');
+      
+      const success_url = window.location.origin + "?wave_success=true";
+      const error_url = window.location.origin + "?wave_error=true";
+      
+      const res = await fetch("/api/wave-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: paymentTotalAmount,
+          success_url,
+          error_url,
+          client_reference: `cot_${paymentModal.membre.id}_${Date.now()}`
+        })
+      });
+      
+      if (!res.ok) {
+        if (waveWindow) waveWindow.close();
+        const errData = await res.text();
+        console.error("Erreur serveur détaillées:", errData);
+        throw new Error(`Erreur serveur lors de l'appel Wave: ${res.status} ${errData}`);
+      }
+      
+      const data = await res.json();
+      
+      // On sauvegarde pour la redirection retour
+      localStorage.setItem('pendingWavePayment', JSON.stringify({
+        sessionId: data.id,
+        membre: paymentModal.membre,
+        selectedMonths: paymentModal.selectedMonths,
+        customAmountPerMonth: paymentModal.customAmountPerMonth,
+        mode: paymentModal.mode,
+        globalYear
+      }));
+
+      // Redirection
+      if (data.wave_launch_url) {
+        if (waveWindow) {
+           waveWindow.location.href = data.wave_launch_url;
+        } else {
+           window.open(data.wave_launch_url, '_blank');
+        }
+        showToast("Une nouvelle fenêtre a été ouverte pour le paiement Wave.");
+        setPaymentModal(prev => ({ ...prev, isWaitingForValidation: true }));
+      } else {
+        if (waveWindow) waveWindow.close();
+        showToast("Erreur: L'URL de paiement Wave est introuvable.", "error");
+      }
+
+    } catch (e) {
+      console.error("Wave Checkout Error", e);
+      showToast("Erreur lors de l'initialisation du paiement Wave.", "error");
+    }
   };
 
   const handleFinalizeDirectPayment = async () => {
@@ -1426,7 +1562,7 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
         setIsRecetteModalOpen={setIsRecetteModalOpen}
         handleDeleteCotisation={handleDeleteCotisation}
         handleQuickSaveCotisation={handleQuickSaveCotisation}
-        setSelectedMemberHistory={setSelectedMemberHistory}
+        setSelectedMemberProfile={setSelectedMemberProfile}
         showToast={showToast}
         nomComplet={nomComplet}
       />
@@ -1434,140 +1570,24 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
   };
 
   const renderMembres = () => {
-    const filtered = membres.filter(m => nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase()));
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-        <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
-          <span className="flex items-center gap-2"><Users size={18} className="text-dmn-gold-light" /> Membres ({membres.length})</span>
-          <div className="flex items-center gap-2">
-            {isCaisse && (
-              <button 
-                onClick={() => { setEditingMembre(null); setIsMembreModalOpen(true); }}
-                className="h-10 px-5 bg-dmn-green-600 text-white rounded-xl hover:bg-dmn-green-700 flex items-center justify-center gap-2 text-sm font-bold shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none"
-              >
-                <Plus size={16} /> <span className="hidden sm:inline">Ajouter</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Desktop Table */}
-        <div className="hidden md:block overflow-x-auto max-h-[600px]">
-          <table className="w-full text-sm text-center">
-            <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">N°</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-left">Prénom & Nom</th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Total payé ({globalYear})</th>
-                {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((m, i) => {
-                const stats = memberStatsMap[m.id] || { totalPaid: 0 };
-                const tot = stats.totalPaid;
-                return (
-                  <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
-                    <td className="px-6 py-4 text-gray-500">{i + 1}</td>
-                    <td className="px-6 py-4 text-left whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setSelectedMemberProfile(m)} className="hover:text-dmn-green-600 font-semibold text-gray-900 text-left flex items-center gap-2 transition-colors">
-                          {m.prenom} <strong>{m.nom}</strong>
-                        </button>
-                        <button onClick={() => setSelectedMemberHistory(m)} className="p-1 text-gray-400 hover:text-dmn-green-600 transition-colors" title="Historique">
-                          <History size={14} />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-bold text-dmn-green-700">{formatPrice(tot)} F</td>
-                    {isCaisse && (
-                      <td className="px-6 py-4 flex justify-center gap-2">
-                        <button onClick={() => setSelectedMemberProfile(m)} className="p-2 bg-dmn-green-50 text-dmn-green-600 rounded-lg hover:bg-dmn-green-100 transition-colors" title="Profil">
-                          <Users size={16} />
-                        </button>
-                        <button onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95 shadow-sm">
-                          <Edit2 size={16} />
-                        </button>
-                        {isAdmin && (
-                          <button onClick={() => handleDeleteMembre(m.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all active:scale-95 shadow-sm">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-gray-50 bg-white">
-          {filtered.map((m, i) => {
-            const stats = memberStatsMap[m.id] || { totalPaid: 0 };
-            const tot = stats.totalPaid;
-            return (
-              <div key={m.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50/50 transition-colors">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-700 font-black text-sm">
-                      {m.prenom[0]}{m.nom[0]}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-dmn-green-900 text-sm leading-tight">{m.prenom} {m.nom}</h4>
-                      <p className="text-[10px] font-black text-dmn-green-500 uppercase tracking-widest mt-0.5">{formatPrice(tot)} F de cotisations</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setSelectedMemberProfile(m)} className="p-2 text-gray-400 hover:text-dmn-green-600">
-                    <Info size={20} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 min-[400px]:grid-cols-3 gap-2">
-                  <button 
-                    onClick={() => { openAddCot(m.id, undefined, globalYear); setFinanceSubTab('cotisations'); setActiveTab('finance'); }}
-                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-dmn-green-50 hover:bg-dmn-green-100 rounded-2xl text-dmn-green-700 active:scale-95 transition-all outline-none border border-dmn-green-100/50"
-                  >
-                    <CreditCard size={18} />
-                    <span className="text-[9px] font-black uppercase tracking-wider">Cotiser</span>
-                  </button>
-                  <button 
-                    onClick={() => setSelectedMemberHistory(m)}
-                    className="flex flex-col items-center justify-center gap-1.5 py-3 bg-blue-50 hover:bg-blue-100 rounded-2xl text-blue-700 active:scale-95 transition-all outline-none border border-blue-100/50"
-                  >
-                    <History size={18} />
-                    <span className="text-[9px] font-black uppercase tracking-wider">Historique</span>
-                  </button>
-                  {(isAdmin || isCaisse) ? (
-                    <button 
-                      onClick={() => { setEditingMembre(m); setIsMembreModalOpen(true); }}
-                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-orange-50 hover:bg-orange-100 rounded-2xl text-orange-700 active:scale-95 transition-all outline-none border border-orange-100/50 col-span-2 min-[400px]:col-span-1"
-                    >
-                      <Edit2 size={18} />
-                      <span className="text-[9px] font-black uppercase tracking-wider">Modifier</span>
-                    </button>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-1.5 py-3 bg-gray-50 rounded-2xl text-gray-400 border border-gray-100/50 opacity-40 col-span-2 min-[400px]:col-span-1">
-                      <Shield size={18} />
-                      <span className="text-[9px] font-black uppercase tracking-wider">Lecteur</span>
-                    </div>
-                  )}
-                  {isAdmin && (
-                    <button 
-                      onClick={() => handleDeleteMembre(m.id)}
-                      className="flex flex-col items-center justify-center gap-1.5 py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-700 active:scale-95 transition-all outline-none border border-red-100/50 col-span-3 min-[400px]:col-span-3"
-                    >
-                      <Trash2 size={18} />
-                      <span className="text-[9px] font-black uppercase tracking-wider">Supprimer le Membre</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <MembersTable
+        membres={membres}
+        globalSearch={globalSearch}
+        nomComplet={nomComplet}
+        memberStatsMap={memberStatsMap}
+        isAdmin={isAdmin}
+        isCaisse={isCaisse}
+        globalYear={globalYear}
+        formatPrice={formatPrice}
+        setSelectedMemberProfile={setSelectedMemberProfile}
+        setEditingMembre={setEditingMembre}
+        setIsMembreModalOpen={setIsMembreModalOpen}
+        handleDeleteMembre={handleDeleteMembre}
+        openAddCot={openAddCot}
+        setActiveTab={setActiveTab}
+        setFinanceSubTab={setFinanceSubTab}
+      />
     );
   };
 
@@ -1583,7 +1603,7 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
         dettes={dettes}
         appSettings={appSettings}
         globalSearch={globalSearch}
-        setSelectedMemberHistory={setSelectedMemberHistory}
+        setSelectedMemberProfile={setSelectedMemberProfile}
       />
     );
   };
@@ -1720,121 +1740,7 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
     );
   };
 
-  const renderMemberHistoryModal = () => {
-    if (!selectedMemberHistory) return null;
-    const m = selectedMemberHistory;
-    const mCots = cotisations.filter(c => c.mId === m.id && c.annee === globalYear);
-    const paidCots = mCots.filter(c => c.montant > 0);
-    const totalPaid = paidCots.reduce((s, c) => s + c.montant, 0);
-    const unpaidMonths = MOIS.filter(mois => {
-      const c = mCots.find(x => x.mois === mois);
-      return !c || c.montant === 0;
-    });
-    // Consider months up to current month for "En retard"
-    const monthsPassed = MOIS.slice(0, currentMonthIndex + 1);
-    const lateMonths = unpaidMonths.filter(um => monthsPassed.includes(um));
 
-    return (
-      <AnimatePresence>
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] border border-gray-100 overflow-hidden"
-          >
-            <div className="p-8 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 shrink-0">
-              <div>
-                <h2 className="text-3xl font-black text-dmn-green-900">{nomComplet(m)}</h2>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className="px-3 py-1 bg-dmn-green-100 text-dmn-green-700 text-[10px] font-black uppercase tracking-widest rounded-full">Historique {globalYear}</span>
-                  <div className="flex items-center gap-1 text-gray-400 font-bold text-xs">
-                    <CalendarRange size={14} /> 
-                    <span>Fiche membre</span>
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setSelectedMemberHistory(null)} className="p-3 bg-white rounded-full text-gray-400 hover:text-gray-700 shadow-sm transition-all active:scale-90"><X size={20} /></button>
-            </div>
-            
-            <div className="p-8 overflow-y-auto scrollbar-thin">
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-dmn-green-50 p-4 rounded-xl border border-dmn-green-100">
-                <p className="text-xs text-dmn-green-600 font-bold uppercase tracking-wider mb-1">Total Payé</p>
-                <p className="text-2xl font-black text-dmn-green-800">{formatPrice(totalPaid)} F</p>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                <p className="text-xs text-blue-600 font-bold uppercase tracking-wider mb-1">Mois Payés</p>
-                <p className="text-2xl font-black text-blue-800">{paidCots.length} <span className="text-sm font-medium text-blue-500">/ 12</span></p>
-              </div>
-              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-                <p className="text-xs text-amber-600 font-bold uppercase tracking-wider mb-1">Non Payés</p>
-                <p className="text-2xl font-black text-amber-800">{unpaidMonths.length}</p>
-              </div>
-              <div className={`p-4 rounded-xl border ${lateMonths.length > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
-                <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${lateMonths.length > 0 ? 'text-red-600' : 'text-gray-500'}`}>En Retard</p>
-                <p className={`text-2xl font-black ${lateMonths.length > 0 ? 'text-red-800' : 'text-gray-700'}`}>{lateMonths.length}</p>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-heading font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <CheckCircle2 className="text-dmn-green-500" size={20} /> Détail des paiements
-                </h3>
-                {paidCots.length > 0 ? (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
-                    <table className="min-w-full text-sm text-left">
-                      <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600">
-                        <tr>
-                          <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">Mois</th>
-                          <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">Montant</th>
-                          <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider border-b border-gray-200">Mode</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {paidCots.sort((a, b) => MOIS.indexOf(a.mois) - MOIS.indexOf(b.mois)).map(c => (
-                          <tr key={c.id} className="hover:bg-dmn-green-50/30 transition-colors">
-                            <td className="px-4 py-3 font-medium text-gray-800">{c.mois}</td>
-                            <td className="px-4 py-3 font-bold text-dmn-green-600">{formatPrice(c.montant)} F</td>
-                            <td className="px-4 py-3"><Badge mode={c.mode} date={c.createdAt || c.updatedAt} /></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-gray-500 italic bg-gray-50 p-4 rounded-lg">Aucun paiement enregistré pour {globalYear}.</p>
-                )}
-              </div>
-
-              {lateMonths.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-bold text-red-700 mb-3 flex items-center gap-2">
-                    <AlertTriangle className="text-red-500" size={20} /> Mois en retard
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {lateMonths.map(lm => (
-                      <span key={lm} className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-200">
-                        {lm}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
-    );
-  };
 
   const exportToCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -2350,7 +2256,7 @@ Merci pour votre engagement envers la Commission Sociale du DMN`;
         <p className="text-[8px] font-bold text-gray-300 uppercase tracking-widest pt-4">© {new Date().getFullYear()} DMN UCAD | Tous droits réservés</p>
       </footer>
 
-      {renderMemberHistoryModal()}
+
       <AnimatePresence>
         {selectedMemberProfile && (
           <MemberProfile 

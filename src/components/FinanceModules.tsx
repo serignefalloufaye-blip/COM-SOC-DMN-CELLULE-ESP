@@ -3,7 +3,7 @@ import { CreditCard, Plus, Users, Printer, Search, Edit3, Trash2, TrendingDown, 
 import { Membre, Cotisation, Recette, Depense, Dette } from '../types';
 import { MOIS } from '../data';
 import { formatPrice } from '../utils/format';
-import { formatMois } from '../utils/date';
+
 
 // --- COTISATIONS TABLE ---
 interface CotisationsTableProps {
@@ -156,7 +156,7 @@ export const CotisationsTable: React.FC<CotisationsTableProps> = ({
                       {(isAdmin || isCaisse) && (
                         <td className="px-6 py-4 flex items-center justify-center gap-2">
                           <button onClick={() => { setEditingCot(c); setIsCotModalOpen(true); }} className="p-2 hover:bg-dmn-green-50 text-dmn-green-600 rounded-lg"><Edit3 size={16}/></button>
-                          {isAdmin && <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 hover:bg-red-50 text-red-600 rounded-lg"><Trash2 size={16}/></button>}
+                          <button onClick={() => handleDeleteCotisation(c.id)} className="p-2 hover:bg-red-50 text-red-600 rounded-lg"><Trash2 size={16}/></button>
                         </td>
                       )}
                     </tr>
@@ -229,7 +229,7 @@ export const RecettesTable: React.FC<RecettesTableProps> = ({
                   {(isAdmin || isCaisse) && (
                     <>
                       <button onClick={() => { setEditingRecette(r); setIsRecetteModalOpen(true); }} className="p-2 text-dmn-green-600"><Edit3 size={16}/></button>
-                      {isAdmin && <button onClick={() => handleDeleteRecette(r.id)} className="p-2 text-red-600"><Trash2 size={16}/></button>}
+                      <button onClick={() => handleDeleteRecette(r.id)} className="p-2 text-red-600"><Trash2 size={16}/></button>
                     </>
                   )}
                 </td>
@@ -301,7 +301,7 @@ export const DepensesTable: React.FC<DepensesTableProps> = ({
                   {(isAdmin || isCaisse) && (
                     <>
                       <button onClick={() => { setEditingDep(d); setIsDepModalOpen(true); }} className="p-2 text-dmn-green-600"><Edit3 size={16}/></button>
-                      {isAdmin && <button onClick={() => handleDeleteDepense(d.id)} className="p-2 text-red-600"><Trash2 size={16}/></button>}
+                      <button onClick={() => handleDeleteDepense(d.id)} className="p-2 text-red-600"><Trash2 size={16}/></button>
                     </>
                   )}
                 </td>
@@ -373,7 +373,7 @@ export const DettesTable: React.FC<DettesTableProps> = ({
                     <>
                       {!d.estPayee && <button onClick={() => handlePayDette(d)} className="bg-dmn-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-black uppercase">Payer</button>}
                       <button onClick={() => { setEditingDette(d); setIsDetteModalOpen(true); }} className="p-2 text-dmn-green-600"><Edit3 size={16}/></button>
-                      {isAdmin && <button onClick={() => handleDeleteDette(d.id)} className="p-2 text-red-600"><Trash2 size={16}/></button>}
+                      <button onClick={() => handleDeleteDette(d.id)} className="p-2 text-red-600"><Trash2 size={16}/></button>
                     </>
                   )}
                 </td>

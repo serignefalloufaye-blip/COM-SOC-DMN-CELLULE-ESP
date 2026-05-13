@@ -25,7 +25,7 @@ interface SaisieRapideProps {
   setIsRecetteModalOpen: (open: boolean) => void;
   handleDeleteCotisation: (id: string) => Promise<void>;
   handleQuickSaveCotisation: (mId: string, montant: number, mode: string) => Promise<void>;
-  setSelectedMemberHistory: (m: Membre) => void;
+  setSelectedMemberProfile: (m: Membre) => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   nomComplet: (m: Membre) => string;
 }
@@ -50,7 +50,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
   setIsRecetteModalOpen,
   handleDeleteCotisation,
   handleQuickSaveCotisation,
-  setSelectedMemberHistory,
+  setSelectedMemberProfile,
   showToast,
   nomComplet
 }) => {
@@ -157,7 +157,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                 <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
                   <td className="px-6 py-4">
                     <button 
-                      onClick={() => setSelectedMemberHistory(m)}
+                      onClick={() => setSelectedMemberProfile(m)}
                       className="font-semibold text-gray-900 hover:text-dmn-green-600 flex items-center gap-2 text-left transition-colors"
                     >
                       {nomComplet(m)}
@@ -227,7 +227,7 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                                     >
                                       <Edit3 size={12} className="text-dmn-green-600" /> Modifier
                                     </button>
-                                    {isAdmin && (
+                                    {(isAdmin || isCaisse) && (
                                       <button 
                                         onClick={() => {
                                           handleDeleteCotisation(existingCot.id);

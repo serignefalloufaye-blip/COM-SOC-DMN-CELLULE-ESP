@@ -21,10 +21,10 @@ interface AnnuelProps {
   dettes: Dette[];
   appSettings: any;
   globalSearch: string;
-  setSelectedMemberHistory: (m: Membre) => void;
+  setSelectedMemberProfile: (m: Membre) => void;
 }
 
-export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depenses, recettes, dettes, appSettings, globalSearch, setSelectedMemberHistory }: AnnuelProps) => {
+export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depenses, recettes, dettes, appSettings, globalSearch, setSelectedMemberProfile }: AnnuelProps) => {
   const { isMobile } = useAdaptive();
   const nomComplet = (m: Membre) => `${m.prenom} ${m.nom}`;
   
@@ -404,7 +404,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
               const paidMonthsCount = cotisations.filter(c => c.mId === m.id && c.annee === globalYear && c.montant > 0).length;
               
               return (
-                <div key={m.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex justify-between items-center group active:scale-[0.98] transition-transform" onClick={() => setSelectedMemberHistory(m)}>
+                <div key={m.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex justify-between items-center group active:scale-[0.98] transition-transform" onClick={() => setSelectedMemberProfile(m)}>
                   <div>
                     <h4 className="text-sm font-black text-gray-900">{nomComplet(m)}</h4>
                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">
@@ -441,7 +441,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
                   return (
                     <tr key={m.id} className="hover:bg-dmn-green-50/20 group transition-colors">
                       <td className="px-4 py-3 text-left whitespace-nowrap border-r border-gray-100 sticky left-0 bg-white z-10 group-hover:bg-dmn-green-50/20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)] transition-colors font-bold text-xs">
-                        <button onClick={() => setSelectedMemberHistory(m)} className="hover:text-dmn-green-600 text-gray-900 text-left transition-colors">
+                        <button onClick={() => setSelectedMemberProfile(m)} className="hover:text-dmn-green-600 text-gray-900 text-left transition-colors">
                           {nomComplet(m)}
                         </button>
                       </td>
