@@ -1069,12 +1069,16 @@ export default function App() {
   };
 
   const handleGeneralReminderWhatsApp = () => {
-    const message = `Assalamou haleykoum Mbokkou talibé yii,
-Nous vous rappelons amicalement de bien vouloir régulariser vos cotisations.
-Vous pouvez consulter votre état et payer directement par Wave via notre plateforme en cliquant sur ce lien :
+    const message = `*Assalamou halaykoum Mbokkou talibé yii* 👋
+
+Petit rappel pour vos cotisations de la Commission Sociale.
+
+Vous pouvez voir votre état et payer par *Wave* directement sur notre site :
 👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/
-Pour ceux qui souhaitent payer par Orange Money, merci de le faire directement au 77 095 26 47.
-Merci pour votre engagement envers la Commission Sociale du DMN`;
+
+Pour *Orange Money*, vous pouvez payer au 77 095 26 47.
+
+Merci pour votre engagement au sein du Daara ! 🙏`;
     
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');

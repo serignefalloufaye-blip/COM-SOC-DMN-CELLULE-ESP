@@ -157,22 +157,32 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center gap-2">
-                          <a 
-                            href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(`COMMISSION SOCIALE DMN - CELLULE ESP\nAssalamou halaykoum,\nCeci est un rappel pour votre contribution sociale mensuelle au Daara. Votre soutien est précieux pour nos actions. Paiement possible via Wave/OM au 770952647.\nQu’Allah vous récompense.`)}`}
-                            className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all shadow-sm"
-                            title="Rappel SMS"
-                          >
-                            <Smartphone size={18} />
-                          </a>
-                          <a 
-                            href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(`*📊 COMMISSION SOCIALE DMN - CELLULE ESP*\n\nAssalamou halaykoum Mbokkou talibé,\n\nNous vous rappelons la participation à la *Commission Sociale* pour le mois de *${fMois || MOIS[new Date().getMonth()]} ${globalYear}*. La mensualité est fixée à 500 FCFA (ou selon vos possibilités).\n\nVotre contribution est précieuse pour soutenir nos actions sociales et renforcer notre solidarité au sein de l'UCAD.\n\n*💡 Modalités de paiement*\n👉 *WAVE ou Orange Money* : *77 095 26 47* (Faye)\n\nJazakoumoullahou khayran pour votre engagement constant. 🙏`)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all shadow-sm"
-                            title="Rappel WhatsApp"
-                          >
-                            <MessageCircle size={18} />
-                          </a>
+                          {(() => {
+                            const unpaidMonthsList = status.unpaidMonths.join(', ');
+                            const smsBody = `Assalamou halaykoum. Rappel pour vos cotisations au Daara DMN. Il vous reste ${status.unpaidCount} mois à payer (${unpaidMonthsList}). Payez par Wave/OM au 770952647. Baraka Allahou fik.`;
+                            const waBody = `*Assalamou halaykoum* 👋\n\nC'est un petit rappel pour vos cotisations au *Daara DMN*.\n\nIl vous reste *${status.unpaidCount} mois* à payer : ${unpaidMonthsList}.\n\n💰 *Paiement (Wave ou OM)* : 77 095 26 47\n\nJazakoumoullahou khayran ! 🙏`;
+                            
+                            return (
+                              <>
+                                <a 
+                                  href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(smsBody)}`}
+                                  className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all shadow-sm"
+                                  title="Rappel SMS"
+                                >
+                                  <Smartphone size={18} />
+                                </a>
+                                <a 
+                                  href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(waBody)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all shadow-sm"
+                                  title="Rappel WhatsApp"
+                                >
+                                  <MessageCircle size={18} />
+                                </a>
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                       {(isAdmin || isCaisse) && (
@@ -236,8 +246,19 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                       </button>
                     )}
                     <div className="flex gap-2">
-                       <a href={`sms:${m.telephone}`} className="w-12 h-12 flex items-center justify-center bg-blue-50 text-blue-600 rounded-2xl"><Smartphone size={20} /></a>
-                       <a href={`https://wa.me/${m.telephone}`} className="w-12 h-12 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-2xl"><MessageCircle size={20} /></a>
+                      {(() => {
+                        const unpaidMonthsList = status.unpaidMonths.join(', ');
+                        const smsBody = `Assalamou halaykoum. Rappel pour vos cotisations au Daara DMN. Il vous reste ${status.unpaidCount} mois à payer (${unpaidMonthsList}). Payez par Wave/OM au 770952647. Baraka Allahou fik.`;
+                        const waBody = `*Assalamou halaykoum* 👋\n\nC'est un petit rappel pour vos cotisations au *Daara DMN*.\n\nIl vous reste *${status.unpaidCount} mois* à payer : ${unpaidMonthsList}.\n\n💰 *Paiement (Wave ou OM)* : 77 095 26 47\n\nJazakoumoullahou khayran ! 🙏`;
+                        const phone = m.telephone?.replace(/\s/g, '') || '';
+                        
+                        return (
+                          <>
+                            <a href={`sms:${phone}?body=${encodeURIComponent(smsBody)}`} className="w-12 h-12 flex items-center justify-center bg-blue-50 text-blue-600 rounded-2xl shadow-sm"><Smartphone size={20} /></a>
+                            <a href={`https://wa.me/${phone}?text=${encodeURIComponent(waBody)}`} target="_blank" rel="noopener noreferrer" className="w-12 h-12 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm"><MessageCircle size={20} /></a>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
