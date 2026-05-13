@@ -158,21 +158,22 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                       <td className="px-6 py-4">
                         <div className="flex justify-center gap-2">
                           {(() => {
-                            const unpaidMonthsList = status.unpaidMonths.join(', ');
-                            const smsBody = `Assalamou halaykoum. Rappel pour vos cotisations au Daara DMN. Il vous reste ${status.unpaidCount} mois à payer (${unpaidMonthsList}). Payez par Wave/OM au 770952647. Baraka Allahou fik.`;
-                            const waBody = `*Assalamou halaykoum* 👋\n\nC'est un petit rappel pour vos cotisations au *Daara DMN*.\n\nIl vous reste *${status.unpaidCount} mois* à payer : ${unpaidMonthsList}.\n\n💰 *Paiement (Wave ou OM)* : 77 095 26 47\n\nJazakoumoullahou khayran ! 🙏`;
+                            const smsBody = `Dieureudieufé Serigne Touba. Petit rappel fraternel pour votre Cotisation Mensuelle (500 FCFA). Jëf Jël ! Régularisez ici : https://com-soc-dmn-cellule-esp-delta.vercel.app/ ou au 770952647 (Wave/OM). Jaajëf Mûrid.`;
+                            
+                            const waBody = `*✨ JËF JËL - DAARA DMN CELLULE ESP ✨*\n\nAssalamou halaykoum Mbokkou talibé, \nNous vous prions de recevoir notre humble Ziar. 🙏\n\nDans l'esprit du service (Liggey) envers Serigne Touba, nous vous rappelons amicalement votre participation à la Commission Sociale.\n\n📌 *VOTRE RÉCAPITULATIF :*\n- 🗓️ Mois dus : *${status.unpaidMonths.join(', ')}*\n- 💰 Montant total : *${status.unpaidCount * 500} FCFA*\n\n✅ *POUR RÉGULARISER :*\n1️⃣ *Par Wave (Direct)* :\n👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/\n\n2️⃣ *Par Transfert (Wave/OM)* :\n📞 *77 095 26 47* (Faye)\n\nQue par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jëf Jël ! ✨`;
+                            const phone = m.telephone?.replace(/\s/g, '') || '';
                             
                             return (
                               <>
                                 <a 
-                                  href={`sms:${m.telephone?.replace(/\s/g, '')}?body=${encodeURIComponent(smsBody)}`}
+                                  href={`sms:${phone}?body=${encodeURIComponent(smsBody)}`}
                                   className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all shadow-sm"
                                   title="Rappel SMS"
                                 >
                                   <Smartphone size={18} />
                                 </a>
                                 <a 
-                                  href={`https://wa.me/${m.telephone?.replace(/\s/g, '')}?text=${encodeURIComponent(waBody)}`}
+                                  href={`https://wa.me/${phone}?text=${encodeURIComponent(waBody)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all shadow-sm"
@@ -246,10 +247,9 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                       </button>
                     )}
                     <div className="flex gap-2">
-                      {(() => {
-                        const unpaidMonthsList = status.unpaidMonths.join(', ');
-                        const smsBody = `Assalamou halaykoum. Rappel pour vos cotisations au Daara DMN. Il vous reste ${status.unpaidCount} mois à payer (${unpaidMonthsList}). Payez par Wave/OM au 770952647. Baraka Allahou fik.`;
-                        const waBody = `*Assalamou halaykoum* 👋\n\nC'est un petit rappel pour vos cotisations au *Daara DMN*.\n\nIl vous reste *${status.unpaidCount} mois* à payer : ${unpaidMonthsList}.\n\n💰 *Paiement (Wave ou OM)* : 77 095 26 47\n\nJazakoumoullahou khayran ! 🙏`;
+                    {(() => {
+                        const smsBody = `Dieureudieufé Serigne Touba. Petit rappel fraternel pour votre Cotisation Mensuelle (500 FCFA). Jëf Jël ! Régularisez ici : https://com-soc-dmn-cellule-esp-delta.vercel.app/ ou au 770952647 (Wave/OM). Jaajëf Mûrid.`;
+                        const waBody = `*✨ JËF JËL - DAARA DMN CELLULE ESP ✨*\n\nAssalamou halaykoum Mbokkou talibé, \nNous vous prions de recevoir notre humble Ziar. 🙏\n\nDans l'esprit du service (Liggey) envers Serigne Touba, nous vous rappelons amicalement votre participation à la Commission Sociale.\n\n📌 *VOTRE RÉCAPITULATIF :*\n- 🗓️ Mois dus : *${status.unpaidMonths.join(', ')}*\n- 💰 Montant total : *${status.unpaidCount * 500} FCFA*\n\n✅ *POUR RÉGULARISER :*\n1️⃣ *Par Wave (Direct)* :\n👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/\n\n2️⃣ *Par Transfert (Wave/OM)* :\n📞 *77 095 26 47* (Faye)\n\nQue par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jëf Jël ! ✨`;
                         const phone = m.telephone?.replace(/\s/g, '') || '';
                         
                         return (

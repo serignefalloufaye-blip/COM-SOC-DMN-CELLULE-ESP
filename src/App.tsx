@@ -1069,16 +1069,20 @@ export default function App() {
   };
 
   const handleGeneralReminderWhatsApp = () => {
-    const message = `*Assalamou halaykoum Mbokkou talibé yii* 👋
+    const message = `*📢 LIGGEYAL SERIGNE BI - COMMISSION SOCIALE DMN* 👋
 
-Petit rappel pour vos cotisations de la Commission Sociale.
+Dieureudieufé Serigne Touba ! Mbokkou talibé yii, nous vous adressons nos humbles Ziar.
 
-Vous pouvez voir votre état et payer par *Wave* directement sur notre site :
+Dans l'esprit du "Jëf Jël", nous vous invitons à régulariser vos cotisations mensuelles. Votre "Sas" est indispensable pour nos actions sociales et pour la baraka de notre Daara.
+
+📱 *COMMENT COTISER ?*
+1️⃣ *En ligne (Wave Direct)* :
 👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/
 
-Pour *Orange Money*, vous pouvez payer au 77 095 26 47.
+2️⃣ *Par Transfert (Wave ou OM)* :
+📞 *77 095 26 47* (Faye)
 
-Merci pour votre engagement au sein du Daara ! 🙏`;
+Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf Mûrid ! 🙏`;
     
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
