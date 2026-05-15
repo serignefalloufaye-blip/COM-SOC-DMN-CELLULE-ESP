@@ -200,46 +200,52 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
                 <table className="w-full text-left text-sm">
                   <thead className="bg-gray-100 text-gray-500">
                     <tr>
-                      <th className="p-3 font-bold w-1/3">Nature</th>
-                      <th className="p-3 font-bold w-32">Prix Total (FCFA)</th>
+                      <th className="p-3 font-bold w-1/3 text-[10px] uppercase tracking-widest">Nature</th>
+                      <th className="p-3 font-bold text-[10px] uppercase tracking-widest text-right">Montant Total (F CFA)</th>
                       <th className="p-3 w-10"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {charges.map((charge) => (
-                      <tr key={charge.id} className="bg-white">
-                        <td className="p-2">
-                          <input
-                            type="text"
-                            value={charge.nature}
-                            onChange={(e) => handleChargeChange(charge.id, 'nature', e.target.value)}
-                            placeholder="Matière, Transport..."
-                            className="w-full px-3 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                            required
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            min="0"
-                            value={charge.montant || ''}
-                            onChange={(e) => handleChargeChange(charge.id, 'montant', parseFloat(e.target.value))}
-                            placeholder="0"
-                            className="w-full px-3 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                            required
-                          />
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeChargeRow(charge.id)}
-                            className="text-red-400 hover:text-red-600 p-1"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {charges.map((charge) => {
+                      const isStandard = ['1', '2', '3', '4'].includes(charge.id);
+                      return (
+                        <tr key={charge.id} className="bg-white group">
+                          <td className="p-2">
+                            <input
+                              type="text"
+                              value={charge.nature}
+                              onChange={(e) => handleChargeChange(charge.id, 'nature', e.target.value)}
+                              placeholder="Matière, Transport..."
+                              className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all ${isStandard ? 'bg-gray-50 text-gray-400 font-bold italic' : ''}`}
+                              required
+                              readOnly={isStandard}
+                            />
+                          </td>
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={charge.montant || ''}
+                              onChange={(e) => handleChargeChange(charge.id, 'montant', parseFloat(e.target.value))}
+                              placeholder="0"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-right font-black text-gray-900"
+                              required
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            {!isStandard && (
+                              <button
+                                type="button"
+                                onClick={() => removeChargeRow(charge.id)}
+                                className="text-red-400 hover:text-red-600 p-1 opacity-100"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50">
