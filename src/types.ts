@@ -85,12 +85,20 @@ export type UserRole = 'admin' | 'caisse' | 'tickets' | 'cafe' | 'revendeur' | '
 
 export interface CafeVersement {
   id: string;
-  vendeurId: string;
+  vendeurId?: string;
+  sellerId?: string;
   date: number;
   montant: number;
   mode: 'WAVE' | 'OM' | 'ESPÈCES' | string;
   responsable?: string;
   createdAt: number;
+}
+export interface CafeClient {
+  id: string;
+  name: string;
+}
+export interface CafeOrder {
+  id: string;
 }
 
 export interface AppUser {
@@ -143,84 +151,84 @@ export interface TicketDistribution {
   createdAt?: number;
 }
 
+export interface ChargeProduction {
+  id: string;
+  nature: string;
+  quantite: number;
+  prixUnitaire: number;
+  montant: number;
+}
+
 export interface CafeProduction {
   id: string;
   date: number;
-  quantite: number;
-  coutUnitaire: number;
+  quantite: number; // kg
+  coutTotal: number;
+  charges?: ChargeProduction[];
+  // Legacy fields below:
+  coutUnitaire?: number;
   typeCafe?: '1kg' | '500g' | string;
-  total: number;
+  total?: number;
   responsable?: string;
-  remarque?: string;
+  observations?: string;
   createdAt?: number;
 }
 
 export interface CafeVente {
   id: string;
   date: number;
+  format: '1kg' | '500g' | string; // Use 'format' for consistency in modern code
+  type?: 'normale' | 'revendeur'; // 'normale' = direct, 'revendeur' = via seller
   quantite: number;
   prixUnitaire: number;
-  typeCafe?: '1kg' | '500g' | string;
-  typeVente?: 'Sur place' | 'Commande' | string;
+  total: number;
   vendeurId?: string;
   clientId?: string;
-  total: number;
   mode?: ModePaiement;
   responsable?: string;
   createdAt?: number;
+  // Legacy fields:
+  typeCafe?: string;
+  typeVente?: string;
 }
 
 export interface CafeDistribution {
   id: string;
   date: number;
-  celluleId: string;
-  typeCafe: '1kg' | '500g' | string;
+  sellerId: string;
+  format: '1kg' | '500g' | string;
   quantite: number;
-  prixUnitaire: number;
-  total: number;
+  prixVenteUnitaire?: number; // The price at which the seller should sell
+  commissionUnitaire?: number; // The commission per item
+  status?: 'en_cours' | 'vendu' | 'retourné';
   responsable?: string;
   createdAt: number;
+  // Legacy
+  celluleId?: string;
+  typeCafe?: string;
+  total?: number;
+  prixUnitaire?: number;
 }
 
 export interface CafeSeller {
   id: string;
-  nom: string;
-  cellule: string;
+  name: string;
   telephone?: string;
+  phone?: string;
   email?: string;
-  codeAcces?: string;
   active: boolean;
+  codeAcces?: string;
   createdAt: number;
-}
-
-export interface CafeClient {
-  id: string;
-  nom: string;
-  telephone?: string;
-  totalAchats: number;
-  lastAchat?: number;
-  createdAt: number;
-}
-
-export interface CafeOrder {
-  id: string;
-  date: number;
-  sellerId?: string;
-  sellerName?: string;
+  // Legacy
+  nom?: string;
   cellule?: string;
-  quantite: number;
-  typeCafe: '1kg' | '500g' | string;
-  status: 'EN_ATTENTE' | 'VALIDÉ' | 'ANNULÉ';
-  createdAt: number;
-  validatedAt?: number;
-  validatedBy?: string;
 }
 
 export interface CafeDepense {
   id: string;
   date: number;
-  motif: string;
-  categorie?: 'Matières premières' | 'Transport' | 'Autres' | string;
+  motif: string; // The description
+  categorie: string; // The type (e.g. 'fonctionnement', 'marketing')
   montant: number;
   responsable?: string;
   createdAt?: number;
@@ -237,8 +245,16 @@ export interface CafeTransfert {
 export interface CafePriceConfig {
   id: string;
   prices: {
-    '1kg': { cost: number; price: number };
-    '500g': { cost: number; price: number };
+    '1kg': { 
+      normal: number; 
+      reduc: number; 
+      cost: number;
+    };
+    '500g': { 
+      normal: number; 
+      reduc: number; 
+      cost: number;
+    };
   };
   lastUpdated: number;
 }

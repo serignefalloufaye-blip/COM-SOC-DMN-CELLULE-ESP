@@ -38,7 +38,7 @@ import { Skeleton, DashboardSkeleton } from './components/ui/Skeleton';
 
 // Lazy load heavy components
 const Tickets = lazy(() => import('./components/Tickets').then(m => ({ default: m.Tickets })));
-const CafeModule = lazy(() => import('./components/cafe/CafeModule').then(m => ({ default: m.CafeModule })));
+const CafeModule = lazy(() => import('./components/cafe/modern/CafeSuperModule').then(m => ({ default: m.CafeSuperModule })));
 const PremiumDashboard = lazy(() => import('./components/PremiumDashboard').then(m => ({ default: m.PremiumDashboard })));
 const MemberDashboard = lazy(() => import('./components/MemberDashboard'));
 const UserRoles = lazy(() => import('./components/UserRoles').then(m => ({ default: m.UserRoles })));

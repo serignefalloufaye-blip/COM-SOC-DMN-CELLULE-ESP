@@ -1,0 +1,226 @@
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { CafeSeller, CafeDistribution, CafeVersement } from '../../../types';
+import { formatPrice } from '../../../utils/format';
+import { simpleDate } from '../../../utils/date';
+import { Users, Truck, Wallet, Activity, Contact2, Box, Plus, Edit2, Trash2 } from 'lucide-react';
+import { hasPermission } from '../../../utils/permissions';
+import { AddResellerModal } from './modals/AddResellerModal';
+import { AddDistributionModal } from './modals/AddDistributionModal';
+import { AddVersementModal } from './modals/AddVersementModal';
+import { db } from '../../../firebase';
+import { doc, deleteDoc } from 'firebase/firestore';
+
+interface ResellerManagerProps {
+  sellers: CafeSeller[];
+  distributions: CafeDistribution[];
+  versements: CafeVersement[];
+  userRole: any;
+  isAdmin: boolean;
+  isCafeManager: boolean;
+  userId?: string;
+  showToast: (msg: string, type?: 'success' | 'error') => void;
+  confirmAction: (title: string, message: string, onConfirm: () => void) => void;
+}
+
+export function ResellerManager({ 
+  sellers, 
+  distributions, 
+  versements, 
+  userRole, 
+  isAdmin, 
+  isCafeManager, 
+  userId = '',
+  showToast,
+  confirmAction
+}: ResellerManagerProps) {
+  const canManageSellers = hasPermission(userRole, 'cafe.sellers.manage') && (isAdmin || isCafeManager);
+  const [isAddResellerModalOpen, setIsAddResellerModalOpen] = useState(false);
+  const [editingSeller, setEditingSeller] = useState<CafeSeller | null>(null);
+  const [selectedSellerForDist, setSelectedSellerForDist] = useState<CafeSeller | null>(null);
+  const [selectedSellerForVers, setSelectedSellerForVers] = useState<CafeSeller | null>(null);
+  const [soldeDuForVers, setSoldeDuForVers] = useState(0);
+
+  const handleDelete = async (id: string, name: string) => {
+    confirmAction(
+      "Supprimer le revendeur",
+      `Êtes-vous sûr de vouloir supprimer ${name} ? Cela n'effacera pas son historique, mais il ne pourra plus recevoir de café.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'cafe_sellers', id));
+          showToast("Revendeur supprimé !", "success");
+        } catch (err) {
+          showToast("Erreur lors de la suppression.", "error");
+        }
+      }
+    );
+  };
+
+  const handleEdit = (s: CafeSeller) => {
+    setEditingSeller(s);
+    setIsAddResellerModalOpen(true);
+  };
+
+  const handleOpenVersement = (seller: CafeSeller, solde: number) => {
+    setSoldeDuForVers(solde);
+    setSelectedSellerForVers(seller);
+  };
+
+  return (
+    <div className="space-y-8 pb-12">
+      <AddResellerModal 
+         isOpen={isAddResellerModalOpen}
+         onClose={() => {
+           setIsAddResellerModalOpen(false);
+           setEditingSeller(null);
+         }}
+         onSuccess={() => {
+           setIsAddResellerModalOpen(false);
+           setEditingSeller(null);
+           showToast(editingSeller ? "Profil mis à jour !" : "Revendeur ajouté !", "success");
+         }}
+         userId={userId}
+         editData={editingSeller}
+      />
+      <AddDistributionModal
+         isOpen={!!selectedSellerForDist}
+         onClose={() => setSelectedSellerForDist(null)}
+         onSuccess={() => setSelectedSellerForDist(null)}
+         userId={userId}
+         seller={selectedSellerForDist}
+      />
+      <AddVersementModal
+         isOpen={!!selectedSellerForVers}
+         onClose={() => setSelectedSellerForVers(null)}
+         onSuccess={() => setSelectedSellerForVers(null)}
+         userId={userId}
+         seller={selectedSellerForVers}
+         soldeDu={soldeDuForVers}
+      />
+      
+      {/* Network Header */}
+      <div className="premium-card p-10 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-40 h-40 bg-dmn-green-900/5 blur-3xl translate-x-1/2 -translate-y-1/2" />
+        
+        <div className="flex items-center gap-8 relative z-10">
+          <div className="w-20 h-20 bg-dmn-green-900 text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-dmn-green-900/20 active:scale-95 transition-transform">
+            <Users size={40} strokeWidth={2.5} />
+          </div>
+          <div>
+            <p className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] mb-2">Réseau Local Noreyni</p>
+            <h2 className="fintech-kpi text-4xl sm:text-5xl text-gray-900">
+              {sellers.filter(s => s.active).length} <span className="text-2xl text-gray-400 font-medium ml-2 uppercase tracking-tighter">Partenaires Aktifs</span>
+            </h2>
+          </div>
+        </div>
+        
+        {canManageSellers && (
+          <button 
+             onClick={() => setIsAddResellerModalOpen(true)} 
+             className="btn-primary h-[70px] px-12 group flex items-center justify-center gap-4"
+          >
+            <Plus size={24} strokeWidth={3} />
+            <span className="text-sm font-black uppercase tracking-widest">Nouveau Partenaire</span>
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {sellers.map(seller => {
+           const sellerDists = distributions.filter(d => d.sellerId === seller.id);
+           const totalRecu = sellerDists.reduce((a,b)=>a+b.quantite, 0);
+           const totalVendu = sellerDists.filter(d => d.status === 'vendu').reduce((a,b)=>a+b.quantite, 0);
+           const remaining = totalRecu - totalVendu;
+           
+           const totalCA = sellerDists.filter(d => d.status === 'vendu').reduce((a,b)=>a+((b.prixVenteUnitaire || 0)*b.quantite), 0);
+           const totalCommission = sellerDists.filter(d => d.status === 'vendu').reduce((a,b)=>a+((b.commissionUnitaire || 0)*b.quantite), 0);
+           
+           const sellerVers = versements.filter(v => v.sellerId === seller.id);
+           const totalVerses = sellerVers.reduce((a,b)=>a+b.montant, 0);
+           
+           const resteAVerser = (totalCA - totalCommission) - totalVerses;
+
+           return (
+             <motion.div 
+               key={seller.id} 
+               layout
+               initial={{ opacity: 0, y: 20 }} 
+               animate={{ opacity: 1, y: 0 }} 
+               className="premium-card p-8 flex flex-col group hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 ring-dmn-green-500/0 hover:ring-8"
+             >
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="fintech-heading text-2xl tracking-tighter">{seller.name || seller.nom}</h3>
+                    <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1 text-ellipsis overflow-hidden whitespace-nowrap max-w-[150px]">
+                       <Contact2 size={12} />
+                       {seller.telephone || seller.phone || 'Contact non renseigné'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {canManageSellers && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <button 
+                          onClick={() => handleEdit(seller)}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="Modifier"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(seller.id, seller.name || seller.nom || 'ce revendeur')}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <div className={`w-3 h-3 rounded-full shadow-lg ${seller.active ? 'bg-dmn-green-500 shadow-dmn-green-500/20' : 'bg-red-500 shadow-red-500/20'}`} />
+                  </div>
+                </div>
+                
+                <div className="space-y-3 mb-8">
+                  <div className="p-5 rounded-[1.5rem] bg-gray-50 flex justify-between items-center transition-colors group-hover:bg-white group-hover:shadow-soft">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Truck size={12}/> Volume Flux</span>
+                    <span className="fintech-kpi text-lg text-gray-900">{totalRecu} <span className="text-xs opacity-30 text-emerald-600">/ {totalVendu}</span></span>
+                  </div>
+                  <div className="p-5 rounded-[1.5rem] bg-gray-50 flex justify-between items-center transition-colors group-hover:bg-white group-hover:shadow-soft">
+                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Box size={12}/> Stock Dépôt</span>
+                     <span className={`fintech-kpi text-lg ${remaining > 0 ? 'text-dmn-green-900' : 'text-gray-400'}`}>{remaining} sacs</span>
+                  </div>
+                  <div className={`p-5 rounded-[1.5rem] border flex justify-between items-center transition-all 
+                     ${resteAVerser > 0 
+                        ? 'bg-dmn-gold/5 border-dmn-gold animate-pulse text-dmn-gold' 
+                        : 'bg-dmn-green-900 text-white border-transparent'}`}>
+                    <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 opacity-60"><Wallet size={12}/> Balance</span>
+                    <span className="fintech-kpi text-xl">{formatPrice(resteAVerser)} <span className="text-xs opacity-50 ml-1">F</span></span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                   <div className="flex gap-3">
+                      {canManageSellers && (
+                        <button 
+                           onClick={() => setSelectedSellerForDist(seller)} 
+                           className="flex-1 h-[54px] bg-gray-900 text-white rounded-[1.2rem] font-black text-[10px] uppercase tracking-widest transition-transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                           <Box size={14} /> Distribuer
+                        </button>
+                      )}
+                      {canManageSellers && resteAVerser > 0 && (
+                        <button 
+                           onClick={() => handleOpenVersement(seller, resteAVerser)} 
+                           className="flex-1 h-[54px] bg-dmn-green-900 text-white rounded-[1.2rem] font-black text-[10px] uppercase tracking-widest transition-transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                           <Wallet size={14} /> Encaisser
+                        </button>
+                      )}
+                   </div>
+                </div>
+             </motion.div>
+           )
+        })}
+      </div>
+    </div>
+  );
+}

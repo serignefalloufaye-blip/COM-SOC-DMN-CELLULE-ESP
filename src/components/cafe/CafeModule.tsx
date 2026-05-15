@@ -24,6 +24,7 @@ import { handleFirestoreError, OperationType } from '../../utils/firestoreErrorH
 import { simpleDate } from '../../utils/date';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { CafeProductionReport } from './CafeProductionReport';
 
 interface CafeModuleProps {
   productions: CafeProduction[];
@@ -313,7 +314,7 @@ export function CafeModule({
     const typeVente = typeVenteMap[fd.get('type') as 'sur place' | 'commande'] || 'Sur place';
     const sellerId = fd.get('sellerId') as string;
     const mode = fd.get('mode') as ModePaiement || 'ESPÈCES';
-    const price = priceConfig?.prices?.[format]?.price || (format === '1kg' ? 2500 : 1300);
+    const price = priceConfig?.prices?.[format]?.normal || (format === '1kg' ? 2500 : 1300);
 
     // Stock check
     if (sellerId) {
@@ -396,7 +397,7 @@ export function CafeModule({
     const qty = Number(fd.get('qty'));
     const format = fd.get('format') as '1kg' | '500g';
     const sellerId = fd.get('sellerId') as string;
-    const price = priceConfig?.prices?.[format]?.price || (format === '1kg' ? 2500 : 1300);
+    const price = priceConfig?.prices?.[format]?.normal || (format === '1kg' ? 2500 : 1300);
 
     const currentStock = format === '1kg' ? stockDaara1kg : stockDaara500g;
     if (qty > currentStock) {
@@ -973,6 +974,17 @@ export function CafeModule({
 
   const renderProduction = () => (
     <div className="space-y-6">
+      <CafeProductionReport 
+        ventes={ventes}
+        depenses={depenses}
+        productions={productions}
+        priceConfig={priceConfig}
+      />
+      
+      <div className="mt-8 mb-4">
+         <h2 className="text-lg font-black text-gray-900 uppercase tracking-widest pl-2 border-l-4 border-blue-500">Gestion des Flux de Production</h2>
+      </div>
+
       <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
         <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
            <Plus className="text-blue-500" /> Enregistrer une production
@@ -1049,18 +1061,26 @@ export function CafeModule({
               const p500 = Number(fd.get('p500'));
               
               const newPrices = {
-                 '1kg': { price: p1k, cost: priceConfig?.prices['1kg']?.cost || 0 },
-                 '500g': { price: p500, cost: priceConfig?.prices['500g']?.cost || 0 }
+                 '1kg': { 
+                   normal: p1k, 
+                   reduc: priceConfig?.prices?.['1kg']?.reduc || p1k,
+                   cost: priceConfig?.prices?.['1kg']?.cost || 0 
+                 },
+                 '500g': { 
+                   normal: p500, 
+                   reduc: priceConfig?.prices?.['500g']?.reduc || p500,
+                   cost: priceConfig?.prices?.['500g']?.cost || 0 
+                 }
               };
               handleUpdatePrices(newPrices);
            }} className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="space-y-1">
                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Prix Format 1 Kg</label>
-                 <input name="p1k" type="number" defaultValue={priceConfig?.prices['1kg']?.price || 2500} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black focus:outline-none focus:ring-2 ring-amber-500/20" required />
+                 <input name="p1k" type="number" defaultValue={priceConfig?.prices?.['1kg']?.normal || 2500} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black focus:outline-none focus:ring-2 ring-amber-500/20" required />
               </div>
               <div className="space-y-1">
                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Prix Format 500 g</label>
-                 <input name="p500" type="number" defaultValue={priceConfig?.prices['500g']?.price || 1300} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black focus:outline-none focus:ring-2 ring-amber-500/20" required />
+                 <input name="p500" type="number" defaultValue={priceConfig?.prices?.['500g']?.normal || 1300} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black focus:outline-none focus:ring-2 ring-amber-500/20" required />
               </div>
               <button type="submit" className="bg-amber-500 text-brown-900 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-white shadow-[0_8px_16px_-6px_rgba(245,158,11,0.4)] hover:shadow-[0_12px_20px_-8px_rgba(245,158,11,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all outline-none h-14 mt-auto">
                  Mettre à jour les prix

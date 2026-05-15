@@ -77,7 +77,7 @@ export function PremiumDashboard({
 
     const clientActivity = cafeVentes.reduce((acc: any, v) => {
        const client = cafeClients.find(c => c.id === v.clientId);
-       const nom = client?.nom || 'Anonyme';
+       const nom = client?.name || 'Anonyme';
        acc[nom] = (acc[nom] || 0) + v.total;
        return acc;
     }, {});
