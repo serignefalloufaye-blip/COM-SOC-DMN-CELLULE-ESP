@@ -2100,7 +2100,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
   return (
     <div className={`min-h-screen bg-dmn-bg text-gray-800 font-sans ${isMobile ? 'pb-32' : 'pb-10'} relative overflow-x-hidden`}>
       {/* Header Premium */}
-      <header className="bg-white/95 backdrop-blur-xl border-b border-gray-100/50 flex justify-between items-center px-4 sm:px-6 py-4 sticky top-0 z-[100] shadow-soft">
+      <header className="bg-white/95 border-b border-gray-100/50 flex justify-between items-center px-4 sm:px-6 py-4 sticky top-0 z-[100] shadow-soft">
         <div className="flex items-center gap-3 sm:gap-5">
           <button 
             className="sm:hidden p-2 -ml-2 text-gray-500 hover:text-gray-900 focus:outline-none"
@@ -2415,7 +2415,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
       </main>
 
       {/* Desktop Navigation */}
-      <nav className="hidden sm:flex max-w-7xl mx-auto px-6 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-[136px] z-[80] bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <nav className="hidden sm:flex max-w-7xl mx-auto px-6 py-4 overflow-x-auto no-scrollbar gap-2 print:hidden sticky top-[136px] z-[80] bg-white/80 border-b border-gray-100">
         {navigationTabs.map(tab => (
           <motion.button
             key={tab.id}
@@ -2509,7 +2509,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -2585,7 +2585,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -2655,7 +2655,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -2702,7 +2702,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -2757,7 +2757,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -2805,7 +2805,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -2878,7 +2878,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-md z-[500] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/40 z-[500] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -2922,7 +2922,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[600] flex items-center justify-center p-4 backdrop-blur-md"
+            className="fixed inset-0 bg-black/60 z-[600] flex items-center justify-center p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -3100,7 +3100,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] sm:hidden"
+              className="fixed inset-0 bg-black/60 z-[200] sm:hidden"
             />
             <motion.div 
               initial={{ x: '-100%' }}
@@ -3109,7 +3109,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed inset-y-0 left-0 w-[280px] bg-white z-[210] shadow-2xl flex flex-col sm:hidden overflow-y-auto"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-md z-10">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white/95 z-10">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-dmn-green-50 rounded-xl flex items-center justify-center p-0.5 overflow-hidden">
                     <img src={appSettings.logoUrl || "logo.png"} alt="Logo" className="w-full h-full object-contain p-1" />
@@ -3165,7 +3165,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             exit={{ opacity: 0, scale: 0.95, filter: 'blur(5px)', transition: { duration: 0.2 } }}
             className="fixed bottom-24 sm:bottom-10 left-1/2 -translate-x-1/2 sm:left-auto sm:right-10 z-[300] w-[90%] sm:w-auto"
           >
-            <div className={`flex items-center gap-4 px-6 py-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border backdrop-blur-2xl ${
+            <div className={`flex items-center gap-4 px-6 py-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border ${
               toast.type === 'success' 
                 ? 'bg-white/90 border-emerald-100 text-emerald-950' 
                 : toast.type === 'error'

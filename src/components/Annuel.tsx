@@ -30,7 +30,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
   
   const formatPrice = (p: number) => {
     if (p === undefined || p === null) return "0";
-    return p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return new Intl.NumberFormat('fr-FR').format(p);
   };
 
   const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
@@ -429,9 +429,9 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
         ) : (
           <div className="overflow-x-auto max-h-[700px] no-scrollbar">
             <table className="w-full text-center border-collapse">
-              <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-20 shadow-sm border-b border-gray-200">
+              <thead className="bg-gray-50 text-gray-600 sticky top-0 z-20 shadow-sm border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50/95 backdrop-blur-sm z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Membre</th>
+                  <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter text-left min-w-[140px] sm:min-w-[180px] border-b border-gray-200 sticky left-0 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-30">Membre</th>
                   {MOIS.map(m => <th key={m} className="px-1 py-4 font-black text-[9px] uppercase tracking-tighter border-b border-gray-200">{m.substring(0, 4)}</th>)}
                   <th className="px-4 py-4 font-black text-[10px] uppercase tracking-tighter border-b border-gray-200">Total</th>
                 </tr>
@@ -451,7 +451,7 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
                         if (!c) return <td key={mo} className="px-1 py-3 text-gray-300 border-r border-gray-50 text-[10px]">—</td>;
                         if (c.montant > 0) return (
                           <td key={mo} className="px-1 py-3 bg-dmn-green-50/50 text-dmn-green-700 font-black border-r border-dmn-green-100/30 text-[9px]">
-                            {c.montant / 100}..
+                            {Math.round(c.montant / 1000)}k
                           </td>
                         );
                         return <td key={mo} className="px-1 py-3 bg-red-50/50 text-red-600 font-black border-r border-red-100/30 text-[10px]">✗</td>;

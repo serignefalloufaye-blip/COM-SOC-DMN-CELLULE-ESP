@@ -35,10 +35,10 @@
 
 @layer utilities {
   .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-soft;
+    @apply bg-white/90 border border-white/40 shadow-soft;
   }
   .glass-dark {
-    @apply bg-dmn-green-900/85 backdrop-blur-xl border border-white/10;
+    @apply bg-dmn-green-900/95 border border-white/10;
   }
   .premium-card {
     @apply bg-white rounded-[2.5rem] border border-gray-100/80 shadow-soft hover:shadow-premium transition-all duration-500 ease-out;

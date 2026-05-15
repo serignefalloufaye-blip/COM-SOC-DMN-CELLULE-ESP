@@ -239,7 +239,7 @@ export const CotisationsTable: React.FC<CotisationsTableProps> = ({
       </div>
       <div className="overflow-x-auto max-h-[500px]">
         <table className="w-full text-sm text-center">
-          <thead className="bg-gray-50/80 backdrop-blur-sm text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
+          <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10 shadow-sm border-b border-gray-200">
             <tr>
               <th className="px-6 py-4 font-semibold text-xs uppercase text-left">Membre</th>
               <th className="px-6 py-4 font-semibold text-xs uppercase">Mois</th>

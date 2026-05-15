@@ -7,7 +7,7 @@ import { MOIS } from '../data';
 export class ReportService {
   private static formatCurrency(amount: number): string {
     if (amount === undefined || amount === null) return "0 FCFA";
-    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' FCFA';
+    return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
   }
 
   private static getMonthName(monthIndex: number): string {
@@ -352,8 +352,12 @@ export class ReportService {
           ];
         });
 
-        // Sort by total CA
-        revendeursData.sort((a, b) => parseInt(b[2] as string) - parseInt(a[2] as string));
+        // Sort by total CA (numeric value)
+        revendeursData.sort((a, b) => {
+          const valA = parseFloat(a[2].toString().replace(/[^\d]/g, ''));
+          const valB = parseFloat(b[2].toString().replace(/[^\d]/g, ''));
+          return valB - valA;
+        });
 
         autoTable(doc, {
           startY: currentY,

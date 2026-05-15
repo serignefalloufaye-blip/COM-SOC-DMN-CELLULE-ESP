@@ -314,7 +314,7 @@ export function PremiumDashboard({
         {smartInsights.length > 0 && (
           <div className="hidden sm:flex flex-col gap-2">
             {smartInsights.map((insight, idx) => (
-              <div key={idx} className="bg-white/50 backdrop-blur-sm border border-gray-100 py-2.5 px-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-right-4 duration-500 shadow-sm">
+              <div key={idx} className="bg-white/80 border border-gray-100 py-2.5 px-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-right-4 duration-500 shadow-sm">
                 <insight.icon size={16} className={insight.color} />
                 <p className="text-[10px] font-bold text-gray-600 leading-none">{insight.text}</p>
               </div>
@@ -346,7 +346,7 @@ export function PremiumDashboard({
                   </h2>
                 </div>
               </div>
-              <div className="p-2.5 sm:p-4 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-xl sm:rounded-3xl shadow-lg ring-1 ring-white/20 hover:scale-110 transition-transform cursor-help">
+              <div className="p-2.5 sm:p-4 bg-white/20 border border-white/20 rounded-xl sm:rounded-3xl shadow-lg ring-1 ring-white/20 hover:scale-110 transition-transform cursor-help">
                 <LayoutGrid size={18} className="text-dmn-gold-light sm:block hidden" />
                 <Zap size={18} className="text-dmn-gold-light sm:hidden" />
               </div>
