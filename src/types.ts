@@ -216,6 +216,7 @@ export interface CafeSeller {
   telephone?: string;
   phone?: string;
   email?: string;
+  password?: string;
   active: boolean;
   codeAcces?: string;
   createdAt: number;

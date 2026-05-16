@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus, Trash2, Calendar, Package, DollarSign, Loader2 } from 'lucide-react';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../firebase';
-import { ChargeProduction } from '../../../../types';
-import { ModePaiement } from '../../../../types';
+import { ChargeProduction, ModePaiement, CafeProduction } from '../../../../types';
 
 interface AddProductionModalProps {
   isOpen: boolean;
@@ -23,7 +22,8 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
   const [charges, setCharges] = useState<ChargeProduction[]>([
     { id: '1', nature: 'Grains de Café', quantite: 1, prixUnitaire: 0, montant: 0 },
     { id: '2', nature: 'Transport', quantite: 1, prixUnitaire: 0, montant: 0 },
-    { id: '3', nature: 'Transfert / Moulage', quantite: 1, prixUnitaire: 0, montant: 0 },
+    { id: '3', nature: 'Transfert', quantite: 1, prixUnitaire: 0, montant: 0 },
+    { id: '5', nature: 'Moulage', quantite: 1, prixUnitaire: 0, montant: 0 },
     { id: '4', nature: 'Emballage', quantite: 1, prixUnitaire: 0, montant: 0 }
   ]);
 
@@ -43,7 +43,8 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
       setCharges([
         { id: '1', nature: 'Grains de Café', quantite: 1, prixUnitaire: 0, montant: 0 },
         { id: '2', nature: 'Transport', quantite: 1, prixUnitaire: 0, montant: 0 },
-        { id: '3', nature: 'Transfert / Moulage', quantite: 1, prixUnitaire: 0, montant: 0 },
+        { id: '3', nature: 'Transfert', quantite: 1, prixUnitaire: 0, montant: 0 },
+        { id: '5', nature: 'Moulage', quantite: 1, prixUnitaire: 0, montant: 0 },
         { id: '4', nature: 'Emballage', quantite: 1, prixUnitaire: 0, montant: 0 }
       ]);
     }
@@ -157,7 +158,7 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
                     <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="date"
-                      value={date}
+                      value={date ?? ''}
                       onChange={(e) => setDate(e.target.value)}
                       className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                       required
@@ -172,9 +173,9 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
                       type="number"
                       step="0.1"
                       min="0.1"
-                      value={quantite || ''}
-                      onChange={(e) => setQuantite(parseFloat(e.target.value))}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                      value={Number.isNaN(quantite) ? 0 : quantite}
+                      onChange={(e) => setQuantite(parseFloat(e.target.value) || 0)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       required
                       placeholder="Ex: 50"
                     />
@@ -207,13 +208,13 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {charges.map((charge) => {
-                      const isStandard = ['1', '2', '3', '4'].includes(charge.id);
+                      const isStandard = ['1', '2', '3', '4', '5'].includes(charge.id);
                       return (
                         <tr key={charge.id} className="bg-white group">
                           <td className="p-2">
                             <input
                               type="text"
-                              value={charge.nature}
+                              value={charge.nature ?? ''}
                               onChange={(e) => handleChargeChange(charge.id, 'nature', e.target.value)}
                               placeholder="Matière, Transport..."
                               className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all ${isStandard ? 'bg-gray-50 text-gray-400 font-bold italic' : ''}`}
@@ -225,10 +226,10 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
                             <input
                               type="number"
                               min="0"
-                              value={charge.montant || ''}
-                              onChange={(e) => handleChargeChange(charge.id, 'montant', parseFloat(e.target.value))}
+                              value={Number.isNaN(charge.montant) ? 0 : charge.montant}
+                              onChange={(e) => handleChargeChange(charge.id, 'montant', parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-right font-black text-gray-900"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-right font-black text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               required
                             />
                           </td>
@@ -263,7 +264,7 @@ export function AddProductionModal({ isOpen, onClose, onSuccess, userId, editDat
             <div className="space-y-4">
               <label className="block text-sm font-bold text-gray-700 mb-1 px-2">Observations (Optionnel)</label>
               <textarea
-                value={observations}
+                value={observations ?? ''}
                 onChange={(e) => setObservations(e.target.value)}
                 className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all resize-none h-24"
                 placeholder="Détails supplémentaires..."

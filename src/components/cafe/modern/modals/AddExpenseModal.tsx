@@ -84,10 +84,10 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, userId, editData }
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col"
+          className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
         >
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+          <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900 flex items-center gap-2">
               <Receipt size={20} className="text-orange-500" />
               {editData ? 'Modifier la Dépense' : 'Nouvelle Dépense'}
             </h2>
@@ -96,7 +96,7 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, userId, editData }
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto no-scrollbar">
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium border border-red-100">
                 {error}
@@ -123,7 +123,7 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, userId, editData }
               <label className="block text-sm font-bold text-gray-700 mb-1">Motif / Description</label>
               <input
                 type="text"
-                value={motif}
+                value={motif ?? ''}
                 onChange={(e) => setMotif(e.target.value)}
                 placeholder="Ex: Achat de tasses, paiement facture courant..."
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
@@ -136,9 +136,9 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, userId, editData }
               <input
                 type="number"
                 min="0"
-                value={montant || ''}
+                value={Number.isNaN(montant) ? 0 : montant}
                 onChange={(e) => setMontant(parseInt(e.target.value) || 0)}
-                className="w-full px-4 py-2 text-lg font-black border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                className="w-full px-4 py-2 text-lg font-black border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 required
               />
             </div>

@@ -86,10 +86,10 @@ export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
+          className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"
         >
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+          <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900 flex items-center gap-2">
               <Wallet size={20} className="text-emerald-500" />
               {editData ? 'Modifier le Versement' : `Versement ${seller?.name || 'Revendeur'}`}
             </h2>
@@ -98,7 +98,7 @@ export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, 
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto no-scrollbar">
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium border border-red-100">
                 {error}
@@ -131,16 +131,16 @@ export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, 
                   type="number"
                   min="1"
                   max={soldeDu > 0 ? soldeDu : undefined}
-                  value={montant || ''}
+                  value={Number.isNaN(montant) ? 0 : montant}
                   onChange={(e) => setMontant(parseInt(e.target.value) || 0)}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-black text-lg"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-black text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   required
                 />
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Mode</label>
                 <select
-                  value={mode}
+                  value={mode ?? 'Espèces'}
                   onChange={(e) => setMode(e.target.value as ModePaiement)}
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all appearance-none bg-white"
                 >

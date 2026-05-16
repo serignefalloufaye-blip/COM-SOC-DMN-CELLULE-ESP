@@ -102,8 +102,8 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
               <div className="relative group">
                 <input 
                   type="number" 
-                  value={bulkAmount}
-                  onChange={(e) => setBulkAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                  value={bulkAmount === '' || Number.isNaN(bulkAmount) ? '' : bulkAmount}
+                  onChange={(e) => setBulkAmount(e.target.value === '' ? '' : (Number(e.target.value) || 0))}
                   placeholder="Montant"
                   className="w-24 bg-white border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-dmn-green-500/20 outline-none transition-all pr-8"
                 />
@@ -262,8 +262,8 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                     <input 
                       type="number"
                       placeholder="500"
-                      value={currentAmount}
-                      onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
+                      value={currentAmount === '' || Number.isNaN(currentAmount) ? '' : currentAmount}
+                      onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : (Number(e.target.value) || 0)})}
                       className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:border-dmn-green-500 focus:ring-2 focus:ring-dmn-green-500/20 bg-white shadow-sm transition-all w-24"
                     />
                     {selectedMonths.length > 1 && currentAmount !== '' && (
@@ -327,8 +327,8 @@ export const SaisieRapide: React.FC<SaisieRapideProps> = ({
                     <input 
                       type="number"
                       placeholder="500"
-                      value={currentAmount}
-                      onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : Number(e.target.value)})}
+                      value={currentAmount === '' || Number.isNaN(currentAmount) ? '' : currentAmount}
+                      onChange={(e) => setQuickAmounts({...quickAmounts, [m.id]: e.target.value === '' ? '' : (Number(e.target.value) || 0)})}
                       className="border border-gray-200 rounded-2xl pl-3 pr-8 py-2.5 text-sm font-black focus:outline-none focus:border-dmn-green-500 bg-gray-50/50 shadow-inner w-24 text-right"
                     />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-400">F</span>

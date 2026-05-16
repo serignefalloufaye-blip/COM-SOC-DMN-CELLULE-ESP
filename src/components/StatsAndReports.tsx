@@ -5,7 +5,7 @@ import {
 import { 
   Wallet, Ticket, Coffee, Printer, Table,
   TrendingUp, TrendingDown, ArrowRight, Calculator, Sparkles, AlertCircle,
-  BarChart3, Download
+  BarChart3, Download, BrainCircuit, CheckCircle2, Users
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { MOIS } from '../data';
@@ -200,6 +200,11 @@ export function StatsAndReports({
     showToast("Fichier Excel généré avec succès", 'success');
   };
 
+  const generateMembresExcel = () => {
+    ReportService.generateMembersExcel(membres);
+    showToast("Registre des membres exporté", 'success');
+  };
+
   // CAISSE
   const statsCaisse = useMemo(() => {
     const totalIn = cotisations.reduce((s, c) => s + c.montant, 0) + recettes.reduce((s, r) => s + r.montant, 0);
@@ -237,6 +242,12 @@ export function StatsAndReports({
     const list: { label: string, type: 'success' | 'warning' | 'info' | 'danger' }[] = [];
     
     if (activeTab === 'caisse') {
+      const socialInsights = ReportService.getSocialInsights({ cotisations: filteredCots, depenses: filteredDeps, membres });
+      socialInsights.forEach(text => {
+        const type = text.includes('Alerte') ? 'danger' : text.includes('Taux') ? 'success' : 'info';
+        list.push({ label: text, type });
+      });
+
       if (soldeCaisse > 0) list.push({ label: `Le bénéfice global du Daara est de ${formatPrice(soldeCaisse)} pour cette période.`, type: 'success' });
       else if (soldeCaisse < 0) list.push({ label: `Alerte : Déficit financier de ${formatPrice(Math.abs(soldeCaisse))} sur cette période.`, type: 'danger' });
 
@@ -249,14 +260,28 @@ export function StatsAndReports({
     }
 
     if (activeTab === 'cafe') {
-      if (beneficeCafe > 0) list.push({ label: `Le café génère un bénéfice net de ${formatPrice(beneficeCafe)}.`, type: 'success' });
-      else list.push({ label: "Le module café est actuellement en déficit sur cette période.", type: 'warning' });
+      const cafeInsights = ReportService.getCafeInsights({ ventes: filteredCafeVentes, productions: filteredCafeProd, depenses: filteredCafeDep });
+      cafeInsights.forEach(text => {
+        const type = text.includes('Attention') || text.includes('élevées') ? 'warning' : 'success';
+        list.push({ label: text, type });
+      });
     }
 
-    return list.slice(0, 3);
+    return list.slice(0, 4);
   };
 
-  const currentInsights = useMemo(generateInsights, [activeTab, soldeCaisse, totDettesEnAttente, stockPD, stockRepas, beneficeCafe]);
+  const currentInsights = useMemo(generateInsights, [activeTab, soldeCaisse, totDettesEnAttente, stockPD, stockRepas, beneficeCafe, filteredCots, filteredDeps, filteredCafeVentes, filteredCafeProd, filteredCafeDep, membres]);
+
+  const paymentMethodBreakdown = useMemo(() => {
+    const data = { WAVE: 0, OM: 0, 'ESPÈCES': 0 };
+    filteredCots.forEach(c => {
+       if (data[c.mode] !== undefined) data[c.mode] += c.montant;
+    });
+    filteredRecs.forEach(r => {
+       if (data[r.mode] !== undefined) data[r.mode] += r.montant;
+    });
+    return Object.entries(data).map(([name, value]) => ({ name, value }));
+  }, [filteredCots, filteredRecs]);
 
   return (
     <motion.div 
@@ -265,27 +290,27 @@ export function StatsAndReports({
       className="max-w-6xl mx-auto space-y-10 pb-40 px-4 sm:px-6"
     >
       {/* 🧭 HEADER & FILTERS */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 sm:gap-8 bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] shadow-soft border border-gray-100">
-        <div className="space-y-1 sm:space-y-2">
-          <h2 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tighter">Centre d'Analyses</h2>
-          <p className="text-[9px] sm:text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.2em] sm:tracking-[0.4em] flex items-center gap-2">
-             <BarChart3 size={14} /> Intelligence de Gestion ({selectedYear})
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 sm:gap-10 bg-white p-6 sm:p-12 rounded-[2.5rem] sm:rounded-[3.5rem] shadow-premium border border-gray-100">
+        <div className="space-y-2 sm:space-y-3">
+          <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tighter leading-none">Bilan & Rapports</h2>
+          <p className="text-[10px] sm:text-xs font-black text-dmn-green-600 uppercase tracking-[0.3em] flex items-center gap-2">
+             <BarChart3 size={16} /> Intelligence de Gestion • {selectedYear}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+          <div className="flex flex-col gap-4 w-full lg:flex-row lg:items-center">
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-black rounded-xl px-4 py-2.5 h-[48px] focus:outline-none focus:ring-2 focus:ring-dmn-green-500 transition-all cursor-pointer"
+              className="bg-gray-50 border border-gray-200 text-gray-900 text-sm font-black rounded-2xl px-6 py-3 h-[54px] focus:outline-none focus:ring-2 focus:ring-dmn-green-500 transition-all cursor-pointer w-full sm:w-auto"
             >
               {[new Date().getFullYear(), new Date().getFullYear()-1, new Date().getFullYear()-2].map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
 
-            <div className="flex bg-gray-100 p-1.5 rounded-[1.5rem] overflow-x-auto no-scrollbar w-full">
+            <div className="flex bg-gray-100 p-2 rounded-[2rem] overflow-x-auto no-scrollbar w-full sm:w-auto">
               {[
                 { id: 'mensuel', label: 'Mois' },
                 { id: 'trimestriel', label: 'Trim.' },
@@ -296,8 +321,8 @@ export function StatsAndReports({
                   key={p.id}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setFilterPeriod(p.id as any)}
-                  className={`flex-1 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    filterPeriod === p.id ? 'bg-white text-dmn-green-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'
+                  className={`flex-1 px-5 py-3 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                    filterPeriod === p.id ? 'bg-white text-dmn-green-900 shadow-md border border-gray-100' : 'text-gray-400 hover:text-gray-600'
                   }`}
                 >
                   {p.label}
@@ -362,6 +387,13 @@ export function StatsAndReports({
             >
               <Table size={18} strokeWidth={2.5} />
             </button>
+            <button 
+              onClick={generateMembresExcel}
+              className="w-[54px] h-[54px] flex items-center justify-center bg-dmn-green-50 text-dmn-green-700 rounded-2xl hover:bg-dmn-green-100 shadow-sm hover:shadow active:scale-95 transition-all outline-none border border-dmn-green-100"
+              title="Exporter Registre Membres"
+            >
+              <Users size={18} strokeWidth={2.5} />
+            </button>
           </div>
         </div>
       </div>
@@ -393,7 +425,7 @@ export function StatsAndReports({
       </div>
 
       {/* 🧭 NAVIGATION TABS */}
-      <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-1">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar py-4 px-1 sticky top-0 sm:top-2 bg-gray-50/80 backdrop-blur-xl z-20 -mx-4 px-4">
         {[
           { id: 'caisse', label: 'Caisse Sociale', icon: Wallet, color: 'dmn-green', isVisible: userRole === 'admin' || userRole === 'caisse' || userRole === 'lecteur' },
           { id: 'tickets', label: 'Tickets & Repas', icon: Ticket, color: 'amber', isVisible: userRole === 'admin' || userRole === 'tickets' || userRole === 'lecteur' },
@@ -404,13 +436,13 @@ export function StatsAndReports({
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-3 px-8 py-4 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] transition-all border-2 ${
+            className={`flex items-center gap-3 px-6 sm:px-10 py-5 rounded-[2.5rem] font-black text-xs sm:text-sm uppercase tracking-[0.2em] transition-all border-2 whitespace-nowrap ${
               activeTab === tab.id 
-                ? `bg-gray-900 text-white border-gray-900 shadow-2xl` 
+                ? `bg-gray-900 text-white border-gray-900 shadow-premium` 
                 : 'bg-white text-gray-400 border-gray-100 hover:border-gray-200'
             }`}
           >
-            <tab.icon size={18} className={activeTab === tab.id ? 'text-dmn-gold' : 'text-gray-300'} />
+            <tab.icon size={20} className={activeTab === tab.id ? 'text-dmn-gold' : 'text-gray-300'} />
             {tab.label}
           </motion.button>
         ))}
@@ -484,7 +516,7 @@ export function StatsAndReports({
             </div>
           </div>
 
-          <div className="h-80 w-full">
+          <div className="h-64 sm:h-80 w-full mb-8">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={statsCaisse.monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -498,6 +530,18 @@ export function StatsAndReports({
                 <Bar dataKey="Dépenses" fill="#F87171" radius={[4, 4, 0, 0]} barSize={24} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          <div className="pt-8 border-t border-gray-100">
+             <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">Répartition par Mode de Paiement</h4>
+             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {paymentMethodBreakdown.map((m, i) => (
+                  <div key={m.name} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{m.name}</span>
+                     <span className="text-sm font-black text-gray-900">{formatPrice(m.value)}</span>
+                  </div>
+                ))}
+             </div>
           </div>
         </div>
       </div>

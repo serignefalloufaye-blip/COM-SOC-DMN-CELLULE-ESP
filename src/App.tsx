@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, AlertCircle, CheckCircle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key, QrCode, Share2, UserCheck,
-  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu, Loader2
+  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu, Loader2, FileText, FileSpreadsheet, ShieldCheck
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -571,7 +571,7 @@ export default function App() {
       }, (error) => handleFirestoreError(error, OperationType.GET, 'cafe_clients'));
       unsubs.push(unsubCafeClients);
 
-      const unsubCafePriceConfig = onSnapshot(doc(db, 'settings', 'cafe_prices'), (snapshot) => {
+      const unsubCafePriceConfig = onSnapshot(doc(db, 'cafe_config', 'prices'), (snapshot) => {
         if (snapshot.exists()) {
           setCafePriceConfig({ id: snapshot.id, ...snapshot.data() } as CafePriceConfig);
         }
@@ -1537,119 +1537,189 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
     const solde = totCot + totRec - totDep;
 
     const generatePDF = (periodType: 'annuel' | 'trimestriel' | 'mensuel', pValue?: string | number) => {
-      ReportService.generateFinancialReport({
-        type: periodType,
-        year: globalYear,
-        month: periodType === 'mensuel' ? pValue as string : undefined,
-        quarter: periodType === 'trimestriel' ? pValue as number : undefined,
-        activeTab: 'all',
-        membres,
-        cotisations,
-        depenses,
-        recettes,
-        dettes,
-        ticketsCollectes: ticketCollectes,
-        ticketsDistributions: ticketDistributions,
-        cafeProductions,
-        cafeVentes,
-        cafeDepenses
-      });
-      showToast(`Rapport ${periodType} généré`, 'success');
+      try {
+        ReportService.generateFinancialReport({
+          type: periodType,
+          year: globalYear,
+          month: periodType === 'mensuel' ? pValue as string : undefined,
+          quarter: periodType === 'trimestriel' ? pValue as number : undefined,
+          activeTab: 'all',
+          membres,
+          cotisations: annualCotisations,
+          depenses,
+          recettes,
+          dettes,
+          ticketsCollectes: ticketCollectes,
+          ticketsDistributions: ticketDistributions,
+          cafeProductions,
+          cafeVentes,
+          cafeDepenses
+        });
+        showToast(`Rapport PDF ${periodType} généré`, 'success');
+      } catch (err) {
+        showToast("Erreur lors de la génération du PDF", "error");
+      }
+    };
+
+    const generateExcel = (periodType: 'annuel' | 'trimestriel' | 'mensuel', pValue?: string | number) => {
+      try {
+        ReportService.generateExcelReport({
+          type: periodType,
+          year: globalYear,
+          month: periodType === 'mensuel' ? pValue as string : undefined,
+          quarter: periodType === 'trimestriel' ? pValue as number : undefined,
+          activeTab: 'all',
+          cotisations: annualCotisations,
+          depenses,
+          recettes,
+          dettes,
+          ticketsCollectes: ticketCollectes,
+          ticketsDistributions: ticketDistributions,
+          cafeProductions,
+          cafeVentes,
+          cafeDepenses
+        });
+        showToast(`Rapport Excel ${periodType} généré`, 'success');
+      } catch (err) {
+        showToast("Erreur lors de la génération de l'Excel", "error");
+      }
     };
 
     return (
-      <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 relative overflow-hidden">
+      <div className="space-y-8 animate-in fade-in duration-500 pb-20 px-4 sm:px-0">
+        <div className="bg-white rounded-[2rem] sm:rounded-3xl shadow-xl border border-gray-100 p-6 sm:p-10 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-dmn-green-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
           
-          <h2 className="text-3xl font-heading font-black text-dmn-green-900 mb-2 relative z-10">Centre de Rapports Sophistiqué</h2>
-          <p className="text-gray-500 mb-8 relative z-10 font-medium">Documents certifiés incluant Finances, Tickets et Café.</p>
+          <div className="relative z-10 text-center sm:text-left">
+            <h2 className="text-2xl sm:text-4xl font-heading font-black text-dmn-green-900 mb-2">Centre de Rapports</h2>
+            <p className="text-gray-500 mb-8 font-medium text-sm sm:text-base">Archives certifiées de l'activité du Daara.</p>
+          </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
             {/* Annual Card */}
-            <div className="bg-white rounded-3xl border border-dmn-green-100 p-6 hover:shadow-lg transition-all group overflow-hidden relative">
+            <div className="bg-white rounded-3xl border border-dmn-green-100 p-6 sm:p-8 hover:shadow-2xl transition-all group overflow-hidden relative">
               <div className="absolute top-0 right-0 p-2 bg-dmn-green-100 text-dmn-green-600 rounded-bl-2xl font-black text-[9px] uppercase tracking-widest">Premium</div>
-              <div className="w-12 h-12 bg-dmn-green-50 text-dmn-green-600 rounded-xl flex items-center justify-center mb-4">
+              <div className="w-12 h-12 bg-dmn-green-50 text-dmn-green-600 rounded-2xl flex items-center justify-center mb-6">
                 <CalendarRange size={24} />
               </div>
-              <h4 className="text-lg font-black text-gray-900 mb-2">Bilan Annuel {globalYear}</h4>
-              <p className="text-xs text-gray-400 mb-6 font-bold leading-relaxed">Rapport exhaustif regroupant tous les modules de l'année.</p>
-              <button 
-                onClick={() => generatePDF('annuel')}
-                className="w-full bg-dmn-green-950 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
-              >
-                <Printer size={14} /> Générer PDF Annuel
-              </button>
+              <h4 className="text-xl font-black text-gray-900 mb-2">Bilan Annuel {globalYear}</h4>
+              <p className="text-xs text-gray-400 mb-8 font-bold leading-relaxed">Compilation complète de toutes les données annuelles.</p>
+              
+              <div className="space-y-3">
+                <button 
+                  onClick={() => generatePDF('annuel')}
+                  className="w-full bg-dmn-green-950 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3"
+                >
+                  <FileText size={16} /> Rapport PDF Complet
+                </button>
+                <button 
+                  onClick={() => generateExcel('annuel')}
+                  className="w-full bg-gray-50 text-gray-600 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 transition-all border border-gray-100 active:scale-95 flex items-center justify-center gap-3"
+                >
+                  <FileSpreadsheet size={16} /> Tableur Excel (.xlsx)
+                </button>
+              </div>
             </div>
 
             {/* Quarterly Card */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 hover:shadow-lg transition-all group">
-              <div className="w-12 h-12 bg-ambe-50 text-amber-600 rounded-xl flex items-center justify-center mb-4">
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 hover:shadow-2xl transition-all group">
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mb-6">
                 <BarChart3 size={24} />
               </div>
-              <h4 className="text-lg font-black text-gray-900 mb-2">Bilans Trimestriels</h4>
-              <p className="text-xs text-gray-400 mb-6 font-bold leading-relaxed">Divisez l'année en 4 périodes pour un suivi agile.</p>
-              <div className="grid grid-cols-2 gap-2">
+              <h4 className="text-xl font-black text-gray-900 mb-2">Trimestriels</h4>
+              <p className="text-xs text-gray-400 mb-8 font-bold leading-relaxed">Synthèses des performances par trimestre (T1-T4).</p>
+              <div className="grid grid-cols-2 gap-3">
                 {[1, 2, 3, 4].map(q => (
-                  <button 
-                    key={q}
-                    onClick={() => generatePDF('trimestriel', q)}
-                    className="py-2.5 bg-gray-50 hover:bg-dmn-green-50 text-gray-600 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-tighter rounded-xl transition-all"
-                  >
-                    T{q} PDF
-                  </button>
+                  <div key={q} className="flex flex-col gap-1.5">
+                    <button 
+                      onClick={() => generatePDF('trimestriel', q)}
+                      className="py-3 bg-gray-50 hover:bg-dmn-green-50 text-gray-600 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-tighter rounded-xl transition-all border border-gray-100"
+                    >
+                      T{q} PDF
+                    </button>
+                    <button 
+                      onClick={() => generateExcel('trimestriel', q)}
+                      className="py-2 bg-white hover:bg-blue-50 text-gray-400 hover:text-blue-600 text-[8px] font-black uppercase tracking-tighter rounded-lg transition-all border border-gray-50"
+                    >
+                      T{q} EXCEL
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
 
             {/* Monthly Card */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 hover:shadow-lg transition-all group overflow-y-auto max-h-[300px] no-scrollbar">
-              <div className="sticky top-0 bg-white pb-4 z-10 border-b border-gray-50 mb-4">
-                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 hover:shadow-2xl transition-all group flex flex-col">
+              <div className="bg-white pb-6 border-b border-gray-50 mb-4 shrink-0">
+                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4">
                    <Calendar size={24} />
                  </div>
-                 <h4 className="text-lg font-black text-gray-900">Rapports Mensuels</h4>
+                 <h4 className="text-xl font-black text-gray-900">Mensuels</h4>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 overflow-y-auto max-h-[350px] no-scrollbar pr-1 -mr-1">
                 {MOIS.map(m => (
-                  <button 
-                    key={m}
-                    onClick={() => generatePDF('mensuel', m)}
-                    className="w-full py-2.5 px-4 flex justify-between items-center group/btn hover:bg-dmn-green-50 text-gray-500 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-gray-50 hover:border-dmn-green-100"
-                  >
-                    <span>{m}</span>
-                    <ChevronRight size={12} className="opacity-0 group-hover/btn:opacity-100 transition-opacity" />
-                  </button>
+                  <div key={m} className="flex gap-2">
+                    <button 
+                      onClick={() => generatePDF('mensuel', m)}
+                      className="flex-1 py-3 px-4 flex justify-between items-center group/btn hover:bg-dmn-green-50 text-gray-500 hover:text-dmn-green-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-gray-50 hover:border-dmn-green-100"
+                    >
+                      <span>{m}</span>
+                      <FileText size={14} className="opacity-0 group-hover/btn:opacity-100 transition-opacity" />
+                    </button>
+                    <button 
+                      onClick={() => generateExcel('mensuel', m)}
+                      className="w-12 flex items-center justify-center bg-gray-50 hover:bg-blue-50 text-gray-300 hover:text-blue-500 rounded-xl transition-all"
+                      title={`Excel ${m}`}
+                    >
+                      <FileSpreadsheet size={16} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden max-w-4xl mx-auto shadow-dmn-green-900/5">
-          <div className="bg-dmn-green-950 p-10 text-white text-center relative">
-            <div className="absolute top-1/2 left-10 -translate-y-1/2 opacity-10"><Activity size={80} /></div>
-            <h3 className="text-2xl font-heading font-black uppercase tracking-widest mb-1 italic">Vérification de Transparence</h3>
-            <p className="text-dmn-green-300 text-[10px] font-bold uppercase tracking-[0.4em]">Daara Madjmahoune Noreyni UCAD – {globalYear}</p>
+
+        <div className="bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-premium border border-gray-100 overflow-hidden max-w-5xl mx-auto">
+          <div className="bg-dmn-green-950 p-8 sm:p-14 text-white text-center relative">
+            <div className="absolute top-1/2 left-10 -translate-y-1/2 opacity-10 hidden sm:block"><Activity size={100} /></div>
+            <p className="text-dmn-gold font-black uppercase tracking-[0.5em] text-[10px] sm:text-xs mb-4">Gouvernance & Transparence</p>
+            <h3 className="text-3xl sm:text-5xl font-heading font-black uppercase tracking-tight mb-2 italic">RÉCAPITULATIF FINANCIER</h3>
+            <p className="text-dmn-green-300 text-xs sm:text-sm font-bold uppercase tracking-[0.2em]">Daara Madjmahoune Noreyni UCAD • Exercice {globalYear}</p>
           </div>
-          <div className="p-10 sm:p-14 space-y-12">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-              <div className="text-center p-6 bg-gray-50 rounded-3xl">
-                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Flux de Trésorerie</p>
-                <p className="text-3xl font-heading font-black text-dmn-green-600">{formatPrice(totCot + totRec)} <span className="text-xs text-gray-400">FCFA</span></p>
+          <div className="p-8 sm:p-16 space-y-12">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-12">
+              <div className="text-center p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100 group hover:bg-white hover:shadow-xl transition-all">
+                <p className="text-[10px] sm:text-xs text-gray-400 uppercase font-black tracking-widest mb-4">Flux de Trésorerie (+)</p>
+                <p className="text-3xl sm:text-4xl font-heading font-black text-dmn-green-600">{formatPrice(totCot + totRec)} <span className="text-xs sm:text-sm text-gray-300 font-bold ml-1">F</span></p>
               </div>
-              <div className="text-center p-6 bg-red-50/50 rounded-3xl">
-                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Total Engagements</p>
-                <p className="text-3xl font-heading font-black text-red-600">{formatPrice(totDep)} <span className="text-xs text-gray-400">FCFA</span></p>
+              <div className="text-center p-8 bg-red-50/30 rounded-[2.5rem] border border-red-50 group hover:bg-white hover:shadow-xl transition-all">
+                <p className="text-[10px] sm:text-xs text-gray-400 uppercase font-black tracking-widest mb-4">Total Engagements (-)</p>
+                <p className="text-3xl sm:text-4xl font-heading font-black text-red-600">{formatPrice(totDep)} <span className="text-xs sm:text-sm text-gray-300 font-bold ml-1">F</span></p>
               </div>
-              <div className="text-center p-6 bg-blue-50/50 rounded-3xl border border-blue-100 shadow-sm">
-                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Position Actuelle</p>
-                <p className="text-3xl font-heading font-black text-blue-700">{formatPrice(solde)} <span className="text-xs text-gray-400">FCFA</span></p>
+              <div className="text-center p-8 bg-dmn-green-900 rounded-[2.5rem] shadow-2xl shadow-dmn-green-900/20 group hover:scale-105 transition-all">
+                <p className="text-[10px] sm:text-xs text-dmn-green-400 uppercase font-black tracking-widest mb-4">Position Nette (=)</p>
+                <p className="text-3xl sm:text-4xl font-heading font-black text-white">{formatPrice(solde)} <span className="text-xs sm:text-sm text-dmn-green-400 font-bold ml-1">F</span></p>
               </div>
             </div>
-          </div>
-          <div className="bg-gray-900 p-6 text-center border-t border-white/5">
-            <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.3em]">Certifié Conforme par le bureau CS DMN UCAD</p>
+            
+            <div className="bg-gray-50 rounded-3xl p-6 sm:p-10 border border-gray-100">
+               <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-4 text-left">
+                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-dmn-green-950 shadow-sm border border-gray-100">
+                        <ShieldCheck size={24} />
+                     </div>
+                     <div>
+                        <p className="text-xs sm:text-sm font-black text-gray-900">Données Auditées</p>
+                        <p className="text-[10px] sm:text-xs font-bold text-gray-400">Dernière synchronisation: {new Date().toLocaleDateString('fr-FR')}</p>
+                     </div>
+                  </div>
+                  <div className="w-full sm:w-auto h-1.5 sm:w-48 bg-white rounded-full overflow-hidden">
+                     <div className="h-full bg-dmn-green-500 w-full"></div>
+                  </div>
+               </div>
+            </div>
           </div>
         </div>
       </div>

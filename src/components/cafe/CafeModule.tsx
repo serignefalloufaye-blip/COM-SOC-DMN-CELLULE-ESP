@@ -453,14 +453,14 @@ export function CafeModule({
   const handleUpdatePrices = async (newPrices: any) => {
     if (!canProduce) return;
     try {
-      await setDoc(doc(db, 'settings', 'cafe_prices'), {
+      await setDoc(doc(db, 'cafe_config', 'prices'), {
         prices: newPrices,
         lastUpdated: Date.now()
       });
       logAudit(userRole, 'admin', 'Café', 'Mise à jour prix', { newPrices });
       showToast("Configuration des prix mise à jour !", "success");
     } catch (e) { 
-      handleFirestoreError(e, OperationType.WRITE, 'settings/cafe_prices');
+      handleFirestoreError(e, OperationType.WRITE, 'cafe_config/prices');
     }
   };
 

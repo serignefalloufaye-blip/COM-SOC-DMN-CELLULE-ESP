@@ -14,14 +14,16 @@ interface AddSaleModalProps {
   clients: CafeClient[];
   priceConfig: CafePriceConfig | null;
   editData?: CafeVente | null;
+  fixedSellerId?: string;
 }
 
-export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, priceConfig, editData }: AddSaleModalProps) {
+export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, priceConfig, editData, fixedSellerId }: AddSaleModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const isRevendeur = !!fixedSellerId;
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [typeVente, setTypeVente] = useState<'normale' | 'revendeur'>('normale');
+  const [typeVente, setTypeVente] = useState<'normale' | 'revendeur'>(isRevendeur ? 'revendeur' : 'normale');
   const [tarif, setTarif] = useState<'normal' | 'reduc'>('normal');
   const [format, setFormat] = useState<'1kg' | '500g'>('1kg');
   const [quantite, setQuantite] = useState<number>(1);
@@ -37,6 +39,7 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
   };
 
   const [prixUnitaire, setPrixUnitaire] = useState<number>(getInitialPrice('1kg', 'normal'));
+  const [isManualPrice, setIsManualPrice] = useState(false);
   const [vendeurId, setVendeurId] = useState('');
   const [modePaiement, setModePaiement] = useState<ModePaiement>('ESPÈCES');
 
@@ -46,7 +49,8 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
       setTypeVente(editData.type === 'normale' || editData.type === 'revendeur' ? editData.type : 'normale');
       setFormat(editData.format === '1kg' || editData.format === '500g' ? editData.format : '1kg');
       setQuantite(editData.quantite);
-      setPrixUnitaire(editData.prixUnitaire);
+      setPrixUnitaire(editData.prixUnitaire || 0);
+      setIsManualPrice(true);
       setVendeurId(editData.vendeurId || '');
       setModePaiement(editData.mode as ModePaiement || 'ESPÈCES');
       // If tarif isn't in editData (legacy), try to guess it
@@ -60,20 +64,27 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
       setFormat('1kg');
       setQuantite(1);
       setPrixUnitaire(getInitialPrice('1kg', 'normal'));
-      setVendeurId('');
+      setIsManualPrice(false);
+      setVendeurId(fixedSellerId || '');
       setModePaiement('ESPÈCES');
+      if (isRevendeur) setTypeVente('revendeur');
     }
-  }, [editData, isOpen]);
+  }, [editData, isOpen, fixedSellerId, isRevendeur]);
 
   // Update prix unitaire when format or tarif changes
   const handleFormatChange = (newFormat: '1kg' | '500g') => {
     setFormat(newFormat);
-    if (!editData) setPrixUnitaire(getInitialPrice(newFormat, tarif));
+    if (!editData && !isManualPrice) setPrixUnitaire(getInitialPrice(newFormat, tarif));
   };
 
   const handleTarifChange = (newTarif: 'normal' | 'reduc') => {
     setTarif(newTarif);
-    if (!editData) setPrixUnitaire(getInitialPrice(format, newTarif));
+    if (!editData && !isManualPrice) setPrixUnitaire(getInitialPrice(format, newTarif));
+  };
+
+  const handleManualPriceChange = (value: number) => {
+    setPrixUnitaire(value);
+    setIsManualPrice(true);
   };
 
   const total = quantite * prixUnitaire;
@@ -134,10 +145,10 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col"
+          className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
         >
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+          <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900 flex items-center gap-2">
               <ShoppingCart size={20} className="text-blue-500" />
               {editData ? 'Modifier la Vente' : 'Nouvelle Vente'}
             </h2>
@@ -146,7 +157,7 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto no-scrollbar">
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium border border-red-100">
                 {error}
@@ -160,7 +171,7 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
                   <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="date"
-                    value={date}
+                    value={date ?? ''}
                     onChange={(e) => setDate(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                     required
@@ -172,9 +183,10 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
                 <div className="relative">
                   <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select
-                    value={typeVente}
+                    disabled={isRevendeur}
+                    value={typeVente ?? 'normale'}
                     onChange={(e) => setTypeVente(e.target.value as 'normale' | 'revendeur')}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none bg-white"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none bg-white disabled:bg-gray-100"
                   >
                     <option value="normale">Directe (Client)</option>
                     <option value="revendeur">Via Revendeur</option>
@@ -183,11 +195,11 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
               </div>
             </div>
 
-            {typeVente === 'revendeur' && (
+            {typeVente === 'revendeur' && !isRevendeur && (
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Revendeur</label>
                 <select
-                  value={vendeurId}
+                  value={vendeurId ?? ''}
                   onChange={(e) => setVendeurId(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white"
                   required
@@ -200,13 +212,20 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
               </div>
             )}
 
+            {isRevendeur && (
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between">
+                <span className="text-xs font-black text-blue-900 uppercase">Revendeur actif</span>
+                <span className="text-sm font-bold text-blue-700">{sellers.find(s => s.id === fixedSellerId)?.name || 'Profil Revendeur'}</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-6 mt-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Format de sachet</label>
                 <div className="relative">
                   <Package size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select
-                    value={format}
+                    value={format ?? '1kg'}
                     onChange={(e) => handleFormatChange(e.target.value as '1kg' | '500g')}
                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none bg-white"
                   >
@@ -220,7 +239,7 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
                 <div className="relative">
                   <Tag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select
-                    value={tarif}
+                    value={tarif ?? 'normal'}
                     onChange={(e) => handleTarifChange(e.target.value as 'normal' | 'reduc')}
                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none bg-white"
                   >
@@ -237,9 +256,9 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
                 <input
                   type="number"
                   min="1"
-                  value={quantite}
+                  value={Number.isNaN(quantite) ? 1 : quantite}
                   onChange={(e) => setQuantite(parseInt(e.target.value) || 0)}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   required
                 />
               </div>
@@ -250,9 +269,9 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
                   <input
                     type="number"
                     min="0"
-                    value={prixUnitaire}
-                    onChange={(e) => setPrixUnitaire(parseInt(e.target.value) || 0)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    value={Number.isNaN(prixUnitaire) ? 0 : prixUnitaire}
+                    onChange={(e) => handleManualPriceChange(parseInt(e.target.value) || 0)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-bold text-blue-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     required
                   />
                 </div>
@@ -263,7 +282,7 @@ export function AddSaleModal({ isOpen, onClose, onSuccess, userId, sellers, pric
                <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Mode de paiement</label>
                 <select
-                  value={modePaiement}
+                  value={modePaiement ?? 'ESPÈCES'}
                   onChange={(e) => setModePaiement(e.target.value as ModePaiement)}
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none bg-white"
                 >

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Truck, Loader2, Calendar, Package } from 'lucide-react';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../firebase';
-import { CafeSeller, CafeDistribution } from '../../../../types';
+import { CafeSeller, CafeDistribution, CafePriceConfig } from '../../../../types';
 
 interface AddDistributionModalProps {
   isOpen: boolean;
@@ -12,27 +12,45 @@ interface AddDistributionModalProps {
   userId: string;
   seller: CafeSeller | null;
   editData?: CafeDistribution | null;
+  priceConfig: CafePriceConfig | null;
 }
 
-export function AddDistributionModal({ isOpen, onClose, onSuccess, userId, seller, editData }: AddDistributionModalProps) {
+export function AddDistributionModal({ isOpen, onClose, onSuccess, userId, seller, editData, priceConfig }: AddDistributionModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [format, setFormat] = useState<'1kg' | '500g'>('1kg');
   const [quantite, setQuantite] = useState<number>(0);
+  const [prixVente, setPrixVente] = useState<number>(0);
+  const [commission, setCommission] = useState<number>(0);
 
   React.useEffect(() => {
     if (editData) {
       setDate(new Date(editData.date).toISOString().split('T')[0]);
       setFormat(editData.format);
       setQuantite(editData.quantite);
+      setPrixVente(editData.prixVenteUnitaire || 0);
+      setCommission(editData.commissionUnitaire || 0);
     } else {
       setDate(new Date().toISOString().split('T')[0]);
       setFormat('1kg');
       setQuantite(0);
+      
+      // Load defaults from priceConfig
+      if (priceConfig) {
+        setPrixVente(priceConfig['1kg']?.normal || 0);
+        setCommission(0); // Default commission 0, user can change
+      }
     }
-  }, [editData, isOpen]);
+  }, [editData, isOpen, priceConfig]);
+
+  // Update prices when format changes for NEW distributions
+  React.useEffect(() => {
+    if (!editData && priceConfig) {
+      setPrixVente(priceConfig[format]?.normal || 0);
+    }
+  }, [format, editData, priceConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +72,8 @@ export function AddDistributionModal({ isOpen, onClose, onSuccess, userId, selle
         sellerId: finalSellerId,
         format,
         quantite: Number(quantite),
+        prixVenteUnitaire: Number(prixVente),
+        commissionUnitaire: Number(commission),
         status: editData?.status || 'en_cours',
         responsable: userId,
         updatedAt: serverTimestamp()
@@ -86,10 +106,10 @@ export function AddDistributionModal({ isOpen, onClose, onSuccess, userId, selle
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
+          className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"
         >
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+          <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900 flex items-center gap-2">
               <Truck size={20} className="text-blue-500" />
               {editData ? 'Modifier la livraison' : `Livrer ${seller?.name || 'le revendeur'}`}
             </h2>
@@ -98,7 +118,7 @@ export function AddDistributionModal({ isOpen, onClose, onSuccess, userId, selle
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto no-scrollbar">
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium border border-red-100">
                 {error}
@@ -139,9 +159,34 @@ export function AddDistributionModal({ isOpen, onClose, onSuccess, userId, selle
                 <input
                   type="number"
                   min="1"
-                  value={quantite || ''}
+                  value={Number.isNaN(quantite) ? 0 : quantite}
                   onChange={(e) => setQuantite(parseInt(e.target.value) || 0)}
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 border-t border-gray-50 pt-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">P.U de Vente (F)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={Number.isNaN(prixVente) ? 0 : prixVente}
+                  onChange={(e) => setPrixVente(parseInt(e.target.value) || 0)}
+                  className="w-full px-4 py-2 border border-blue-100 bg-blue-50/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-black text-blue-900"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Commission Partenaire (F)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={Number.isNaN(commission) ? 0 : commission}
+                  onChange={(e) => setCommission(parseInt(e.target.value) || 0)}
+                  className="w-full px-4 py-2 border border-emerald-100 bg-emerald-50/30 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-black text-emerald-900"
                   required
                 />
               </div>

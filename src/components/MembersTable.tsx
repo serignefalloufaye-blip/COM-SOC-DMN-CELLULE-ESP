@@ -1,6 +1,7 @@
 import React from 'react';
-import { Users, History, Edit2, Trash2, Info, CreditCard, Shield, Plus } from 'lucide-react';
+import { Users, History, Edit2, Trash2, Info, CreditCard, Shield, Plus, FileSpreadsheet } from 'lucide-react';
 import { Membre } from '../types';
+import * as XLSX from 'xlsx';
 
 interface MembersTableProps {
   membres: Membre[];
@@ -39,11 +40,45 @@ export const MembersTable: React.FC<MembersTableProps> = ({
 }) => {
   const filtered = membres.filter(m => nomComplet(m).toLowerCase().includes(globalSearch.toLowerCase()));
 
+  const handleExportExcel = () => {
+    const data = filtered.map((m) => ({
+      'Prénom': m.prenom,
+      'Nom': m.nom,
+      'Téléphone': m.telephone || 'N/A',
+      'Statut': m.statut || 'N/A'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Liste des Membres");
+
+    // Styling logic for professional look (column widths)
+    const wscols = [
+      { wch: 25 }, // Prénom
+      { wch: 25 }, // Nom
+      { wch: 20 }, // Téléphone
+      { wch: 20 }  // Statut
+    ];
+    ws['!cols'] = wscols;
+
+    XLSX.writeFile(wb, `DMN_Liste_Membres_${new Date().getFullYear()}.xlsx`);
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in duration-300">
       <div className="bg-dmn-green-900 text-white px-6 py-4 font-heading font-semibold text-base flex justify-between items-center">
         <span className="flex items-center gap-2"><Users size={18} className="text-dmn-gold-light" /> Membres ({membres.length})</span>
         <div className="flex items-center gap-2">
+          {(isAdmin || isCaisse) && (
+            <button 
+              onClick={handleExportExcel}
+              className="h-10 px-4 bg-white/10 text-white rounded-xl hover:bg-white/20 flex items-center justify-center gap-2 text-sm font-bold transition-all outline-none border border-white/5"
+              title="Exporter vers Excel"
+            >
+              <FileSpreadsheet size={16} className="text-dmn-gold-light" />
+              <span className="hidden sm:inline">Exporter</span>
+            </button>
+          )}
           {isCaisse && (
             <button 
               onClick={() => { setEditingMembre(null); setIsMembreModalOpen(true); }}

@@ -95,6 +95,29 @@ export function CafeSuperModule(props: CafeModuleProps) {
 
   const isAdmin = props.userRole === 'admin';
   const isCafeManager = props.userRole === 'cafe';
+  
+  const isRevendeur = useMemo(() => {
+    if (isAdmin || isCafeManager) return false;
+    if (props.userRole === 'revendeur') return true;
+    const userEmail = auth.currentUser?.email?.toLowerCase().trim();
+    return props.sellers.some(s => 
+      s.active && (
+        (s.email && s.email.toLowerCase().trim() === userEmail) || 
+        (s.codeAcces && s.codeAcces === auth.currentUser?.uid)
+      )
+    );
+  }, [props.sellers, props.userRole, isAdmin, isCafeManager]);
+
+  const currentSeller = useMemo(() => {
+    if (!isRevendeur) return null;
+    const userEmail = auth.currentUser?.email?.toLowerCase().trim();
+    return props.sellers.find(s => 
+      s.active && (
+        (s.email && s.email.toLowerCase().trim() === userEmail) || 
+        (s.codeAcces && s.codeAcces === auth.currentUser?.uid)
+      )
+    );
+  }, [isRevendeur, props.sellers]);
 
   const finance = useCafeFinance(
     filteredProductions, 
@@ -105,57 +128,65 @@ export function CafeSuperModule(props: CafeModuleProps) {
     selectedYear
   );
 
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'production', label: 'Production', icon: Box },
-    { id: 'ventes', label: 'Ventes', icon: ShoppingCart },
-    { id: 'revendeurs', label: 'Revendeurs', icon: Users },
-    { id: 'depenses', label: 'Dépenses', icon: Receipt },
-    { id: 'bilans', label: 'Bilans', icon: TrendingUp },
-    { id: 'rapports', label: 'Rapports', icon: Download },
-  ];
+  const tabs = useMemo(() => {
+    const allTabs = [
+      { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+      { id: 'production', label: 'Production', icon: Box },
+      { id: 'ventes', label: 'Ventes', icon: ShoppingCart },
+      { id: 'revendeurs', label: 'Revendeurs', icon: Users },
+      { id: 'depenses', label: 'Dépenses', icon: Receipt },
+      { id: 'bilans', label: 'Bilans', icon: TrendingUp },
+      { id: 'rapports', label: 'Rapports', icon: Download },
+    ];
+
+    if (isRevendeur) return allTabs.filter(t => ['dashboard', 'ventes'].includes(t.id));
+    if (props.userRole === 'lecteur') return allTabs.filter(t => ['dashboard', 'bilans', 'rapports'].includes(t.id));
+    
+    return allTabs;
+  }, [isRevendeur, props.userRole]);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-32">
+    <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-32">
       {/* Header Area */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 pt-8 px-4 sm:px-0">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 sm:gap-8 pt-4 sm:pt-8 px-4 sm:px-0">
         <div className="flex flex-col">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-white rounded-3xl shadow-premium border border-gray-100 flex items-center justify-center text-dmn-green-900 overflow-hidden relative group">
+          <div className="flex items-center gap-3 sm:gap-4 mb-2 sm:mb-4">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-2xl sm:rounded-3xl shadow-premium border border-gray-100 flex items-center justify-center text-dmn-green-900 overflow-hidden relative group shrink-0">
               <div className="absolute inset-0 bg-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <TrendingUp size={32} className="relative z-10" strokeWidth={2.5} />
+              <TrendingUp size={24} className="relative z-10 sm:hidden" strokeWidth={2.5} />
+              <TrendingUp size={32} className="relative z-10 hidden sm:block" strokeWidth={2.5} />
             </div>
-            <div>
-              <h1 className="fintech-heading text-4xl sm:text-5xl tracking-tighter">Café Noreyni <span className="text-dmn-gold">Premium</span></h1>
-              <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">
-                <div className="w-2 h-2 rounded-full bg-dmn-green-500" />
-                Système Analytique Pro • {periodString}
+        <div className="min-w-0 flex-1">
+              <h1 className="fintech-heading text-xl sm:text-5xl tracking-tighter truncate uppercase">Café <span className="text-dmn-gold">Noreyni</span></h1>
+              <div className="flex items-center gap-2 text-gray-400 font-bold text-xs uppercase tracking-[0.2em] mt-0.5 sm:mt-1">
+                <div className="w-1 h-1 sm:w-2 sm:h-2 rounded-full bg-dmn-green-500 shrink-0 animate-pulse" />
+                <span className="truncate">{periodString}</span>
               </div>
             </div>
           </div>
         </div>
         
         {/* Global Search & Filters */}
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-          <div className="flex bg-gray-100 p-1.5 rounded-2xl ring-1 ring-gray-200">
+        <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 w-full md:w-auto">
+          <div className="flex bg-gray-100 p-1 rounded-xl sm:rounded-2xl ring-1 ring-gray-200 w-full sm:w-auto overflow-x-auto no-scrollbar">
             {(['month', 'quarter', 'year'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setPeriodType(type)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap
                   ${periodType === type ? 'bg-white text-dmn-green-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
               >
-                {type === 'month' ? 'Mois' : type === 'quarter' ? 'Trimestre' : 'Annuel'}
+                {type === 'month' ? 'Mois' : type === 'quarter' ? 'Trim.' : 'Annuel'}
               </button>
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar py-1">
             {periodType === 'month' && (
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-[50px] px-4 bg-white border border-gray-100 rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-dmn-gold/30 shadow-sm"
+                className="flex-1 sm:flex-none h-[42px] sm:h-[50px] px-3 sm:px-4 bg-white border border-gray-100 rounded-xl sm:rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-dmn-gold/30 shadow-sm appearance-none whitespace-nowrap"
               >
                 {MOIS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -165,27 +196,28 @@ export function CafeSuperModule(props: CafeModuleProps) {
               <select
                 value={selectedQuarter}
                 onChange={(e) => setSelectedQuarter(parseInt(e.target.value))}
-                className="h-[50px] px-4 bg-white border border-gray-100 rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-dmn-gold/30 shadow-sm"
+                className="flex-1 sm:flex-none h-[42px] sm:h-[50px] px-3 sm:px-4 bg-white border border-gray-100 rounded-xl sm:rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-dmn-gold/30 shadow-sm appearance-none whitespace-nowrap"
               >
-                {[1, 2, 3, 4].map(q => <option key={q} value={q}>Trimestre {q}</option>)}
+                {[1, 2, 3, 4].map(q => <option key={q} value={q}>T{q}</option>)}
               </select>
             )}
 
             <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="h-[50px] px-4 bg-white border border-gray-100 rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-dmn-gold/30 shadow-sm"
+                className="flex-1 sm:flex-none h-[42px] sm:h-[50px] px-3 sm:px-4 bg-white border border-gray-100 rounded-xl sm:rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-dmn-gold/30 shadow-sm appearance-none whitespace-nowrap"
               >
                 {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             
-            {isAdmin && (
+            {(isAdmin || isCafeManager) && (
               <button 
                 onClick={() => setShowSettings(true)}
-                className="w-[50px] h-[50px] bg-white text-gray-400 hover:text-dmn-green-900 border border-gray-100 rounded-2xl flex items-center justify-center shadow-sm hover:shadow-premium transition-all active:scale-95"
-                title="Paramètres de Tarification"
+                className="btn-primary h-[42px] sm:h-[50px] px-4 sm:px-6 flex items-center justify-center gap-2 shrink-0"
+                title="Configuration des Prix"
               >
-                <Settings size={20} />
+                <Settings size={16} className="text-dmn-gold" strokeWidth={3} />
+                <span className="text-xs uppercase tracking-tighter hidden sm:inline">Prix</span>
               </button>
             )}
           </div>
@@ -196,16 +228,17 @@ export function CafeSuperModule(props: CafeModuleProps) {
               placeholder="Rechercher..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="premium-input pl-12 h-[50px] shadow-soft focus:shadow-premium"
+              className="premium-input pl-10 sm:pl-12 h-[42px] sm:h-[50px] shadow-soft focus:shadow-premium text-xs"
             />
-            <BarChart3 size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-dmn-green-600 transition-colors" />
+            <BarChart3 size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-dmn-green-600 transition-colors sm:hidden" />
+            <BarChart3 size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-dmn-green-600 transition-colors hidden sm:block" />
           </div>
         </div>
       </div>
 
       {/* Navigation & Controls */}
-      <div className="sticky top-4 z-50 print:hidden px-4 sm:px-0">
-        <div className="glass p-2 rounded-[2rem] flex overflow-x-auto no-scrollbar gap-1 ring-8 ring-gray-900/5 shadow-2xl">
+      <div className="sticky top-2 sm:top-4 z-50 print:hidden px-4 sm:px-0">
+        <div className="glass p-1.5 sm:p-2 rounded-2xl sm:rounded-[2rem] flex overflow-x-auto no-scrollbar gap-1 ring-4 sm:ring-8 ring-gray-900/5 shadow-xl sm:shadow-2xl">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -213,13 +246,14 @@ export function CafeSuperModule(props: CafeModuleProps) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-500 whitespace-nowrap active:scale-95
+                className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-xl sm:rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-500 whitespace-nowrap active:scale-95
                   ${isActive 
-                    ? 'bg-dmn-green-900 text-white shadow-xl shadow-dmn-green-900/20 translate-y-[-2px]' 
+                    ? 'bg-dmn-green-900 text-white shadow-lg sm:shadow-xl shadow-dmn-green-900/20' 
                     : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                   }`}
               >
-                <Icon size={18} strokeWidth={isActive ? 3 : 2} className={isActive ? "text-dmn-gold" : ""} />
+                <Icon size={14} strokeWidth={isActive ? 3 : 2} className={`${isActive ? "text-dmn-gold" : ""} sm:hidden`} />
+                <Icon size={18} strokeWidth={isActive ? 3 : 2} className={`${isActive ? "text-dmn-gold" : ""} hidden sm:block`} />
                 {tab.label}
               </button>
             );
@@ -253,13 +287,14 @@ export function CafeSuperModule(props: CafeModuleProps) {
         )}
         {activeTab === 'ventes' && (
           <SalesManager 
-            ventes={filteredVentes.filter(v => v.format?.toLowerCase().includes(searchTerm.toLowerCase()) || v.prixUnitaire.toString().includes(searchTerm) || v.total.toString().includes(searchTerm))} 
+            ventes={isRevendeur ? filteredVentes.filter(v => v.vendeurId === currentSeller?.id) : filteredVentes.filter(v => v.format?.toLowerCase().includes(searchTerm.toLowerCase()) || v.prixUnitaire.toString().includes(searchTerm) || v.total.toString().includes(searchTerm))} 
             finance={finance} 
             userRole={props.userRole} 
             priceConfig={props.priceConfig}
             sellers={props.sellers}
             clients={props.clients}
             userId={auth.currentUser?.uid || ''}
+            currentSellerId={currentSeller?.id}
             showToast={props.showToast}
             confirmAction={props.confirmAction}
           />
@@ -273,6 +308,7 @@ export function CafeSuperModule(props: CafeModuleProps) {
             isAdmin={isAdmin}
             isCafeManager={isCafeManager}
             userId={auth.currentUser?.uid || ''}
+            priceConfig={props.priceConfig}
             showToast={props.showToast}
             confirmAction={props.confirmAction}
           />
@@ -314,7 +350,7 @@ export function CafeSuperModule(props: CafeModuleProps) {
         onClose={() => setShowSettings(false)}
         priceConfig={props.priceConfig}
         onSuccess={() => {
-           props.showToast("Tarifs mis à jour avec succès !", "success");
+           props.showToast("Prix mis à jour avec succès !", "success");
            // Normally we'd refresh, but Firebase should sync
         }}
       />

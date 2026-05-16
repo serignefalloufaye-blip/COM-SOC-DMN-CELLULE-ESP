@@ -277,7 +277,7 @@ export function PremiumDashboard({
     const insights = [];
     if (soldeGlobal < 50000) insights.push({ text: "Solde faible. Surveillez les prochaines cotisations.", icon: AlertCircle, color: "text-amber-600" });
     if (totDettesEnAttente > 100000) insights.push({ text: "Volume important de dettes non payées.", icon: TrendingUp, color: "text-red-500" });
-    if (membresActifs / membres.length < 0.6) insights.push({ text: "Taux de régularité des membres en baisse.", icon: Users, color: "text-orange-500" });
+    if (membres.length > 0 && membresActifs / membres.length < 0.6) insights.push({ text: "Taux de régularité des membres en baisse.", icon: Users, color: "text-orange-500" });
     return insights.slice(0, 2);
   }, [soldeGlobal, totDettesEnAttente, membresActifs, membres.length]);
 
@@ -557,7 +557,7 @@ export function PremiumDashboard({
                   <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Impact Social</p>
                   <p className="text-3xl font-black">{formatPrice(globalTotExpenses)} <span className="text-sm font-light text-white/50 italic">Utilisés</span></p>
                   <div className="w-full h-1 bg-white/5 rounded-full mt-3 overflow-hidden">
-                    <div className="h-full bg-red-400 shimmer" style={{ width: `${Math.min(100, (globalTotExpenses / globalTotIncome) * 100)}%` }}></div>
+                    <div className="h-full bg-red-400 shimmer" style={{ width: `${Math.min(100, (globalTotExpenses / (globalTotIncome || 1)) * 100)}%` }}></div>
                   </div>
                 </div>
 
@@ -578,7 +578,7 @@ export function PremiumDashboard({
              onClick={() => onQuickAction?.('rapport')}
              className="w-full mt-10 py-4 bg-white/10 hover:bg-white/20 active:scale-95 outline-none transition-all rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest border border-white/10"
            >
-              Analyses détaillées <ArrowRight size={14} />
+              Consulter les rapports <ArrowRight size={14} />
            </button>
         </div>
       </motion.div>

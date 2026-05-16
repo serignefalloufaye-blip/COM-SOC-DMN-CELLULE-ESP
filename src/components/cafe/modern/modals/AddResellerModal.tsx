@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Contact2, Loader2 } from 'lucide-react';
+import { X, Contact2, Loader2, Shield } from 'lucide-react';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { CafeSeller } from '../../../../types';
@@ -20,16 +20,22 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
   const [name, setName] = useState('');
   const [telephone, setTelephone] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [codeAcces, setCodeAcces] = useState('');
 
   React.useEffect(() => {
     if (editData) {
       setName(editData.name || editData.nom || '');
       setTelephone(editData.telephone || editData.phone || '');
       setEmail(editData.email || '');
+      setPassword(editData.password || '');
+      setCodeAcces(editData.codeAcces || '');
     } else {
       setName('');
       setTelephone('');
       setEmail('');
+      setPassword('');
+      setCodeAcces('');
     }
   }, [editData, isOpen]);
 
@@ -49,6 +55,8 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
         nom: name.trim(), // Legacy support
         telephone: telephone.trim(),
         email: email.trim(),
+        password: password.trim(),
+        codeAcces: codeAcces.trim(),
         active: editData ? editData.active : true,
         updatedAt: serverTimestamp()
       };
@@ -81,10 +89,10 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
+          className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"
         >
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+          <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900 flex items-center gap-2">
               <Contact2 size={20} className="text-purple-500" />
               {editData ? 'Modifier le Revendeur' : 'Nouveau Revendeur'}
             </h2>
@@ -93,7 +101,7 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto no-scrollbar">
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium border border-red-100">
                 {error}
@@ -104,7 +112,7 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
               <label className="block text-sm font-bold text-gray-700 mb-1">Nom Complet</label>
               <input
                 type="text"
-                value={name}
+                value={name ?? ''}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Babacar Ndiaye"
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
@@ -116,7 +124,7 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
               <label className="block text-sm font-bold text-gray-700 mb-1">Téléphone</label>
               <input
                 type="tel"
-                value={telephone}
+                value={telephone ?? ''}
                 onChange={(e) => setTelephone(e.target.value)}
                 placeholder="Ex: +221 77 123 45 67"
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
@@ -124,15 +132,50 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
             </div>
 
             <div>
-               <label className="block text-sm font-bold text-gray-700 mb-1">Email (Optionnel)</label>
+               <label className="block text-sm font-bold text-gray-700 mb-1">Email (Obligatoire pour la connexion)</label>
                <input
                  type="email"
-                 value={email}
+                 value={email ?? ''}
                  onChange={(e) => setEmail(e.target.value)}
                  placeholder="Ex: contact@exemple.com"
                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                 required
                />
              </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Mot de Passe</label>
+                <input
+                  type="text"
+                  value={password ?? ''}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Secret123"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Code / ID (UID)</label>
+                <input
+                  type="text"
+                  value={codeAcces ?? ''}
+                  onChange={(e) => setCodeAcces(e.target.value)}
+                  placeholder="Auto ou Manuell"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100">
+              <h4 className="text-[10px] font-black text-purple-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+                <Shield size={12} /> Instructions de connexion
+              </h4>
+              <p className="text-[11px] text-purple-900 leading-relaxed">
+                Le revendeur accède à son espace en se connectant avec cet <strong>email</strong>. 
+                L'application détectera automatiquement son profil. Le mot de passe saisi ici sert de référence 
+                si l'administrateur crée le compte manuellement dans Firebase.
+              </p>
+            </div>
 
             <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
               <button

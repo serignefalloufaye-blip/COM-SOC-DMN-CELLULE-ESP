@@ -65,9 +65,9 @@ export function ProductionManager({
   const StatPanel = ({ label, value, subLabel, icon: Icon, colorClass }: any) => (
     <div className="premium-card p-8 group flex items-center justify-between border-gray-100 hover:border-emerald-100">
       <div className="relative z-10">
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{label}</p>
+        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{label}</p>
         <h3 className={`fintech-kpi text-3xl text-gray-900`}>{value}</h3>
-        {subLabel && <p className="text-[10px] font-bold text-gray-400 mt-2">{subLabel}</p>}
+        {subLabel && <p className="text-[11px] font-bold text-gray-400 mt-2">{subLabel}</p>}
       </div>
       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-500 shadow-lg ${colorClass}`}>
         <Icon size={28} strokeWidth={2.5} />
@@ -76,7 +76,7 @@ export function ProductionManager({
   );
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-6 sm:space-y-8 pb-12">
       <AddProductionModal 
         isOpen={isAddModalOpen} 
         onClose={() => {
@@ -93,11 +93,11 @@ export function ProductionManager({
       />
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-8">
         <StatPanel 
           label="Volume Production" 
           value={`${production.quantity} kg`}
-          subLabel="Total traité sur la période"
+          subLabel="Total traité"
           icon={Factory}
           colorClass="bg-emerald-900 text-white shadow-emerald-900/20"
         />
@@ -109,127 +109,130 @@ export function ProductionManager({
           colorClass="bg-dmn-coffee text-white shadow-dmn-coffee/20"
         />
         <StatPanel 
-          label="P.R.U (1kg)" 
-          value={`${formatPrice(Math.round(coutMoyenKg))} F/kg`}
-          subLabel="Coût de revient unitaire"
+          label="Matières Secondaires" 
+          value={`${formatPrice(costs.transport + costs.transfert + costs.emballage)} F`}
+          subLabel="Logistique & emballage"
           icon={Tag}
           colorClass="bg-dmn-gold text-white shadow-dmn-gold/20"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Cost Breakdown */}
-        <div className="premium-card p-10 flex flex-col relative overflow-hidden">
+        <div className="premium-card p-6 sm:p-10 flex flex-col relative overflow-hidden">
           <div className="absolute -right-8 -top-8 w-40 h-40 bg-gray-50 rounded-full" />
           
-          <div className="flex items-center gap-4 mb-10 relative z-10">
-            <div className="w-10 h-10 rounded-full bg-dmn-green-900 text-white flex items-center justify-center shadow-lg">
-              <PieChart size={20} />
+          <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-10 relative z-10">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-dmn-green-900 text-white flex items-center justify-center shadow-lg shrink-0">
+              <PieChart size={18} className="sm:hidden" />
+              <PieChart size={20} className="hidden sm:block" />
             </div>
-            <h3 className="text-2xl font-black text-gray-900 tracking-tight">Décomposition des Coûts</h3>
+            <h3 className="text-lg sm:text-2xl font-black text-gray-900 tracking-tight">Coûts de Production</h3>
           </div>
 
-          <div className="space-y-4 relative z-10">
+          <div className="space-y-3 sm:space-y-4 relative z-10">
             {[
               { l: "Grains", v: costs.grains, s: "Achat matière première" },
               { l: "Transport", v: costs.transport, s: "Logistique & Fret" },
-              { l: "Moulage", v: costs.transfert, s: "Transformation & Usinage" },
-              { l: "Emballage", v: costs.emballage, s: "Sachets & Étiquetage" },
-              { l: "Frais transfert", v: costs.autresProduction, s: "Autres charges directes" }
+              { l: "Moulage", v: costs.transfert, s: "Transformation" },
+              { l: "Emballage", v: costs.emballage, s: "Sachets" },
+              { l: "Autres", v: costs.autresProduction, s: "Charges directes" }
             ].map((item, i) => (
-              <div key={i} className="p-6 rounded-[2rem] bg-gray-50 border border-gray-100 flex justify-between items-center hover:bg-white hover:shadow-soft transition-all duration-300">
-                <div>
-                  <p className="font-bold text-gray-900">{item.l}</p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{item.s}</p>
+              <div key={i} className="p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-gray-50 border border-gray-100 flex justify-between items-center hover:bg-white hover:shadow-soft transition-all duration-300">
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-900 text-sm sm:text-base">{item.l}</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5 mt-1 truncate">{item.s}</p>
                 </div>
-                <p className="fintech-kpi text-xl text-gray-900">{formatPrice(item.v)}<span className="text-xs opacity-30 ml-1">F</span></p>
+                <p className="fintech-kpi text-lg sm:text-xl text-gray-900 whitespace-nowrap">{formatPrice(item.v)}<span className="text-xs opacity-30 ml-1 uppercase">CFA</span></p>
               </div>
             ))}
             
-            <div className="pt-6 mt-6 border-t-2 border-dashed border-gray-100 flex justify-between items-center">
-               <p className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Total Investi</p>
-               <p className="fintech-kpi text-3xl text-dmn-green-900">{formatPrice(costs.totalProd)}<span className="text-sm opacity-30 ml-2">F CFA</span></p>
+            <div className="pt-4 sm:pt-6 mt-4 sm:mt-6 border-t-2 border-dashed border-gray-100 flex justify-between items-center">
+               <p className="text-[10px] sm:text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Total</p>
+               <p className="fintech-kpi text-2xl sm:text-3xl text-dmn-green-900">{formatPrice(costs.totalProd)}<span className="text-[10px] sm:text-sm opacity-30 ml-2">F CFA</span></p>
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 mt-10 relative z-10">
-             <div className="bg-gray-900 p-6 rounded-[2.5rem] text-white">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Simul. Coût 1kg</p>
-                <p className="text-3xl font-black text-dmn-gold">{formatPrice(Math.round(coutMoyenKg))}<span className="text-sm opacity-50 ml-1 font-medium">F</span></p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-8 sm:mt-10 relative z-10">
+             <div className="bg-gray-900 p-4 sm:p-6 rounded-2xl sm:rounded-[2.5rem] text-white">
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1 sm:mb-2">Coût 1kg</p>
+                <p className="text-xl sm:text-3xl font-black text-dmn-gold">{formatPrice(Math.round(coutMoyenKg))}<span className="text-xs opacity-50 ml-0.5 font-medium uppercase">CFA</span></p>
              </div>
-             <div className="bg-dmn-coffee p-6 rounded-[2.5rem] text-white">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Simul. Coût 500g</p>
-                <p className="text-3xl font-black text-white">{formatPrice(Math.round(coutMoyenSachet500g))}<span className="text-sm opacity-50 ml-1 font-medium">F</span></p>
+             <div className="bg-dmn-coffee p-4 sm:p-6 rounded-2xl sm:rounded-[2.5rem] text-white">
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1 sm:mb-2">Coût 500g</p>
+                <p className="text-xl sm:text-3xl font-black text-white">{formatPrice(Math.round(coutMoyenSachet500g))}<span className="text-xs opacity-50 ml-0.5 font-medium uppercase">CFA</span></p>
              </div>
           </div>
         </div>
 
         {/* Production History */}
         <div className="premium-card flex flex-col overflow-hidden">
-          <div className="p-10 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+          <div className="p-6 sm:p-10 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/30">
             <div>
-              <h3 className="text-2xl font-black text-gray-900 tracking-tight">Registre Production</h3>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Historique des lots conditionnés</p>
+              <h3 className="text-lg sm:text-2xl font-black text-gray-900 tracking-tight leading-tight">Registre Production</h3>
+              <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest mt-0.5 sm:mt-1">Derniers lots conditionnés</p>
             </div>
             {canProduce && (
               <button 
                 onClick={() => setIsAddModalOpen(true)} 
-                className="btn-primary py-3 px-8 flex items-center gap-3 transition-transform hover:-translate-y-1"
+                className="btn-primary w-full sm:w-auto h-[48px] sm:h-[56px] px-6 sm:px-8 flex items-center justify-center gap-3 transition-transform hover:-translate-y-1"
               >
-                <Plus size={18} strokeWidth={3} />
-                <span>Nouveau Lot</span>
+                <Plus size={16} strokeWidth={3} className="sm:hidden" />
+                <Plus size={18} strokeWidth={3} className="hidden sm:block" />
+                <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Nouveau Lot</span>
               </button>
             )}
           </div>
           
-          <div className="flex-1 overflow-y-auto min-h-[400px]">
+          <div className="flex-1 overflow-x-auto no-scrollbar min-h-[300px] sm:min-h-[400px]">
             {productions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-300 p-20 grayscale opacity-50">
-                <Package size={80} strokeWidth={1} className="mb-6" />
-                <p className="font-black uppercase tracking-widest text-xs">Aucun registre de production</p>
+              <div className="flex flex-col items-center justify-center h-full text-gray-300 p-10 sm:p-20 grayscale opacity-50">
+                <Package size={60} strokeWidth={1} className="mb-4 sm:hidden" />
+                <Package size={80} strokeWidth={1} className="mb-6 hidden sm:block" />
+                <p className="font-black uppercase tracking-widest text-[10px] sm:text-xs">Aucun registre</p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[500px] sm:min-w-0">
                 <thead className="bg-white sticky top-0 z-10">
                   <tr>
-                    <th className="p-8 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Date</th>
-                    <th className="p-8 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Lot Qualité</th>
-                    <th className="p-8 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 text-right">Volume</th>
-                    {(isAdmin || isCafeManager) && <th className="p-8 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 text-right">Actions</th>}
+                    <th className="p-4 sm:p-8 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Date</th>
+                    <th className="p-4 sm:p-8 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Lot Qualité</th>
+                    <th className="p-4 sm:p-8 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 text-right">Volume</th>
+                    {(isAdmin || isCafeManager) && <th className="p-4 sm:p-8 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 text-right whitespace-nowrap">Act.</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50/50">
                   {productions.slice().sort((a,b)=>b.date - a.date).map(p => (
                     <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="p-8">
-                        <span className="font-bold text-gray-900">{simpleDate(p.date)}</span>
+                      <td className="p-4 sm:p-8 whitespace-nowrap">
+                        <span className="font-bold text-gray-900 text-xs sm:text-base">{simpleDate(p.date)}</span>
                       </td>
-                      <td className="p-8">
-                        <span className="text-sm font-medium text-gray-500 italic">
-                          {p.observations || 'Aucune note spécifique'}
+                      <td className="p-4 sm:p-8">
+                        <span className="text-xs sm:text-sm font-medium text-gray-500 italic line-clamp-1 sm:line-clamp-none">
+                          {p.observations || 'N/A'}
                         </span>
                       </td>
-                      <td className="p-8 text-right">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-900 fintech-kpi text-xl rounded-2xl group-hover:bg-emerald-100 transition-colors">
+                      <td className="p-4 sm:p-8 text-right">
+                        <span className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 bg-emerald-50 text-emerald-900 fintech-kpi text-base sm:text-xl rounded-xl sm:rounded-2xl group-hover:bg-emerald-100 transition-colors whitespace-nowrap">
                           {p.quantite} <span className="text-xs opacity-50 font-black uppercase">kg</span>
                         </span>
                       </td>
                       {(isAdmin || isCafeManager) && (
-                        <td className="p-8 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <td className="p-4 sm:p-8 text-right">
+                          <div className="flex items-center justify-end gap-1 sm:gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => handleEdit(p)}
-                              className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                              title="Modifier"
+                              className="p-1.5 sm:p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                             >
-                              <Edit2 size={16} />
+                              <Edit2 size={14} className="sm:hidden" />
+                              <Edit2 size={16} className="hidden sm:block" />
                             </button>
                             <button
                               onClick={() => handleDelete(p.id)}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Supprimer"
+                              className="p-1.5 sm:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} className="sm:hidden" />
+                              <Trash2 size={16} className="hidden sm:block" />
                             </button>
                           </div>
                         </td>

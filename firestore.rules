@@ -254,6 +254,7 @@ service cloud.firestore {
     match /cafe_sellers/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe(); }
     match /cafe_clients/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
     match /cafe_orders/{id} { allow read: if isLecteur() || isRevendeur(); allow write: if isCafe() || isRevendeur(); }
+    match /cafe_config/{id} { allow read: if true; allow write: if isCafe(); }
 
     match /audit_logs/{id} {
       allow read: if isAdmin();

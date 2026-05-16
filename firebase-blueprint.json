@@ -309,6 +309,10 @@
     "/cafe_orders/{orderId}": {
       "schema": { "$ref": "#/entities/CafeOrder" },
       "description": "Commandes de café"
+    },
+    "/cafe_config/{configId}": {
+      "schema": { "$ref": "#/entities/CafePriceConfig" },
+      "description": "Configuration des tarifs du café"
     }
   }
 }
