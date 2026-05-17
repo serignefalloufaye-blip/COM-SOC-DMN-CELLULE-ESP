@@ -3,13 +3,13 @@ import { motion } from 'motion/react';
 import { CafeSeller, CafeDistribution, CafeVersement } from '../../../types';
 import { formatPrice } from '../../../utils/format';
 import { simpleDate } from '../../../utils/date';
-import { Users, Truck, Wallet, Activity, Contact2, Box, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Users, Truck, Wallet, Activity, Contact2, Box, Plus, Edit2, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
 import { hasPermission } from '../../../utils/permissions';
 import { AddResellerModal } from './modals/AddResellerModal';
 import { AddDistributionModal } from './modals/AddDistributionModal';
 import { AddVersementModal } from './modals/AddVersementModal';
 import { db } from '../../../firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 interface ResellerManagerProps {
   sellers: CafeSeller[];
@@ -42,6 +42,21 @@ export function ResellerManager({
   const [selectedSellerForDist, setSelectedSellerForDist] = useState<CafeSeller | null>(null);
   const [selectedSellerForVers, setSelectedSellerForVers] = useState<CafeSeller | null>(null);
   const [soldeDuForVers, setSoldeDuForVers] = useState(0);
+
+  const handleValidateVersement = async (versId: string, statut: 'VALIDE' | 'REJETE') => {
+    confirmAction("Confirmer pff", `Confirmer le versement ?`, async () => {
+      try {
+        await updateDoc(doc(db, 'cafe_versements', versId), {
+          statut,
+          validePar: userId,
+          dateValidation: Date.now()
+        });
+        showToast(`Versement ${statut === 'VALIDE' ? 'validé' : 'rejeté'} avec succès`, "success");
+      } catch (e) {
+        showToast("Erreur lors de l'opération", "error");
+      }
+    });
+  };
 
   const handleDelete = async (id: string, name: string) => {
     confirmAction(
@@ -99,6 +114,7 @@ export function ResellerManager({
          userId={userId}
          seller={selectedSellerForVers}
          soldeDu={soldeDuForVers}
+         isAdmin={canManageSellers}
       />
       
       {/* Network Header */}
@@ -129,6 +145,44 @@ export function ResellerManager({
         )}
       </div>
 
+      {canManageSellers && versements.filter(v => v.statut === 'EN_ATTENTE').length > 0 && (
+        <div className="mb-10 bg-amber-50 rounded-[2rem] p-6 border border-amber-200">
+          <h3 className="text-sm font-black text-amber-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <AlertCircle size={16} /> Versements en attente de validation
+          </h3>
+          <div className="space-y-3">
+            {versements.filter(v => v.statut === 'EN_ATTENTE').map(vers => {
+              const s = sellers.find(seller => seller.id === vers.sellerId || seller.id === vers.vendeurId);
+              return (
+                <div key={vers.id} className="flex flex-col sm:flex-row items-center justify-between p-4 bg-white rounded-xl shadow-sm">
+                  <div className="flex items-center gap-3 mb-3 sm:mb-0 w-full sm:w-auto">
+                    <Wallet className="text-amber-500 shrink-0" size={24} />
+                    <div>
+                      <p className="text-sm font-black text-gray-900">{s?.name || s?.nom || 'Revendeur inconnu'}</p>
+                      <p className="text-[11px] font-bold text-gray-500 mt-1 uppercase tracking-widest">Montant: {new Intl.NumberFormat('fr-FR').format(vers.montant)} FCFA</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                    <button 
+                      onClick={() => handleValidateVersement(vers.id, 'VALIDE')}
+                      className="flex-1 sm:flex-none py-2 px-4 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle size={16} /> Valider
+                    </button>
+                    <button 
+                      onClick={() => handleValidateVersement(vers.id, 'REJETE')}
+                      className="flex-1 sm:flex-none py-2 px-4 bg-red-50 text-red-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 size={16} /> Rejeter
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
         {sellers.map(seller => {
            const sellerDists = distributions.filter(d => d.sellerId === seller.id);
@@ -140,7 +194,10 @@ export function ResellerManager({
            const totalCommission = sellerDists.filter(d => d.status === 'vendu').reduce((a,b)=>a+((b.commissionUnitaire || 0)*b.quantite), 0);
            
            const sellerVers = versements.filter(v => v.sellerId === seller.id);
-           const totalVerses = sellerVers.reduce((a,b)=>a+b.montant, 0);
+           const validesVers = sellerVers.filter(v => !v.statut || v.statut === 'VALIDE');
+           const attenteVers = sellerVers.filter(v => v.statut === 'EN_ATTENTE');
+           const totalVerses = validesVers.reduce((a,b)=>a+b.montant, 0);
+           const totalAttente = attenteVers.reduce((a,b)=>a+b.montant, 0);
            
            const resteAVerser = (totalCA - totalCommission) - totalVerses;
 
@@ -197,7 +254,10 @@ export function ResellerManager({
                         ? 'bg-dmn-gold/5 border-dmn-gold animate-pulse text-dmn-gold' 
                         : 'bg-dmn-green-900 text-white border-transparent'}`}>
                     <span className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2 opacity-60"><Wallet size={12}/> Balance</span>
-                    <span className="fintech-kpi text-lg sm:text-xl">{formatPrice(resteAVerser)} <span className="text-xs opacity-50 ml-0.5 sm:ml-1">F</span></span>
+                    <div className="flex flex-col items-end">
+                      <span className="fintech-kpi text-lg sm:text-xl">{formatPrice(resteAVerser)} <span className="text-xs opacity-50 ml-0.5 sm:ml-1">F</span></span>
+                      {totalAttente > 0 && <span className="text-[10px] font-bold text-amber-500 mt-1">+{formatPrice(totalAttente)} F en attente</span>}
+                    </div>
                   </div>
                 </div>
 

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, 
   CalendarRange, AlertTriangle, AlertCircle, CheckCircle, Plus, Search, Edit2, Edit3, Trash2, X, Wallet, Printer, LogOut,
   CheckCircle2, XCircle, Clock, ChevronRight, History, Info, Shield, Key, QrCode, Share2, UserCheck,
-  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, Activity, BarChart3, Coffee, Menu, Loader2, FileText, FileSpreadsheet, ShieldCheck
+  Smartphone, TrendingDown, TrendingUp, Landmark, Zap, Calendar, MessageCircle, Banknote, Ticket, ArrowRightLeft, ArrowRight, Activity, BarChart3, Coffee, Menu, Loader2, FileText, FileSpreadsheet, ShieldCheck, Eye, EyeOff
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -115,17 +115,25 @@ export default function App() {
   const [cafeClients, setCafeClients] = useState<CafeClient[]>([]);
   const [cafePriceConfig, setCafePriceConfig] = useState<CafePriceConfig | null>(null);
 
+  const [isSellerValidated, setIsSellerValidated] = useState(false);
+  const [sellerValidationCode, setSellerValidationCode] = useState('');
+  const [showSellerCode, setShowSellerCode] = useState(false);
+
+  const currentSeller = useMemo(() => {
+    if (!user) return null;
+    const userEmail = user.email?.toLowerCase().trim();
+    if (!userEmail) return null;
+    return cafeSellers.find(s => 
+      s.active && (s.email && s.email.toLowerCase().trim() === userEmail)
+    );
+  }, [cafeSellers, user]);
+
   const isRevendeur = useMemo(() => {
     if (!user || isAdmin || userRole === 'cafe') return false;
-    if (userRole === 'revendeur') return true;
-    const userEmail = user.email?.toLowerCase().trim();
-    return cafeSellers.some(s => 
-      s.active && (
-        (s.email && s.email.toLowerCase().trim() === userEmail) || 
-        (s.codeAcces && s.codeAcces === user.uid)
-      )
-    );
-  }, [cafeSellers, user, userRole, isAdmin]);
+    // Si on a trouvé un profil vendeur actif avec le même email
+    if (currentSeller) return true;
+    return false;
+  }, [currentSeller, user, userRole, isAdmin]);
 
   const myMembre = useMemo(() => {
     if (!user) return null;
@@ -163,12 +171,21 @@ export default function App() {
     if (isAdmin) return ALL_TABS.filter(t => isMember || t.id !== 'etat');
     
     let tabs = ALL_TABS;
+    // Gestionnaire logic: Admin and Caisse/Cafe are considered gestionnaires here.
+    const isGestionnaire = isAdmin || userRole === 'caisse' || userRole === 'cafe';
+
     if (userRole === 'caisse') tabs = ALL_TABS.filter(t => ['dashboard', 'finance', 'membres', 'rapports', 'roles', 'etat'].includes(t.id));
     else if (userRole === 'cafe') tabs = ALL_TABS.filter(t => ['dashboard', 'cafe', 'roles', 'etat'].includes(t.id));
     else if (userRole === 'tickets') tabs = ALL_TABS.filter(t => ['dashboard', 'tickets', 'roles', 'etat'].includes(t.id));
     else if (isRevendeur) tabs = ALL_TABS.filter(t => ['dashboard', 'cafe', 'etat'].includes(t.id));
     else if (userRole === 'lecteur' || userRole === 'visitor') tabs = ALL_TABS.filter(t => ['dashboard', 'rapports', 'etat'].includes(t.id));
     else tabs = ALL_TABS.filter(t => ['dashboard', 'etat'].includes(t.id));
+
+    // Hide Cafe tab for those who are NOT Admin, Cafe Manager or Reseller
+    tabs = tabs.filter(t => {
+      if (t.id === 'cafe') return isAdmin || userRole === 'cafe' || isRevendeur;
+      return true;
+    });
 
     // Si pas membre, on enlève 'etat' sauf si c'est un lecteur (qui en a besoin pour se lier)
     if (!isMember && userRole !== 'lecteur') {
@@ -342,14 +359,14 @@ export default function App() {
     if (membre) {
       if (membre.anneeIntegration && membre.moisIntegration) {
         if (Number(membre.anneeIntegration) === Number(globalYear)) {
-          startMonthIndex = MOIS.indexOf(membre.moisIntegration?.toUpperCase()); // Commence le mois d'intégration
+          startMonthIndex = MOIS.indexOf(membre.moisIntegration?.toUpperCase() || '') + 1; // Commence le mois suivant l'intégration
         } else if (Number(membre.anneeIntegration) > Number(globalYear)) {
           return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
         }
       } else if (membre.createdAt) {
         const createdDate = new Date(membre.createdAt);
         if (createdDate.getFullYear() === Number(globalYear)) {
-          startMonthIndex = createdDate.getMonth(); // Commence le mois de création
+          startMonthIndex = createdDate.getMonth() + 1; // Commence le mois suivant la création
         } else if (createdDate.getFullYear() > Number(globalYear)) {
           return { isLate: false, unpaidCount: 0, unpaidMonths: [] };
         }
@@ -1256,6 +1273,15 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'dettes');
       showToast('Erreur lors de la modification', 'error');
+    }
+  };
+
+  const handleValidateSeller = () => {
+    if (currentSeller && currentSeller.codeAcces === sellerValidationCode.trim()) {
+      setIsSellerValidated(true);
+      showToast("Accès validé !", "success");
+    } else {
+      showToast("Code secret incorrect", "error");
     }
   };
 
@@ -2271,13 +2297,13 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
         {(activeTab === 'finance' || activeTab === 'membres' || activeTab === 'tickets' || activeTab === 'cafe') && (
           <motion.div 
             key={activeTab}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, height: 0, y: -10 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="max-w-7xl mx-auto px-4 sm:px-6 overflow-hidden"
           >
-            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-2 sm:py-3">
+            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-4 sm:py-6">
               {activeTab === 'finance' && [
                 ...((userRole === 'admin' || userRole === 'caisse') ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
                 { id: 'validations', label: 'Validations', icon: CheckCircle, badge: paiementsAttente.filter(p => p.statut === 'EN_ATTENTE').length },
@@ -2288,24 +2314,33 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
               ].map(sub => (
                 <motion.button 
                   key={sub.id} 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setFinanceSubTab(sub.id as any)} 
-                  className={`flex items-center gap-1.5 sm:gap-3 px-3.5 sm:px-6 py-2.5 sm:py-4 rounded-xl sm:rounded-[1.5rem] text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
+                  className={`relative flex items-center gap-1.5 sm:gap-3 px-3.5 sm:px-6 py-2.5 sm:py-4 rounded-xl sm:rounded-[1.5rem] text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
                     financeSubTab === sub.id 
-                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10' 
+                      ? 'text-white border-transparent' 
                       : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
-                   <div className="relative">
-                     <sub.icon size={12} className={financeSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
-                     {('badge' in sub && sub.badge > 0) && (
-                       <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white">
-                         {sub.badge}
-                       </span>
-                     )}
+                   {financeSubTab === sub.id && (
+                     <motion.div 
+                       layoutId="finance-bg"
+                       className="absolute inset-0 bg-dmn-green-900 rounded-xl sm:rounded-[1.5rem] shadow-xl shadow-dmn-green-900/10"
+                       transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                     />
+                   )}
+                   <div className="relative z-10 flex items-center gap-1.5 sm:gap-3">
+                     <div className="relative">
+                       <sub.icon size={12} className={financeSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
+                       {('badge' in sub && sub.badge > 0) && (
+                         <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white">
+                           {sub.badge}
+                         </span>
+                       )}
+                     </div>
+                     <span>{sub.label}</span>
                    </div>
-                   <span>{sub.label}</span>
                 </motion.button>
               ))}
 
@@ -2316,17 +2351,26 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
               ].map(sub => (
                 <motion.button 
                   key={sub.id} 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setMembreSubTab(sub.id as any)} 
-                  className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
+                  className={`relative flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm group whitespace-nowrap border ${
                     membreSubTab === sub.id 
-                      ? 'bg-dmn-green-900 text-white border-transparent shadow-xl shadow-dmn-green-900/10' 
+                      ? 'text-white border-transparent' 
                       : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-100 hover:border-gray-200'
                   }`}
                 >
-                   <sub.icon size={14} className={membreSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
-                   <span>{sub.label}</span>
+                   {membreSubTab === sub.id && (
+                     <motion.div 
+                       layoutId="membre-bg"
+                       className="absolute inset-0 bg-dmn-green-900 rounded-[1.5rem] shadow-xl shadow-dmn-green-900/10"
+                       transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                     />
+                   )}
+                   <div className="relative z-10 flex items-center gap-3">
+                     <sub.icon size={14} className={membreSubTab === sub.id ? 'stroke-[2.5px]' : 'stroke-2 group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
+                     <span>{sub.label}</span>
+                   </div>
                 </motion.button>
               ))}
             </div>
@@ -2339,54 +2383,27 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab + (activeTab === 'finance' ? financeSubTab : '') + (activeTab === 'membres' ? membreSubTab : '')}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
             style={{ backfaceVisibility: 'hidden', transform: 'translate3d(0,0,0)' }}
             className="p-3 sm:p-6 lg:p-8"
           >
             <Suspense fallback={<DashboardSkeleton />}>
         {activeTab === 'dashboard' && (
           <>
-            {userRole === 'lecteur' ? (
-              <MemberDashboard 
-                myMembre={myMembre}
-                membres={membres}
-                currentUser={user}
-                cotisations={cotisations} 
-                globalYear={globalYear} 
-                MOIS={MOIS} 
-                paiementsAttente={paiementsAttente}
-                defaultPrice={appSettings.prices.default}
-                onDirectPaymentClick={(mode, amount, unpaidMonths) => {
-                  if (myMembre) {
-                    setPaymentModal({
-                      isOpen: true,
-                      mode,
-                      membre: myMembre,
-                      unpaidMonths,
-                      selectedMonths: unpaidMonths,
-                      customAmountPerMonth: appSettings.prices.default
-                    });
-                  }
-                }}
-              />
-            ) : (
-              <>
-                <RotatingMessages />
-                <PremiumDashboard 
-                  membres={membres} cotisations={cotisations} depenses={depenses} 
-                  recettes={recettes} dettes={dettes} 
-                  ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
-                  cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
-                  cafeSellers={cafeSellers} cafeClients={cafeClients}
-                  globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
-                  logoUrl={appSettings.logoUrl} userRole={userRole} currentUser={user} onLogoUpload={handleLogoUpload}
-                  onQuickAction={handleQuickAction}
-                />
-              </>
-            )}
+            <RotatingMessages />
+            <PremiumDashboard 
+              membres={membres} cotisations={cotisations} depenses={depenses} 
+              recettes={recettes} dettes={dettes} 
+              ticketCollectes={ticketCollectes} ticketConversions={ticketConversions} ticketDistributions={ticketDistributions}
+              cafeProductions={cafeProductions} cafeVentes={cafeVentes} cafeDepenses={cafeDepenses}
+              cafeSellers={cafeSellers} cafeClients={cafeClients}
+              globalYear={globalYear} globalMonth={globalMonth} globalMode={globalMode} 
+              logoUrl={appSettings.logoUrl} userRole={userRole} currentUser={user} onLogoUpload={handleLogoUpload}
+              onQuickAction={handleQuickAction}
+            />
           </>
         )}
 
@@ -2448,23 +2465,70 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
         {activeTab === 'tickets' && <Tickets membres={membres} globalYear={globalYear} globalMonth={globalMonth} showToast={showToast} collectes={ticketCollectes} conversions={ticketConversions} distributions={ticketDistributions} userRole={userRole as string} confirmAction={confirmAction} activeTab={ticketsSubTab} setActiveTab={setTicketsSubTab} />}
         
         {activeTab === 'cafe' && (
-          <CafeModule 
-            productions={cafeProductions}
-            ventes={cafeVentes}
-            depenses={cafeDepenses}
-            transferts={cafeTransferts}
-            distributions={cafeDistributions}
-            versements={cafeVersements}
-            sellers={cafeSellers}
-            clients={cafeClients}
-            priceConfig={cafePriceConfig}
-            userRole={userRole || 'lecteur'}
-            globalYear={globalYear}
-            globalMonth={globalMonth}
-            showToast={showToast}
-            onTransferToCaisse={handleCafeTransferToCaisse}
-            confirmAction={confirmAction}
-          />
+          isRevendeur && !isSellerValidated ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white p-8 rounded-[3rem] shadow-2xl border border-gray-100 max-w-md w-full text-center space-y-8"
+              >
+                <div className="w-20 h-20 bg-dmn-green-50 rounded-[2.5rem] flex items-center justify-center mx-auto text-dmn-green-600">
+                  <Key size={32} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-gray-900 fintech-heading uppercase tracking-tight">Accès Sécurisé</h3>
+                  <p className="text-xs font-bold text-gray-400 mt-2 lex uppercase tracking-widest leading-loose">
+                    Bonjour <span className="text-dmn-green-600 font-black">{currentSeller?.name || currentSeller?.nom || user?.email}</span>.<br />
+                    Veuillez entrer votre code secret pour accéder à votre espace revendeur.
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <input
+                      type={showSellerCode ? "text" : "password"}
+                      placeholder="Entrez votre code secret"
+                      value={sellerValidationCode}
+                      onChange={(e) => setSellerValidationCode(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleValidateSeller()}
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-2xl font-black tracking-[1em] focus:ring-4 focus:ring-dmn-green-500/10 focus:bg-white outline-none transition-all placeholder:tracking-normal placeholder:text-sm placeholder:font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSellerCode(!showSellerCode)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 outline-none p-2"
+                    >
+                      {showSellerCode ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleValidateSeller}
+                    className="w-full btn-primary h-14 flex items-center justify-center gap-3"
+                  >
+                    <span>Valider l'accès</span>
+                    <ArrowRight size={18} strokeWidth={3} />
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          ) : (
+            <CafeModule 
+              productions={cafeProductions}
+              ventes={cafeVentes}
+              depenses={cafeDepenses}
+              transferts={cafeTransferts}
+              distributions={cafeDistributions}
+              versements={cafeVersements}
+              sellers={cafeSellers}
+              clients={cafeClients}
+              priceConfig={cafePriceConfig}
+              userRole={userRole || 'lecteur'}
+              globalYear={globalYear}
+              globalMonth={globalMonth}
+              showToast={showToast}
+              onTransferToCaisse={handleCafeTransferToCaisse}
+              confirmAction={confirmAction}
+            />
+          )
         )}
 
         {activeTab === 'roles' && (
@@ -2489,53 +2553,60 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
         {navigationTabs.map(tab => (
           <motion.button
             key={tab.id}
-            whileHover={{ scale: 1.05 }}
+            whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setActiveTab(tab.id as Tab)}
-            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group ${
+            className={`relative flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-black tracking-wide transition-all shadow-sm group outline-none ${
               activeTab === tab.id 
-                ? 'bg-dmn-green-600 text-white shadow-md shadow-dmn-green-600/20 ring-4 ring-dmn-green-600/10' 
+                ? 'text-white' 
                 : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200 hover:border-gray-300'
             }`}
           >
-            <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-[2px] group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
-            <span>{tab.label}</span>
+            {activeTab === tab.id && (
+              <motion.div 
+                layoutId="desktop-nav-indicator"
+                className="absolute inset-0 bg-dmn-green-600 rounded-2xl shadow-xl shadow-dmn-green-600/20"
+                transition={{ type: 'spring', bounce: 0.15, duration: 0.6 }}
+              />
+            )}
+            <div className="relative z-10 flex items-center gap-3">
+              <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-[2px] group-hover:scale-110 transition-transform text-gray-400 group-hover:text-dmn-green-600'} /> 
+              <span>{tab.label}</span>
+            </div>
           </motion.button>
         ))}
       </nav>
 
       {/* Floating Bottom Navigation Apple Wallet Style (Mobile) */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-[150] pb-[env(safe-area-inset-bottom,12px)] pt-10 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
+      <div className="sm:hidden fixed bottom-6 left-0 right-0 z-[150] px-4 pointer-events-none">
         <motion.nav 
-          initial={{ y: 50, opacity: 0 }}
+          initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="bg-gray-900/98 border border-white/10 shadow-[0_-10px_50px_rgba(0,0,0,0.6)] rounded-[2rem] h-[68px] flex items-center gap-1 overflow-x-auto no-scrollbar px-3 relative pointer-events-auto mx-auto max-w-[96%]"
+          className="bg-gray-900/90 backdrop-blur-xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-[2.5rem] h-[72px] flex items-center justify-around overflow-hidden relative pointer-events-auto mx-auto max-w-md w-full ring-1 ring-black/5"
         >
           {navigationTabs.map(tab => (
-            <button
+            <motion.button
               key={tab.id}
+              whileTap={{ scale: 0.8 }}
               onClick={() => setActiveTab(tab.id as Tab)}
-              className="flex flex-col items-center justify-center min-w-[56px] flex-shrink-0 h-full relative group outline-none"
+              className="flex flex-col items-center justify-center flex-1 h-full relative group outline-none"
             >
-              <div className={`p-1.5 rounded-xl transition-all duration-300 ${
-                activeTab === tab.id 
-                  ? 'bg-dmn-green-500 text-gray-900 scale-110 shadow-lg shadow-dmn-green-500/20' 
-                  : 'text-gray-400 active:scale-95'
-              }`}>
-                <tab.icon size={20} className={activeTab === tab.id ? 'stroke-[2.5px]' : 'stroke-2 opacity-70'} />
-              </div>
-              <span className={`text-[7px] font-black uppercase tracking-tighter mt-1 transition-all duration-300 ${
-                activeTab === tab.id ? 'opacity-100 text-white translate-y-0' : 'opacity-40 text-gray-400'
-              }`}>
-                {tab.label}
-              </span>
-              {activeTab === tab.id && (
-                <motion.div 
-                  layoutId="nav-dot-mobile"
-                  className="absolute -bottom-1 w-1 h-1 bg-dmn-green-500 rounded-full"
-                />
-              )}
-            </button>
+               {activeTab === tab.id && (
+                 <motion.div 
+                   layoutId="mobile-nav-pill"
+                   className="absolute inset-y-2 inset-x-1.5 bg-dmn-green-500 rounded-[1.5rem]"
+                   transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                 />
+               )}
+               <div className={`relative z-10 p-1.5 transition-colors duration-300 ${activeTab === tab.id ? 'text-black' : 'text-gray-400'}`}>
+                 <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[3px]' : 'stroke-[1.5px] opacity-70'} />
+               </div>
+               <span className={`relative z-10 text-[7px] font-black uppercase tracking-widest mt-0.5 transition-colors duration-300 ${
+                 activeTab === tab.id ? 'text-black' : 'text-gray-500'
+               }`}>
+                 {tab.label}
+               </span>
+            </motion.button>
           ))}
         </motion.nav>
       </div>

@@ -1,7 +1,10 @@
 import React from 'react';
-import { AlertTriangle, MessageCircle, Printer, Search, Calendar, Smartphone, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, MessageCircle, Printer, Search, Calendar, Smartphone, CheckCircle2, Download } from 'lucide-react';
 import { Membre, UserRole } from '../types';
 import { MOIS } from '../data';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { formatPrice } from '../utils/format';
 
 interface NonPayeursProps {
   membres: Membre[];
@@ -48,6 +51,60 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
     return status.isLate && matchSearch && matchMonth;
   });
 
+  const exportRetardsPDF = () => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica");
+
+    // Title
+    doc.setFontSize(22);
+    doc.setTextColor(220, 38, 38); // red-600
+    doc.text(`Liste des Retards de Paiement - ${globalYear}`, 14, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, 14, 28);
+    if (npMois) {
+        doc.text(`Filtre mois : ${npMois}`, 14, 33);
+    }
+
+    const tableData = filteredMembres.map(m => {
+      const status = getMemberStatus(m.id);
+      return [
+        `${m.prenom} ${m.nom}`,
+        m.telephone || '---',
+        `${status.unpaidCount} mois`,
+        status.unpaidMonths.join(', '),
+        `${formatPrice(status.unpaidCount * 500)} F`
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 40,
+      head: [['Membre', 'Téléphone', 'Nb Mois', 'Détails des mois', 'Total Dû']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [220, 38, 38] }, // red-600
+      styles: { fontSize: 8 },
+      columnStyles: {
+        0: { fontStyle: 'bold' },
+        4: { halign: 'right', fontStyle: 'bold' }
+      }
+    });
+
+    const totalDuGlobal = tableData.reduce((acc, row) => {
+        const val = row[4].replace(/[^0-9]/g, '');
+        return acc + parseInt(val || '0');
+    }, 0);
+
+    const finalY = (doc as any).lastAutoTable.finalY || 150;
+    doc.setFontSize(12);
+    doc.setTextColor(30);
+    doc.setFont("helvetica", "bold");
+    doc.text(`TOTAL GLOBAL À RECOUVRER : ${formatPrice(totalDuGlobal)} FCFA`, 14, finalY + 15);
+
+    doc.save(`Liste_Retards_${npMois || 'Global'}_${globalYear}.pdf`);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -77,8 +134,8 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
             <button onClick={handleGeneralReminderWhatsApp} className="bg-[#25D366] hover:bg-[#1da851] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm">
               <MessageCircle size={14} /> Rappel Général
             </button>
-            <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
-              <Printer size={14} /> Imprimer
+            <button onClick={exportRetardsPDF} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10">
+              <Download size={14} /> Imprimer la Liste
             </button>
           </div>
         </div>
@@ -158,9 +215,10 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                       <td className="px-6 py-4">
                         <div className="flex justify-center gap-2">
                           {(() => {
+                            const formattedTotal = formatPrice(status.unpaidCount * 500);
                             const smsBody = `Dieureudieufé Serigne Touba. Petit rappel fraternel pour votre Cotisation Mensuelle (500 FCFA). Jëf Jël ! Régularisez ici : https://com-soc-dmn-cellule-esp-delta.vercel.app/ ou au 770952647 (Wave/OM). Jaajëf Mûrid.`;
                             
-                            const waBody = `*✨ JËF JËL - DAARA DMN CELLULE ESP ✨*\n\nAssalamou halaykoum Mbokkou talibé, \nNous vous prions de recevoir notre humble Ziar. 🙏\n\nDans l'esprit du service (Liggey) envers Serigne Touba, nous vous rappelons amicalement votre participation à la Commission Sociale.\n\n📌 *VOTRE RÉCAPITULATIF :*\n- 🗓️ Mois dus : *${status.unpaidMonths.join(', ')}*\n- 💰 Montant total : *${status.unpaidCount * 500} FCFA*\n\n✅ *POUR RÉGULARISER :*\n1️⃣ *Par Wave (Direct)* :\n👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/\n\n2️⃣ *Par Transfert (Wave/OM)* :\n📞 *77 095 26 47* (Faye)\n\nQue par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jëf Jël ! ✨`;
+                            const waBody = `*✨ JËF JËL - DAARA DMN CELLULE ESP ✨*\n\nAssalamou halaykoum Mbokkou talibé, \nNous vous prions de recevoir notre humble Ziar. 🙏\n\nDans l'esprit du service (Liggey) envers Serigne Touba, nous vous rappelons amicalement votre participation à la Commission Sociale.\n\n📌 *VOTRE RÉCAPITULATIF :*\n- 🗓️ Mois dus : *${status.unpaidMonths.join(', ')}*\n- 💰 Montant total : *${formattedTotal} FCFA*\n\n✅ *POUR RÉGULARISER :*\n1️⃣ *Par Wave (Direct)* :\n👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/\n\n2️⃣ *Par Transfert (Wave/OM)* :\n📞 *77 095 26 47* (Faye)\n\nQue par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jëf Jël ! ✨`;
                             const phone = m.telephone?.replace(/\s/g, '') || '';
                             
                             return (
@@ -248,8 +306,9 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
                     )}
                     <div className="flex gap-2">
                     {(() => {
+                        const formattedTotal = formatPrice(status.unpaidCount * 500);
                         const smsBody = `Dieureudieufé Serigne Touba. Petit rappel fraternel pour votre Cotisation Mensuelle (500 FCFA). Jëf Jël ! Régularisez ici : https://com-soc-dmn-cellule-esp-delta.vercel.app/ ou au 770952647 (Wave/OM). Jaajëf Mûrid.`;
-                        const waBody = `*✨ JËF JËL - DAARA DMN CELLULE ESP ✨*\n\nAssalamou halaykoum Mbokkou talibé, \nNous vous prions de recevoir notre humble Ziar. 🙏\n\nDans l'esprit du service (Liggey) envers Serigne Touba, nous vous rappelons amicalement votre participation à la Commission Sociale.\n\n📌 *VOTRE RÉCAPITULATIF :*\n- 🗓️ Mois dus : *${status.unpaidMonths.join(', ')}*\n- 💰 Montant total : *${status.unpaidCount * 500} FCFA*\n\n✅ *POUR RÉGULARISER :*\n1️⃣ *Par Wave (Direct)* :\n👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/\n\n2️⃣ *Par Transfert (Wave/OM)* :\n📞 *77 095 26 47* (Faye)\n\nQue par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jëf Jël ! ✨`;
+                        const waBody = `*✨ JËF JËL - DAARA DMN CELLULE ESP ✨*\n\nAssalamou halaykoum Mbokkou talibé, \nNous vous prions de recevoir notre humble Ziar. 🙏\n\nDans l'esprit du service (Liggey) envers Serigne Touba, nous vous rappelons amicalement votre participation à la Commission Sociale.\n\n📌 *VOTRE RÉCAPITULATIF :*\n- 🗓️ Mois dus : *${status.unpaidMonths.join(', ')}*\n- 💰 Montant total : *${formattedTotal} FCFA*\n\n✅ *POUR RÉGULARISER :*\n1️⃣ *Par Wave (Direct)* :\n👉 https://com-soc-dmn-cellule-esp-delta.vercel.app/\n\n2️⃣ *Par Transfert (Wave/OM)* :\n📞 *77 095 26 47* (Faye)\n\nQue par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jëf Jël ! ✨`;
                         const phone = m.telephone?.replace(/\s/g, '') || '';
                         
                         return (

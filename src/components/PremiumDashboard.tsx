@@ -53,8 +53,18 @@ const containerVariants = {
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 400 } }
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  show: { 
+    opacity: 1, 
+    y: 0, 
+    scale: 1,
+    transition: { 
+      type: 'spring', 
+      damping: 25, 
+      stiffness: 400,
+      mass: 0.8
+    } 
+  }
 };
 
 export function PremiumDashboard({
@@ -92,6 +102,7 @@ export function PremiumDashboard({
 
   // --- LOGIC CALCULATIONS ---
   const formattedRole = userRole === 'visitor' ? null : userRole;
+  const isLecteur = userRole === 'lecteur';
   const isAdmin = userRole === 'admin';
   const isCaisse = userRole === 'caisse' || hasPermission(formattedRole, 'caisse.read');
   const isCafe = userRole === 'cafe' || hasPermission(formattedRole, 'cafe.production.read');
@@ -99,6 +110,7 @@ export function PremiumDashboard({
   const isRevendeur = !isAdmin && !isCafe && Boolean(cafeSellers.some(s => s.email && currentUser?.email && s.email.toLowerCase() === currentUser.email.toLowerCase()));
   const isMembreSimple = !isAdmin && !isCaisse && !isCafe && !isTickets && !isRevendeur && Boolean(currentUser?.email);
   const isStats = hasPermission(formattedRole, 'stats.read');
+  const canViewGlobalKPIs = isAdmin || isCaisse || isStats || isLecteur;
 
   const filteredCafeVentes = useMemo(() => cafeVentes.filter(v => new Date(v.date).getFullYear() === globalYear), [cafeVentes, globalYear]);
 
@@ -150,7 +162,7 @@ export function PremiumDashboard({
     if (membre && membre.anneeIntegration && membre.moisIntegration) {
       if (membre.anneeIntegration > globalYear) return "Non membre";
       if (membre.anneeIntegration === globalYear) {
-        startMonthIndex = MOIS.indexOf(membre.moisIntegration?.toUpperCase());
+        startMonthIndex = MOIS.indexOf(membre.moisIntegration?.toUpperCase() || '') + 1;
       }
     }
     let isEnRetard = false;
@@ -281,6 +293,100 @@ export function PremiumDashboard({
     return insights.slice(0, 2);
   }, [soldeGlobal, totDettesEnAttente, membresActifs, membres.length]);
 
+  if (isLecteur) {
+    return (
+      <motion.div 
+        initial="hidden"
+        animate="show"
+        variants={containerVariants}
+        className="max-w-5xl mx-auto space-y-6 sm:space-y-10 pb-32 pt-4 sm:pt-12 px-2 sm:px-6"
+      >
+        {/* WELCOME & LOGO */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 px-2 sm:px-4">
+          <div className="flex items-center gap-3 sm:gap-6 w-full sm:w-auto justify-center sm:justify-start">
+            <div className="relative group shrink-0">
+              <div className="absolute inset-0 bg-dmn-green-500/10 rounded-[1.2rem] sm:rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-[1.2rem] sm:rounded-[2rem] p-1 sm:p-1.5 shadow-soft border border-gray-100/80 overflow-hidden relative z-10 transition-transform group-hover:scale-105 duration-500">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1rem] sm:rounded-[1.5rem]" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-full h-full bg-dmn-green-50 flex items-center justify-center text-dmn-green-700">
+                    <Building2 size={24} strokeWidth={2.5} className="sm:w-8 sm:h-8" />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="text-center sm:text-left">
+              <h1 className="text-lg sm:text-3xl lg:text-4xl fintech-heading leading-tight max-w-[220px] sm:max-w-none">Daara Madjmahoune Noreyni UCAD</h1>
+              <p className="text-[8px] sm:text-[11px] font-black text-dmn-green-600 uppercase tracking-[0.2em] sm:tracking-[0.4em] mt-1 sm:mt-2 flex items-center justify-center sm:justify-start gap-1.5 sm:gap-3">
+                <span className="w-1 h-1 sm:w-2 sm:h-2 bg-dmn-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Vue Transparence Globale
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* LECTEUR SPECIFIC METRICS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+           <motion.div variants={itemVariants} className="p-6 sm:p-10 bg-[#064e3b] rounded-[1.5rem] sm:rounded-[2.5rem] shadow-md border border-[#043327] text-white overflow-hidden relative group min-h-[160px] sm:min-h-[200px]">
+              {/* Decorative background */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-dmn-gold/20 rounded-full blur-[60px] transform group-hover:scale-125 transition-transform duration-700 -mr-10 -mt-10"></div>
+              <div className="relative z-10 flex flex-col justify-between h-full">
+                 <p className="text-[10px] sm:text-xs uppercase font-black tracking-[0.3em] text-white/50 mb-4 flex items-center gap-2"><Wallet size={14} className="text-dmn-gold"/> Solde Global Caisse</p>
+                 <h2 className="text-4xl lg:text-5xl xl:text-6xl font-black text-white drop-shadow-lg fintech-kpi mt-auto">{formatPrice(soldeGlobal)} <span className="text-lg opacity-60">FCFA</span></h2>
+              </div>
+           </motion.div>
+
+           <motion.div variants={itemVariants} className="grid grid-cols-2 gap-4">
+               <div className="p-4 flex flex-col justify-between bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-sm relative overflow-hidden border border-gray-100">
+                   <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5"><TrendingUp size={12} className="text-dmn-green-600"/> Total Recettes</p>
+                   <h4 className="text-lg sm:text-2xl font-black mt-auto text-dmn-green-700">{formatPrice(globalTotIncome)} <span className="text-[10px] opacity-60">F</span></h4>
+               </div>
+
+               <div className="p-4 flex flex-col justify-between bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-sm relative overflow-hidden border border-gray-100">
+                   <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5"><TrendingDown size={12} className="text-red-500"/> Total Dépenses</p>
+                   <h4 className="text-lg sm:text-2xl font-black mt-auto text-red-600">{formatPrice(globalTotExpenses)} <span className="text-[10px] opacity-60">F</span></h4>
+               </div>
+
+               <div className="p-4 sm:p-5 flex flex-col justify-between col-span-2 bg-gradient-to-r from-amber-500 to-amber-600 rounded-[1.5rem] sm:rounded-[2rem] shadow-md relative overflow-hidden group border border-amber-400">
+                   <div className="absolute right-0 top-0 w-24 h-24 bg-white/20 rounded-full blur-2xl -mr-4 -mt-4"></div>
+                   <p className="text-[9px] sm:text-xs font-black uppercase text-white/90 tracking-[0.2em] relative z-10 flex items-center gap-1.5"><Ticket size={14} className="text-white"/> Tickets Disponibles</p>
+                   <div className="flex items-end gap-2 mt-auto relative z-10">
+                       <h4 className="text-3xl sm:text-4xl font-black text-white leading-none">{stockRepas}</h4>
+                       <span className="text-[10px] uppercase font-bold text-white/70 mb-1">Repas</span>
+                   </div>
+               </div>
+           </motion.div>
+        </div>
+
+        {/* DECORATIVE VALUES OF THE DAARA CAISSE */}
+        <motion.div variants={itemVariants} className="relative w-full rounded-[2.5rem] bg-gradient-to-br from-[#0a1f12] to-[#041009] p-8 sm:p-12 overflow-hidden shadow-base mt-4 border border-white/5">
+             <div className="absolute top-0 left-0 w-96 h-96 bg-dmn-gold/5 blur-[100px] -ml-20 -mt-20 pointer-events-none"></div>
+             <div className="absolute bottom-0 right-0 w-80 h-80 bg-dmn-green-500/10 blur-[80px] -mr-10 -mb-10 pointer-events-none"></div>
+             
+             <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12 text-center sm:text-left">
+                 {[
+                   { title: "NDIGËL & KHIDMA", desc: "Celui qui participe à l'effort commun par ses biens ou sa sueur, accomplit une Khidma précieuse envers Serigne Touba.", icon: Users },
+                   { title: "JËF JËL (L'ACTION)", desc: "Les grandes œuvres se bâtissent par l'action. Chaque contribution est une pierre à l'édifice de notre Daara à l'UCAD.", icon: Activity },
+                   { title: "DIMBËLËNTÉ", desc: "Ce système est le reflet de notre solidarité de talibés. Unissons nos forces pour ne laisser aucun condisciple derrière.", icon: Shield },
+                   { title: "AMAANAH", desc: "La confiance est sacrée. La clarté totale dans notre gestion est une exigence spirituelle et un devoir moral.", icon: Star },
+                 ].map((val, idx) => (
+                     <div key={idx} className="flex flex-col items-center sm:items-start gap-4 group">
+                        <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-dmn-gold group-hover:bg-dmn-gold/10 group-hover:text-dmn-gold transition-colors">
+                           <val.icon size={20} />
+                        </div>
+                        <div>
+                          <h5 className="text-white text-[11px] font-black uppercase tracking-[0.2em] mb-2">{val.title}</h5>
+                          <p className="text-white/40 text-[10px] sm:text-[11px] leading-relaxed max-w-[200px] text-center sm:text-left">{val.desc}</p>
+                        </div>
+                     </div>
+                 ))}
+             </div>
+        </motion.div>
+
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div 
       initial="hidden"
@@ -295,7 +401,7 @@ export function PremiumDashboard({
             <div className="absolute inset-0 bg-dmn-green-500/10 rounded-[1.2rem] sm:rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-[1.2rem] sm:rounded-[2rem] p-1 sm:p-1.5 shadow-soft border border-gray-100/80 overflow-hidden relative z-10 transition-transform group-hover:scale-105 duration-500">
               {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1rem] sm:rounded-[1.5rem]" />
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain rounded-[1rem] sm:rounded-[1.5rem]" referrerPolicy="no-referrer" />
               ) : (
                 <div className="w-full h-full bg-dmn-green-50 flex items-center justify-center text-dmn-green-700">
                   <Building2 size={24} strokeWidth={2.5} className="sm:w-8 sm:h-8" />
@@ -325,9 +431,17 @@ export function PremiumDashboard({
 
       {/* MAIN WALLET CARD */}
       {(isCaisse || isStats) && (
-      <motion.div variants={itemVariants} className="relative group px-1 sm:px-0">
+      <motion.div 
+        variants={itemVariants} 
+        layout
+        className="relative group px-1 sm:px-0"
+      >
         <div className="absolute inset-x-0 -bottom-4 h-10 bg-dmn-green-900/10 blur-3xl rounded-full scale-95 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-        <div className="relative h-60 sm:h-80 w-full bg-dmn-green-900 rounded-[2rem] sm:rounded-[3.5rem] p-5 sm:p-10 shadow-2xl shadow-dmn-green-900/30 overflow-hidden transition-all duration-700 group-hover:translate-y-[-4px]">
+        <motion.div 
+          whileHover={{ y: -4, scale: 1.01 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          className="relative h-60 sm:h-80 w-full bg-dmn-green-900 rounded-[2rem] sm:rounded-[3.5rem] p-5 sm:p-10 shadow-2xl shadow-dmn-green-900/30 overflow-hidden"
+        >
           {/* Background Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-dmn-green-500/20 rounded-full blur-[80px] sm:blur-[120px] -mr-32 -mt-32 sm:-mr-48 sm:-mt-48 transition-transform group-hover:scale-110 duration-1000"></div>
           <div className="absolute bottom-0 left-0 w-40 h-40 sm:w-60 h-60 bg-dmn-gold/20 rounded-full blur-[60px] sm:blur-[100px] -ml-20 -mb-20 sm:-ml-30 sm:-mb-30 transition-transform group-hover:scale-110 duration-1000"></div>
@@ -381,18 +495,18 @@ export function PremiumDashboard({
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
       )}
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 px-1">
+      <motion.div layout className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 px-1">
         {[
-          { show: isAdmin || isCaisse || isStats, label: 'Cotis. Annuelles', value: formatPrice(annualCotisations.reduce((s, c) => s + c.montant, 0)) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `${globalYear}` },
-          { show: isAdmin || isCaisse || isStats, label: 'Membres Actifs', value: membresActifs, color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: Users, sub: `${membres.length} total` },
+          { show: canViewGlobalKPIs, label: 'Cotis. Annuelles', value: formatPrice(annualCotisations.reduce((s, c) => s + c.montant, 0)) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `${globalYear}` },
+          { show: canViewGlobalKPIs, label: 'Membres Actifs', value: membresActifs, color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: Users, sub: `${membres.length} total` },
           { show: isAdmin || isCaisse || isStats, label: 'Dettes / Attentes', value: formatPrice(totDettesEnAttente) + ' F', color: 'text-red-500', bg: 'bg-red-50', icon: AlertCircle, sub: 'À recouvrer' },
-          { show: isAdmin || isTickets, label: 'Repas', value: stockRepas, color: 'text-amber-600', bg: 'bg-amber-50', icon: Ticket, sub: 'En stock' },
-          { show: isAdmin || isCafe, label: 'Café (Global)', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités dispo' },
+          { show: isAdmin || isTickets || isLecteur, label: 'Repas', value: stockRepas, color: 'text-amber-600', bg: 'bg-amber-50', icon: Ticket, sub: 'En stock' },
+          { show: isAdmin || isCafe || isLecteur, label: 'Café (Global)', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités dispo' },
           { show: isRevendeur, label: 'Mon Stock', value: sellerStock, color: 'text-purple-600', bg: 'bg-purple-50', icon: Package, sub: 'Unités' },
           { show: isRevendeur, label: 'Mes Ventes', value: formatPrice(sellerRevenue) + ' F', color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: TrendingUp, sub: `${sellerQtySold} vendus` },
           { show: isMembreSimple && myMembre, label: 'Mon Statut', value: myMembre ? getMembreStatus(myMembre.id) : '-', color: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'text-dmn-green-600' : 'text-red-500', bg: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'bg-dmn-green-50' : 'bg-red-50', icon: Shield, sub: 'Cotisations' },
@@ -401,13 +515,15 @@ export function PremiumDashboard({
           <motion.div
             key={i}
             variants={itemVariants}
+            layout
             whileHover={{ 
               y: -8, 
-              scale: 1.02,
-              transition: { type: 'spring', stiffness: 400, damping: 10 }
+              scale: 1.03,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+              transition: { type: 'spring', stiffness: 400, damping: 15 }
             }}
-            whileTap={{ scale: 0.98 }}
-            className={`premium-card p-4 sm:p-5 flex flex-col justify-between h-28 sm:h-32 relative overflow-hidden group cursor-pointer`}
+            whileTap={{ scale: 0.95 }}
+            className={`premium-card p-4 sm:p-5 flex flex-col justify-between h-28 sm:h-32 relative overflow-hidden group cursor-pointer border-transparent hover:border-dmn-green-500/20`}
           >
             <div className={`absolute top-0 right-0 w-16 h-16 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity`}>
                <item.icon size={64} className="-mr-4 -mt-4 rotate-12" />
@@ -422,7 +538,7 @@ export function PremiumDashboard({
             </div>
           </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* COMMERCIAL INSIGHTS */}
       {isCafe && (
@@ -561,11 +677,13 @@ export function PremiumDashboard({
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Volume Café</p>
-                  <p className="text-3xl font-black">{totCafeQtySold || 0} <span className="text-sm font-light text-white/50 italic">Tasses</span></p>
-                  <p className="text-[9px] font-bold text-dmn-green-500 mt-2">+{formatPrice(totCafeRevenus)} FCFA en CA</p>
-                </div>
+                {(isAdmin || isCafe) && (
+                  <div>
+                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Volume Café</p>
+                    <p className="text-3xl font-black">{totCafeQtySold || 0} <span className="text-sm font-light text-white/50 italic">Tasses</span></p>
+                    <p className="text-[9px] font-bold text-dmn-green-500 mt-2">+{formatPrice(totCafeRevenus)} FCFA en CA</p>
+                  </div>
+                )}
 
                 <div>
                   <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Régularité</p>

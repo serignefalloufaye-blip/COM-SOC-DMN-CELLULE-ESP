@@ -2,6 +2,26 @@ import React from 'react';
 import { Users, History, Edit2, Trash2, Info, CreditCard, Shield, Plus, FileSpreadsheet } from 'lucide-react';
 import { Membre } from '../types';
 import * as XLSX from 'xlsx';
+import { motion } from 'motion/react';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { type: 'spring', stiffness: 300, damping: 24 }
+  }
+};
 
 interface MembersTableProps {
   membres: Membre[];
@@ -101,12 +121,21 @@ export const MembersTable: React.FC<MembersTableProps> = ({
               {(isAdmin || isCaisse) && <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">Actions</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <motion.tbody 
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="divide-y divide-gray-100"
+          >
             {filtered.map((m, i) => {
               const stats = memberStatsMap[m.id] || { totalPaid: 0 };
               const tot = stats.totalPaid;
               return (
-                <tr key={m.id} className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0">
+                <motion.tr 
+                  key={m.id} 
+                  variants={itemVariants}
+                  className="hover:bg-dmn-green-50/30 transition-colors border-b border-gray-50 last:border-0"
+                >
                   <td className="px-6 py-4 text-gray-500">{i + 1}</td>
                   <td className="px-6 py-4 text-left whitespace-nowrap">
                     <div className="flex items-center gap-2">
@@ -134,20 +163,29 @@ export const MembersTable: React.FC<MembersTableProps> = ({
                       )}
                     </td>
                   )}
-                </tr>
+                </motion.tr>
               );
             })}
-          </tbody>
+          </motion.tbody>
         </table>
       </div>
 
       {/* Mobile Cards */}
-      <div className="md:hidden divide-y divide-gray-50 bg-white">
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="md:hidden divide-y divide-gray-50 bg-white"
+      >
         {filtered.map((m, i) => {
           const stats = memberStatsMap[m.id] || { totalPaid: 0 };
           const tot = stats.totalPaid;
           return (
-            <div key={m.id} className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50/50 transition-colors">
+            <motion.div 
+              key={m.id} 
+              variants={itemVariants}
+              className="p-4 sm:p-5 flex flex-col gap-4 hover:bg-gray-50/50 transition-colors"
+            >
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-dmn-green-50 rounded-2xl flex items-center justify-center text-dmn-green-700 font-black text-sm">
@@ -202,10 +240,10 @@ export const MembersTable: React.FC<MembersTableProps> = ({
                   </button>
                 )}
               </div>
-            </div>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 };

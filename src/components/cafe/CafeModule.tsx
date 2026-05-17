@@ -21,6 +21,7 @@ import { db, auth } from '../../firebase';
 import { hasPermission, logAudit } from '../../utils/permissions';
 import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../utils/firestoreErrorHandler';
+import { formatPrice } from '../../utils/format';
 import { simpleDate } from '../../utils/date';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -226,7 +227,7 @@ export function CafeModule({
 
   // 3. Formatters
   const formats = {
-    price: (val: number) => val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' F',
+    price: (val: number) => formatPrice(val),
     date: (val: number) => simpleDate(val),
     percent: (val: number) => (val * 100).toFixed(1) + '%'
   };

@@ -1,21 +1,22 @@
 import { useMemo } from 'react';
-import { CafeProduction, CafeVente, CafeDepense, CafePriceConfig } from '../../../types';
+import { CafeProduction, CafeVente, CafeDepense, CafePriceConfig, CafeVersement } from '../../../types';
 import { MOIS } from '../../../data';
 
 export function useCafeFinance(
   productions: CafeProduction[],
   ventes: CafeVente[],
   depenses: CafeDepense[],
+  versements: CafeVersement[],
   priceConfig: CafePriceConfig | null,
   globalMonth: string | null,
   globalYear: number
 ) {
   return useMemo(() => {
     // Filter by period if needed, assuming data passed is already filtered or we filter here.
-    // For now, let's assume the lists passed in correspond to the selected period.
     const periodVentes = ventes;
     const periodDepenses = depenses;
     const periodProductions = productions;
+    const periodVersements = versements.filter(v => v.statut === 'VALIDE' || !v.statut); // Only count active versements
 
     // Production Costs (Modern Approach: From `charges` inside productions)
     let prodGrains = 0;
@@ -84,6 +85,10 @@ export function useCafeFinance(
     const qteProduite = periodProductions.reduce((a, b) => a + b.quantite, 0);
 
     // Key Financial Indicators
+    const totalVersements = periodVersements.reduce((a, b) => a + (b.montant || 0), 0);
+    const ventesDirectes = periodVentes.filter(v => !v.vendeurId).reduce((a, b) => a + (b.total || 0), 0);
+    const encaissable = ventesDirectes + totalVersements;
+    
     const resultatProduction = totalVentes - totalProdCosts; // Benefice Brut
     const soldeNet = resultatProduction - totalOperatingExpenses; // Benefice Net
     const margin = totalVentes > 0 ? (resultatProduction / totalVentes) * 100 : 0;
@@ -141,7 +146,9 @@ export function useCafeFinance(
         resultatProduction,
         soldeNet,
         margin,
-        netMargin
+        netMargin,
+        totalVersements,
+        encaissable
       },
       monthlyTrend
     };

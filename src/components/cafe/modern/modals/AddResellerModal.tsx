@@ -20,7 +20,6 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
   const [name, setName] = useState('');
   const [telephone, setTelephone] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [codeAcces, setCodeAcces] = useState('');
 
   React.useEffect(() => {
@@ -28,13 +27,11 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
       setName(editData.name || editData.nom || '');
       setTelephone(editData.telephone || editData.phone || '');
       setEmail(editData.email || '');
-      setPassword(editData.password || '');
       setCodeAcces(editData.codeAcces || '');
     } else {
       setName('');
       setTelephone('');
       setEmail('');
-      setPassword('');
       setCodeAcces('');
     }
   }, [editData, isOpen]);
@@ -55,7 +52,6 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
         nom: name.trim(), // Legacy support
         telephone: telephone.trim(),
         email: email.trim(),
-        password: password.trim(),
         codeAcces: codeAcces.trim(),
         active: editData ? editData.active : true,
         updatedAt: serverTimestamp()
@@ -143,25 +139,16 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
                />
              </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Mot de Passe</label>
-                <input
-                  type="text"
-                  value={password ?? ''}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Secret123"
-                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Code / ID (UID)</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Code Secret (Accès)</label>
                 <input
                   type="text"
                   value={codeAcces ?? ''}
                   onChange={(e) => setCodeAcces(e.target.value)}
-                  placeholder="Auto ou Manuell"
-                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                  placeholder="Ex: CAFE2026"
+                  className="w-full px-4 py-2 border border-purple-300 bg-purple-50 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all font-black text-purple-700 tracking-widest"
+                  required
                 />
               </div>
             </div>
@@ -170,10 +157,11 @@ export function AddResellerModal({ isOpen, onClose, onSuccess, userId, editData 
               <h4 className="text-[10px] font-black text-purple-700 uppercase tracking-widest mb-2 flex items-center gap-2">
                 <Shield size={12} /> Instructions de connexion
               </h4>
-              <p className="text-[11px] text-purple-900 leading-relaxed">
-                Le revendeur accède à son espace en se connectant avec cet <strong>email</strong>. 
-                L'application détectera automatiquement son profil. Le mot de passe saisi ici sert de référence 
-                si l'administrateur crée le compte manuellement dans Firebase.
+              <p className="text-[11px] text-purple-900 leading-relaxed font-medium">
+                Le revendeur doit se connecter avec son adresse <strong className="font-black text-purple-700">Email</strong>. 
+                Une fois connecté, le système lui demandera son <strong className="font-black text-purple-700">Code Secret (Accès)</strong>.
+                <br/><br/>
+                <span className="bg-purple-200 text-purple-800 px-2 py-0.5 rounded font-bold uppercase text-[9px] tracking-widest">Important</span> Vous devez lui communiquer ce <strong>Code Secret</strong> !
               </p>
             </div>
 

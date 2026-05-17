@@ -13,6 +13,7 @@ import { SalesManager } from './SalesManager';
 import { ExpensesManager } from './ExpensesManager';
 import { ResellerManager } from './ResellerManager';
 import { CafeReportManager } from './CafeReportManager';
+import { ResellerDashboard } from './ResellerDashboard';
 import { BilanManager } from './BilanManager';
 import { useCafeFinance } from './useCafeFinance';
 import { 
@@ -123,6 +124,7 @@ export function CafeSuperModule(props: CafeModuleProps) {
     filteredProductions, 
     filteredVentes, 
     filteredDepenses, 
+    props.versements,
     props.priceConfig, 
     periodType === 'month' ? selectedMonth : null, 
     selectedYear
@@ -270,7 +272,17 @@ export function CafeSuperModule(props: CafeModuleProps) {
         className="min-h-[600px] px-4 sm:px-0"
       >
         {activeTab === 'dashboard' && (
-          <DashboardOverview finance={finance} periodString={periodString} />
+          isRevendeur && currentSeller ? (
+            <ResellerDashboard 
+              seller={currentSeller}
+              distributions={props.distributions}
+              versements={props.versements}
+              globalYear={props.globalYear}
+              globalMonth={props.globalMonth}
+            />
+          ) : (
+            <DashboardOverview finance={finance} periodString={periodString} />
+          )
         )}
         {activeTab === 'production' && (
           <ProductionManager 

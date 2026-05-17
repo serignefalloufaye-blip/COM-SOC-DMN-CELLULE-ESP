@@ -92,6 +92,9 @@ export interface CafeVersement {
   mode: 'WAVE' | 'OM' | 'ESPÈCES' | string;
   responsable?: string;
   createdAt: number;
+  statut?: 'EN_ATTENTE' | 'VALIDE' | 'REJETE';
+  validePar?: string;
+  dateValidation?: number;
 }
 export interface CafeClient {
   id: string;

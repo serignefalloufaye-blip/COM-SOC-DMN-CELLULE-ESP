@@ -13,9 +13,10 @@ interface AddVersementModalProps {
   seller: CafeSeller | null;
   soldeDu: number;
   editData?: CafeVersement | null;
+  isAdmin?: boolean;
 }
 
-export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, soldeDu, editData }: AddVersementModalProps) {
+export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, soldeDu, editData, isAdmin = false }: AddVersementModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,7 +28,7 @@ export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, 
     if (editData) {
       setDate(new Date(editData.date).toISOString().split('T')[0]);
       setMontant(editData.montant);
-      setMode(editData.mode);
+      setMode(editData.mode as ModePaiement || 'Espèces');
     } else {
       setDate(new Date().toISOString().split('T')[0]);
       setMontant(0);
@@ -50,7 +51,7 @@ export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, 
     setError('');
 
     try {
-      const versementData = {
+      const versementData: any = {
         date: new Date(date).getTime(),
         sellerId: finalSellerId,
         montant: Number(montant),
@@ -64,6 +65,9 @@ export function AddVersementModal({ isOpen, onClose, onSuccess, userId, seller, 
       } else {
         await addDoc(collection(db, 'cafe_versements'), {
           ...versementData,
+          statut: isAdmin ? 'VALIDE' : 'EN_ATTENTE',
+          validePar: isAdmin ? userId : null,
+          dateValidation: isAdmin ? new Date().getTime() : null,
           createdAt: serverTimestamp()
         });
       }

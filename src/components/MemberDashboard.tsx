@@ -45,14 +45,14 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
     let startMonthIndex = 0;
     if (myMembre.anneeIntegration && myMembre.moisIntegration) {
       if (Number(myMembre.anneeIntegration) === Number(globalYear)) {
-        startMonthIndex = MOIS.indexOf(myMembre.moisIntegration?.toUpperCase());
+        startMonthIndex = MOIS.indexOf(myMembre.moisIntegration?.toUpperCase() || '') + 1;
       } else if (Number(myMembre.anneeIntegration) > Number(globalYear)) {
         return []; // Pas encore de cotisations dues pour cette année passée
       }
     } else if (myMembre.createdAt) {
       const createdDate = new Date(myMembre.createdAt);
       if (createdDate.getFullYear() === Number(globalYear)) {
-        startMonthIndex = createdDate.getMonth();
+        startMonthIndex = createdDate.getMonth() + 1;
       } else if (createdDate.getFullYear() > Number(globalYear)) {
         return [];
       }

@@ -10,6 +10,7 @@ import {
 import { MOIS } from '../data';
 import { Membre, Cotisation, Depense, Recette, Dette } from '../types';
 import { useAdaptive } from '../hooks/useAdaptive';
+import { formatPrice } from '../utils/format';
 
 interface AnnuelProps {
   globalYear: number;
@@ -28,11 +29,6 @@ export const Annuel = ({ globalYear, setGlobalYear, membres, cotisations, depens
   const { isMobile } = useAdaptive();
   const nomComplet = (m: Membre) => `${m.prenom} ${m.nom}`;
   
-  const formatPrice = (p: number) => {
-    if (p === undefined || p === null) return "0";
-    return new Intl.NumberFormat('fr-FR').format(p);
-  };
-
   const annualCotisations = useMemo(() => cotisations.filter(c => c.annee === globalYear), [cotisations, globalYear]);
   const annualDepenses = useMemo(() => depenses.filter(d => d.annee === globalYear), [depenses, globalYear]);
   const annualRecettes = useMemo(() => recettes.filter(r => r.annee === globalYear), [recettes, globalYear]);
