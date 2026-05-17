@@ -53,19 +53,36 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
 
   const exportRetardsPDF = () => {
     const doc = new jsPDF();
-    doc.setFont("helvetica");
+    const pageWidth = doc.internal.pageSize.width;
 
-    // Title
+    // Header Professional
+    doc.setFillColor(153, 27, 27); // red-800
+    doc.rect(0, 0, pageWidth, 40, 'F');
+
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.setTextColor(220, 38, 38); // red-600
-    doc.text(`Liste des Retards de Paiement - ${globalYear}`, 14, 20);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`ÉTAT DES IMPAYÉS CAISSE SOCIALE - ${globalYear}`, pageWidth / 2, 22, { align: 'center' });
 
     doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, 14, 28);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(200, 200, 200);
+    doc.text(`Document Administratif Confidentiel - Généré le ${new Date().toLocaleDateString('fr-FR')}`, pageWidth / 2, 30, { align: 'center' });
+    
     if (npMois) {
-        doc.text(`Filtre mois : ${npMois}`, 14, 33);
+       doc.text(`Mois de référence : ${npMois}`, pageWidth / 2, 36, { align: 'center' });
     }
+
+    doc.setFontSize(12);
+    doc.setTextColor(51, 65, 85);
+    doc.setFont("helvetica", "bold");
+    doc.text("SYNTHÈSE DES RETARDS", 14, 55);
+
+    const totalRetardMontant = filteredMembres.reduce((s, m) => s + (getMemberStatus(m.id).unpaidCount * 500), 0);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text(`Effectif en situation d'impayé : ${filteredMembres.length} membres`, 14, 63);
+    doc.text(`Volume financier global en attente : ${formatPrice(totalRetardMontant)} FCFA`, 14, 70);
 
     const tableData = filteredMembres.map(m => {
       const status = getMemberStatus(m.id);
@@ -74,35 +91,39 @@ export const NonPayeurs: React.FC<NonPayeursProps> = ({
         m.telephone || '---',
         `${status.unpaidCount} mois`,
         status.unpaidMonths.join(', '),
-        `${formatPrice(status.unpaidCount * 500)} F`
+        `${formatPrice(status.unpaidCount * 500)} FCFA`
       ];
     });
 
     autoTable(doc, {
-      startY: 40,
-      head: [['Membre', 'Téléphone', 'Nb Mois', 'Détails des mois', 'Total Dû']],
+      startY: 85,
+      head: [['Identité du Membre', 'Contact', 'Nb Retards', 'Mois en Souffrance', 'Montant Dû']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [220, 38, 38] }, // red-600
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [153, 27, 27], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [254, 242, 242] },
+      styles: { fontSize: 9, cellPadding: 4, textColor: [51, 65, 85] },
       columnStyles: {
         0: { fontStyle: 'bold' },
-        4: { halign: 'right', fontStyle: 'bold' }
+        4: { halign: 'right', fontStyle: 'bold', textColor: [153, 27, 27] }
       }
     });
 
-    const totalDuGlobal = tableData.reduce((acc, row) => {
-        const val = row[4].replace(/[^0-9]/g, '');
-        return acc + parseInt(val || '0');
-    }, 0);
-
-    const finalY = (doc as any).lastAutoTable.finalY || 150;
+    const finalY = (doc as any).lastAutoTable.finalY + 15;
     doc.setFontSize(12);
-    doc.setTextColor(30);
+    doc.setTextColor(153, 27, 27);
     doc.setFont("helvetica", "bold");
-    doc.text(`TOTAL GLOBAL À RECOUVRER : ${formatPrice(totalDuGlobal)} FCFA`, 14, finalY + 15);
+    doc.text(`MONTANT GLOBAL À RECOUVRER : ${formatPrice(totalRetardMontant)} FCFA`, 14, finalY);
 
-    doc.save(`Liste_Retards_${npMois || 'Global'}_${globalYear}.pdf`);
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Page ${i} sur ${totalPages} - Daara Madjmahoune Noreyni`, pageWidth / 2, 285, { align: 'center' });
+    }
+
+    doc.save(`Etat_Impayes_DMN_${globalYear}.pdf`);
   };
 
   return (

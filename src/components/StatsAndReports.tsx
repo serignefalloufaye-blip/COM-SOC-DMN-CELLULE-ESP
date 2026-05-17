@@ -156,25 +156,71 @@ export function StatsAndReports({
   }, [filteredCafeVentes, membres]);
 
   const generatePDF = () => {
-    ReportService.generateFinancialReport({
-      type: filterPeriod,
-      year: selectedYear,
-      month: selectedMonth,
-      quarter: selectedQuarter,
-      customStartDate: customStartDate ? new Date(customStartDate) : undefined,
-      customEndDate: customEndDate ? new Date(customEndDate) : undefined,
-      activeTab: activeTab === 'all' ? 'all' : activeTab,
-      membres,
-      cotisations: filteredCots,
-      depenses: filteredDeps,
-      recettes: filteredRecs,
-      dettes: filteredDettes,
-      ticketsDistributions: filteredTicketsDist,
-      ticketsCollectes: filteredTicketsColl,
-      cafeVentes: filteredCafeVentes,
-      cafeProductions: filteredCafeProd,
-      cafeDepenses: filteredCafeDep
-    });
+    if (activeTab === 'cafe') {
+      const periodStr = filterPeriod === 'annuel' ? `Année ${selectedYear}` :
+                       filterPeriod === 'trimestriel' ? `Trimestre ${selectedQuarter} ${selectedYear}` :
+                       filterPeriod === 'mensuel' ? `${selectedMonth} ${selectedYear}` :
+                       `Période ${customStartDate} - ${customEndDate}`;
+
+      // Recalculate finance object for cafe logic if needed or pass existing derived ones
+      // Since StatsAndReports has its own calculation logic, we'll create a simple finance mock
+      // but it's better to use the standardized logic from useCafeFinance hook if available.
+      // For now, satisfy the interface requirements of the new report.
+      
+      const sales = {
+        total: totCafeRevenus,
+        quantity: filteredCafeVentes.reduce((s, v) => s + v.quantite, 0),
+        v1kgNormal: filteredCafeVentes.filter(v => v.format === '1kg' && !v.promo),
+        v1kgReduc: filteredCafeVentes.filter(v => v.format === '1kg' && v.promo),
+        v500gNormal: filteredCafeVentes.filter(v => v.format === '500g' && !v.promo),
+        v500gReduc: filteredCafeVentes.filter(v => v.format === '500g' && v.promo)
+      };
+
+      const costs = {
+        totalProd: filteredCafeProd.reduce((s, p) => s + p.total, 0),
+        operating: filteredCafeDep.reduce((s, d) => s + d.montant, 0),
+        grains: filteredCafeProd.filter(p => p.type === 'Grains').reduce((s, p) => s + p.total, 0),
+        emballage: filteredCafeProd.filter(p => p.type === 'Emballage').reduce((s, p) => s + p.total, 0),
+        transport: filteredCafeProd.filter(p => p.type === 'Transport').reduce((s, p) => s + p.total, 0),
+        transfert: filteredCafeProd.filter(p => p.type === 'Moulage').reduce((s, p) => s + p.total, 0),
+        autresProduction: 0
+      };
+
+      const kpi = {
+        resultatProduction: sales.total - costs.totalProd,
+        soldeNet: beneficeCafe,
+        margin: ( (beneficeCafe / (sales.total || 1)) * 100),
+        netMargin: ( (beneficeCafe / (sales.total || 1)) * 100)
+      };
+
+      ReportService.generateCafePDFReport({
+        periodString: periodStr,
+        finance: { kpi, sales, costs },
+        ventes: filteredCafeVentes,
+        productions: filteredCafeProd,
+        depenses: filteredCafeDep
+      });
+    } else {
+      ReportService.generateFinancialReport({
+        type: filterPeriod,
+        year: selectedYear,
+        month: selectedMonth,
+        quarter: selectedQuarter,
+        customStartDate: customStartDate ? new Date(customStartDate) : undefined,
+        customEndDate: customEndDate ? new Date(customEndDate) : undefined,
+        activeTab: activeTab === 'all' ? 'all' : activeTab,
+        membres,
+        cotisations: filteredCots,
+        depenses: filteredDeps,
+        recettes: filteredRecs,
+        dettes: filteredDettes,
+        ticketsDistributions: filteredTicketsDist,
+        ticketsCollectes: filteredTicketsColl,
+        cafeVentes: filteredCafeVentes,
+        cafeProductions: filteredCafeProd,
+        cafeDepenses: filteredCafeDep
+      });
+    }
     showToast("Rapport PDF généré avec succès", 'success');
   };
 

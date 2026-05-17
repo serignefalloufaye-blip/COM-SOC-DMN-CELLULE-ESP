@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Membre, Cotisation, PaiementAttente } from '../types';
+import { Membre, Cotisation, PaiementAttente, TicketDistribution } from '../types';
 import { 
   CheckCircle2, XCircle, AlertTriangle, Wallet, Calendar, CalendarDays, 
-  TrendingUp, Download, PieChart as PieChartIcon, Activity, Printer, Info, UserCheck, Loader2, Smartphone, Clock
+  TrendingUp, Download, PieChart as PieChartIcon, Activity, Printer, Info, UserCheck, Loader2, Smartphone, Clock, Ticket
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { formalizeDate } from '../utils/date';
@@ -18,6 +18,7 @@ interface MemberDashboardProps {
   membres: Membre[];
   currentUser: FirebaseUser | null;
   cotisations: Cotisation[];
+  ticketDistributions: TicketDistribution[];
   globalYear: number;
   MOIS: string[];
   paiementsAttente: PaiementAttente[];
@@ -25,7 +26,7 @@ interface MemberDashboardProps {
   onDirectPaymentClick?: (mode: 'WAVE' | 'OM', amount: number, unpaidMonths: string[]) => void;
 }
 
-const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, currentUser, cotisations, globalYear, MOIS, paiementsAttente, defaultPrice, onDirectPaymentClick }) => {
+const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, currentUser, cotisations, ticketDistributions, globalYear, MOIS, paiementsAttente, defaultPrice, onDirectPaymentClick }) => {
   const [linkingMembreId, setLinkingMembreId] = useState('');
   const [linkingSearch, setLinkingSearch] = useState('');
   const [isLinking, setIsLinking] = useState(false);
@@ -180,6 +181,14 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
   const isEnRetard = unpaidMonths.length > 0;
   const isRetardLeger = unpaidMonths.length === 1;
 
+  const myTickets = useMemo(() => {
+    if (!myMembre) return [];
+    return ticketDistributions.filter(d => d.mId === myMembre.id);
+  }, [ticketDistributions, myMembre]);
+
+  const totPD = myTickets.reduce((s, d) => s + (d.petitDej || 0), 0);
+  const totRepas = myTickets.reduce((s, d) => s + (d.repas || 0), 0);
+
   const getStatusDisplay = () => {
     if (!isEnRetard) return { icon: CheckCircle2, text: 'À jour', color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', border: 'border-dmn-green-100', glow: 'shadow-dmn-green-500/10' };
     if (isRetardLeger) return { icon: AlertTriangle, text: 'Retard léger', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', glow: 'shadow-amber-500/10' };
@@ -202,37 +211,64 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
 
   const exportPDF = () => {
     const doc = new jsPDF();
-    doc.setFont("helvetica");
+    const pageWidth = doc.internal.pageSize.width;
 
+    doc.setFillColor(22, 101, 52); // dmn-green-800
+    doc.rect(0, 0, pageWidth, 40, 'F');
+
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.setTextColor(22, 163, 74); // green-600
-    doc.text(`Rapport Personnel - ${globalYear}`, 14, 20);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`BILAN SOCIAL INDIVIDUEL - ${globalYear}`, pageWidth / 2, 20, { align: 'center' });
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(200, 200, 200);
+    doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Commission Sociale DMN`, pageWidth / 2, 28, { align: 'center' });
 
     doc.setFontSize(12);
-    doc.setTextColor(50, 50, 50);
-    doc.text(`Membre: ${myMembre.prenom} ${myMembre.nom}`, 14, 30);
-    doc.text(`Statut: ${status.text}`, 14, 37);
-    doc.text(`Total payé en ${globalYear}: ${formatPrice(totalPaid)} FCFA`, 14, 44);
+    doc.setTextColor(51, 65, 85);
+    doc.setFont("helvetica", "bold");
+    doc.text("IDENTIFICATION DU MEMBRE", 14, 55);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Nom Complet: ${myMembre.prenom} ${myMembre.nom}`, 14, 63);
+    doc.text(`Statut Actuel: ${status.text}`, 14, 70);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("RÉSUMÉ FINANCIER", 14, 85);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total versé en ${globalYear}: ${formatPrice(totalPaid)} FCFA`, 14, 93);
     if (unpaidMonths.length > 0) {
-      doc.text(`Mois non payés: ${unpaidMonths.join(', ')}`, 14, 51);
+      doc.setTextColor(153, 27, 27);
+      doc.text(`Mois en souffrance: ${unpaidMonths.join(', ')}`, 14, 100);
     }
 
     const tableData = currentYearCotisations.map(c => [
       c.mois,
       formalizeDate(c.createdAt),
-      `${c.montant} FCFA`,
+      `${formatPrice(c.montant)} FCFA`,
       c.mode || '-'
     ]);
 
     autoTable(doc, {
-      startY: 60,
-      head: [['Mois', 'Date de paiement', 'Montant', 'Mode']],
+      startY: 115,
+      head: [['Mois de Cotisation', 'Date de Versement', 'Montant', 'Canal de Paiement']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [22, 163, 74] },
+      headStyles: { fillColor: [22, 101, 52], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { fontSize: 10, cellPadding: 4, textColor: [51, 65, 85] }
     });
 
-    doc.save(`Rapport_Cotisations_${myMembre.nom}_${globalYear}.pdf`);
+    const finalY = (doc as any).lastAutoTable.finalY + 20;
+    doc.setFontSize(10);
+    doc.setTextColor(51, 65, 85);
+    doc.text("La Trésorerie Centrale", 14, finalY);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(150, 150, 150);
+    doc.text('“La transparence est le gage de la confiance”', pageWidth / 2, 285, { align: 'center' });
+
+    doc.save(`Rapport_Membre_${myMembre.nom}_${globalYear}.pdf`);
   };
 
   const downloadReceipt = (cot: Cotisation) => {
@@ -242,53 +278,60 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
     });
     
     // Header
+    doc.setFillColor(22, 101, 52); // green-800
+    doc.rect(0, 0, 80, 20, 'F');
+
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(22, 163, 74);
-    doc.text("COMMISSION SOCIALE DMN", 40, 15, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text("Cellule ESP - Dakar, Sénégal", 40, 20, { align: 'center' });
-    
-    doc.setDrawColor(220);
-    doc.line(10, 25, 70, 25);
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.text("MADJMAHOUNE NOREYNI", 40, 10, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("Reçu Électronique Officiel", 40, 16, { align: 'center' });
     
     // Receipt Info
-    doc.setFontSize(12);
-    doc.setTextColor(30);
-    doc.text("REÇU DE COTISATION", 40, 35, { align: 'center' });
+    doc.setFontSize(11);
+    doc.setTextColor(51, 65, 85);
+    doc.setFont("helvetica", "bold");
+    doc.text("QUITTANCE DE PAIEMENT", 40, 32, { align: 'center' });
     doc.setFontSize(8);
-    doc.text(`N°: ${cot.id.substring(0, 8).toUpperCase()}`, 40, 40, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(150, 150, 150);
+    doc.text(`N° REF: ${cot.id.substring(0, 10).toUpperCase()}`, 40, 38, { align: 'center' });
     
     // Details
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text("Membre:", 10, 55);
+    doc.text("Cotisant :", 10, 52);
     doc.setFont("helvetica", "bold");
-    doc.text(`${myMembre!.prenom} ${myMembre!.nom}`, 35, 55);
+    doc.text(`${myMembre!.prenom} ${myMembre!.nom}`, 30, 52);
     
     doc.setFont("helvetica", "normal");
-    doc.text("Mois:", 10, 65);
+    doc.text("Période :", 10, 62);
     doc.setFont("helvetica", "bold");
-    doc.text(`${cot.mois} ${cot.annee}`, 35, 65);
+    doc.text(`${cot.mois} ${cot.annee}`, 30, 62);
     
     doc.setFont("helvetica", "normal");
-    doc.text("Mode:", 10, 75);
+    doc.text("Canal :", 10, 72);
     doc.setFont("helvetica", "bold");
-    doc.text(cot.mode, 35, 75);
+    doc.text(cot.mode || '-', 30, 72);
     
     doc.setFont("helvetica", "normal");
-    doc.text("Date:", 10, 85);
+    doc.text("Horodatage :", 10, 82);
     doc.setFont("helvetica", "bold");
-    doc.text(formalizeDate(cot.createdAt), 35, 85);
+    doc.text(formalizeDate(cot.createdAt), 30, 82);
     
-    doc.line(10, 95, 70, 95);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(10, 92, 70, 92);
     
     // Amount
-    doc.setFontSize(14);
-    doc.text("MONTANT:", 10, 110);
-    doc.setFontSize(18);
-    doc.setTextColor(22, 163, 74);
-    doc.text(`${formatPrice(cot.montant)} FCFA`, 40, 125, { align: 'center' });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("MONTANT RÉGLÉ", 40, 105, { align: 'center' });
+    doc.setFontSize(20);
+    doc.setTextColor(22, 101, 52);
+    doc.text(`${formatPrice(cot.montant)} FCFA`, 40, 118, { align: 'center' });
     
     // Footer
     doc.setFontSize(8);
@@ -431,7 +474,7 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
         <div className="bg-white p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 md:p-2.5 bg-dmn-green-50 rounded-xl">
@@ -470,6 +513,26 @@ const MemberDashboard: React.FC<MemberDashboardProps> = ({ myMembre, membres, cu
             <p className="text-[10px] md:text-xs text-gray-500 uppercase font-black tracking-wider">Moyen Favori</p>
           </div>
           <p className="text-lg md:text-xl font-heading font-black text-gray-900">{modePaiementFrequents}</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 md:p-2.5 bg-amber-50 rounded-xl">
+              <Ticket size={18} className="text-amber-600" />
+            </div>
+            <p className="text-[10px] md:text-xs text-gray-500 uppercase font-black tracking-wider">Tickets Repas</p>
+          </div>
+          <p className="text-xl md:text-3xl font-heading font-black text-gray-900">{totRepas}</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 md:p-2.5 bg-blue-50 rounded-xl">
+              <Ticket size={18} className="text-blue-600" />
+            </div>
+            <p className="text-[10px] md:text-xs text-gray-500 uppercase font-black tracking-wider">Tickets P.D.</p>
+          </div>
+          <p className="text-xl md:text-3xl font-heading font-black text-gray-900">{totPD}</p>
         </div>
       </div>
 

@@ -3,11 +3,13 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Membre, Cotisation, Depense, Recette, Dette, TicketCollecte, TicketDistribution, CafeProduction, CafeVente, CafeDepense } from '../types';
 import { MOIS } from '../data';
+import { formatPrice, formatFullPrice } from '../utils/format';
 
 export class ReportService {
   private static formatCurrency(amount: number): string {
     if (amount === undefined || amount === null || isNaN(amount)) return "0 FCFA";
-    return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
+    // Fix jsPDF issue with narrow no-break space in French locale which renders as weird chars like 10/000
+    return new Intl.NumberFormat('fr-FR').format(amount).replace(/[\u202F\u00A0]/g, ' ') + ' FCFA';
   }
 
   static getCafeInsights(params: {
@@ -150,37 +152,50 @@ export class ReportService {
 
       // Prepare Sheets
       const financeData = [
-        ['Date', 'Type', 'Libellé', 'Montant'],
-        ...cotisations.filter(filterByPeriod).map(c => [(c.mois || '') + ' ' + (c.annee || ''), 'Cotisation', `Cotisation ${c.mId || ''}`, c.montant || 0]),
-        ...recettes.filter(filterByPeriod).map(r => [r.date || '', 'Recette', r.motif || '', r.montant || 0]),
-        ...depenses.filter(filterByPeriod).map(d => [d.date || '', 'Dépense', d.evenement || '', d.montant || 0]),
-        ...dettes.filter(filterByPeriod).map(d => [d.date || '', 'Dette', d.motif || '', d.montant || 0])
+        ['Date', 'Catégorie', 'Libellé', 'Montant (FCFA)'],
+        ...cotisations.filter(filterByPeriod).map(c => [(c.mois || '') + ' ' + (c.annee || ''), 'Cotisation', `Cotisation mensuelle`, c.montant || 0]),
+        ...recettes.filter(filterByPeriod).map(r => [r.date ? new Date(r.date).toLocaleDateString('fr-FR') : '', 'Recette', r.motif || '', r.montant || 0]),
+        ...depenses.filter(filterByPeriod).map(d => [d.date ? new Date(d.date).toLocaleDateString('fr-FR') : '', 'Dépense', d.evenement || '', d.montant || 0]),
+        ...dettes.filter(filterByPeriod).map(d => [d.date ? new Date(d.date).toLocaleDateString('fr-FR') : '', 'Dette ' + (d.estPayee ? '(Payée)' : '(En attente)'), d.motif || '', d.montant || 0])
       ];
 
       const ticketsData = [
-        ['Date', 'Type', 'Petit Déj', 'Repas', 'Montant'],
-        ...ticketsCollectes.filter(filterByPeriod).map(t => [(t.mois || '') + ' ' + (t.annee || ''), 'Collecte', t.petitDej || 0, t.repas || 0, t.montantArgent || 0]),
+        ['Date', 'Opération', 'Petit Déjeuner (Qté)', 'Repas (Qté)', 'Equivalent Financier (FCFA)'],
+        ...ticketsCollectes.filter(filterByPeriod).map(t => [(t.mois || '') + ' ' + (t.annee || ''), 'Collecte Financière', t.petitDej || 0, t.repas || 0, t.montantArgent || 0]),
         ...ticketsDistributions.filter(filterByPeriod).map(t => [(t.mois || '') + ' ' + (t.annee || ''), 'Distribution', t.petitDej || 0, t.repas || 0, 0])
       ];
 
       const cafeData = [
-        ['Date', 'Type', 'Libellé', 'Quantité/Montant'],
-        ...cafeProductions.filter(p => filterByPeriod({ date: p.date })).map(p => [p.date ? new Date(p.date).toLocaleDateString() : '', 'Production', p.typeCafe || 'Café', p.quantite || 0]),
-        ...cafeVentes.filter(v => filterByPeriod({ date: v.date })).map(v => [v.date ? new Date(v.date).toLocaleDateString() : '', 'Vente', v.typeVente || 'Vente', v.total || 0]),
-        ...cafeDepenses.filter(d => filterByPeriod({ date: d.date })).map(d => [d.date ? new Date(d.date).toLocaleDateString() : '', 'Dépense', d.motif || '', d.montant || 0])
+        ['Date', 'Catégorie', 'Détails Opération', 'Volume / Quantité', 'Montant Financier (FCFA)'],
+        ...cafeProductions.filter(p => filterByPeriod({ date: p.date })).map(p => [p.date ? new Date(p.date).toLocaleDateString('fr-FR') : '', 'Production', p.typeCafe || 'Café', p.quantite || 0, p.total || 0]),
+        ...cafeVentes.filter(v => filterByPeriod({ date: v.date })).map(v => [v.date ? new Date(v.date).toLocaleDateString('fr-FR') : '', 'Vente', v.typeVente || 'Vente Client', v.quantite || 0, v.total || 0]),
+        ...cafeDepenses.filter(d => filterByPeriod({ date: d.date })).map(d => [d.date ? new Date(d.date).toLocaleDateString('fr-FR') : '', 'Dépense / Charge', d.motif || '', '-', d.montant || 0])
       ];
 
+      const formatSheet = (ws: XLSX.WorkSheet, colWidths: number[]) => {
+        ws['!cols'] = colWidths.map(wch => ({ wch }));
+        if (ws['!ref']) {
+          ws['!autofilter'] = { ref: ws['!ref'] };
+        }
+      };
+
       if (activeTab === 'all' || activeTab === 'caisse' || (activeTab as string) === 'finance') {
-         XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(financeData), 'Finance');
+         const ws = XLSX.utils.aoa_to_sheet(financeData);
+         formatSheet(ws, [15, 20, 40, 20]);
+         XLSX.utils.book_append_sheet(workbook, ws, 'Rapport Finance');
       }
       if (activeTab === 'all' || activeTab === 'tickets') {
-         XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(ticketsData), 'Tickets');
+         const ws = XLSX.utils.aoa_to_sheet(ticketsData);
+         formatSheet(ws, [15, 25, 20, 20, 25]);
+         XLSX.utils.book_append_sheet(workbook, ws, 'Logistique Tickets');
       }
       if (activeTab === 'all' || activeTab === 'cafe') {
-         XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(cafeData), 'Café');
+         const ws = XLSX.utils.aoa_to_sheet(cafeData);
+         formatSheet(ws, [15, 20, 40, 20, 25]);
+         XLSX.utils.book_append_sheet(workbook, ws, 'Activité Café');
       }
 
-      XLSX.writeFile(workbook, `Rapport_DMN_${type}_${year}.xlsx`);
+      XLSX.writeFile(workbook, `Archive_DMN_${type}_${year}.xlsx`);
     } catch (error) {
       console.error("Excel Export Failure:", error);
       throw error;
@@ -262,34 +277,37 @@ export class ReportService {
       const pageWidth = doc.internal.pageSize.width;
 
       // Header
-      doc.setFillColor(34, 197, 94); // dmn-green-500
-      doc.rect(0, 0, pageWidth, 45, 'F');
+      doc.setFillColor(22, 101, 52); // dmn-green-800
+      doc.rect(0, 0, pageWidth, 50, 'F');
       
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(22);
       doc.setFont('helvetica', 'bold');
-      doc.text('DAARA MADJMAHOUNE NOREYNI UCAD', pageWidth / 2, 15, { align: 'center' });
+      doc.text('DAARA MADJMAHOUNE NOREYNI', pageWidth / 2, 18, { align: 'center' });
       
       doc.setFontSize(12);
-      doc.text('Commission Sociale DMN cellule ESP', pageWidth / 2, 23, { align: 'center' });
       doc.setFont('helvetica', 'normal');
+      doc.text('COMMISSION SOCIALE - CELLULE ESP', pageWidth / 2, 26, { align: 'center' });
       
       let reportTitle = '';
-      if (type === 'annuel') reportTitle = `RAPPORT ANNUEL ${year}`;
-      else if (type === 'mensuel') reportTitle = `RAPPORT MENSUEL - ${month} ${year}`;
-      else if (type === 'trimestriel') reportTitle = `RAPPORT TRIMESTRIEL T${quarter} ${year}`;
+      if (type === 'annuel') reportTitle = `BILAN FINANCIER ANNUEL ${year}`;
+      else if (type === 'mensuel') reportTitle = `BILAN FINANCIER MENSUEL - ${month} ${year}`;
+      else if (type === 'trimestriel') reportTitle = `BILAN FINANCIER TRIMESTRIEL T${quarter} ${year}`;
       else if (type === 'personnalise' && customStartDate && customEndDate) {
-         reportTitle = `RAPPORT PÉRIODE : ${customStartDate.toLocaleDateString('fr-FR')} - ${customEndDate.toLocaleDateString('fr-FR')}`;
+         reportTitle = `BILAN PÉRIODIQUE : ${customStartDate.toLocaleDateString('fr-FR')} - ${customEndDate.toLocaleDateString('fr-FR')}`;
       }
       
-      doc.setFontSize(11);
-      doc.text(reportTitle, pageWidth / 2, 32, { align: 'center' });
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 191, 0); // Gold
+      doc.text(reportTitle, pageWidth / 2, 36, { align: 'center' });
 
       doc.setFontSize(8);
-      doc.setTextColor(200, 200, 200);
-      doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 39, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(220, 220, 220);
+      doc.text(`Document officiel généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, pageWidth / 2, 44, { align: 'center' });
 
-      let currentY = 55;
+      let currentY = 65;
 
       // Filter data based on period
       const filterByPeriod = (item: any) => {
@@ -358,16 +376,18 @@ export class ReportService {
 
         autoTable(doc, {
           startY: currentY,
-          head: [['Catégorie', 'Montant']],
+          head: [['Indicateur Financier', 'Volume (FCFA)']],
           body: [
             ['Cotisations sociales', this.formatCurrency(totCotisations)],
             ['Recettes diverses', this.formatCurrency(totRecettes)],
-            ['Dettes en attente (Entrées)', this.formatCurrency(totDettes)],
+            ['Dettes en attente (À recouvrer)', this.formatCurrency(totDettes)],
             ['Dépenses effectuées', this.formatCurrency(totDepenses)],
-            [{ content: 'SOLDE GLOBAL (Incl. Dettes)', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, { content: this.formatCurrency(solde), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }],
+            [{ content: 'SOLDE GLOBAL (Incl. Dettes)', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, { content: this.formatCurrency(solde), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: solde >= 0 ? [22, 101, 52] : [153, 27, 27] } }],
           ],
           theme: 'grid',
-          headStyles: { fillColor: [22, 101, 52] },
+          headStyles: { fillColor: [22, 101, 52], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          styles: { fontSize: 10, cellPadding: 4, textColor: [51, 65, 85] }
         });
 
         currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -379,15 +399,16 @@ export class ReportService {
 
         autoTable(doc, {
           startY: currentY,
-          head: [['Mode de Paiement', 'Volume Financier']],
+          head: [['Canal de Paiement', 'Volume Financier (FCFA)']],
           body: [
-            ['Wave', this.formatCurrency(waveTot)],
+            ['Wave Mobile Money', this.formatCurrency(waveTot)],
             ['Orange Money', this.formatCurrency(omTot)],
             ['Espèces (Cash)', this.formatCurrency(cashTot)]
           ],
-          theme: 'striped',
-          headStyles: { fillColor: [30, 41, 59] },
-          styles: { fontSize: 8 }
+          theme: 'grid',
+          headStyles: { fillColor: [51, 65, 85], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          styles: { fontSize: 9, cellPadding: 3, textColor: [51, 65, 85] }
         });
 
         currentY = (doc as any).lastAutoTable.finalY + 15;
@@ -409,14 +430,16 @@ export class ReportService {
 
         autoTable(doc, {
           startY: currentY,
-          head: [['Indicateur', 'Collectes (Argent)', 'Collectes (Tickets)', 'Distributions']],
+          head: [['Opération', 'Collectes (Argent)', 'Collectes (Tickets)', 'Distributions']],
           body: [
-            ['Argent récolté', this.formatCurrency(totArgTickets), '-', '-'],
+            ['Financement', this.formatCurrency(totArgTickets), '-', '-'],
             ['Petit Déjeuner', '-', `${totPD_Coll} unités`, `${totPD_Dist} unités`],
-            ['Repas complets', '-', `${totRep_Coll} unités`, `${totRep_Dist} unités`],
+            ['Repas Complets', '-', `${totRep_Coll} unités`, `${totRep_Dist} unités`],
           ],
           theme: 'grid',
-          headStyles: { fillColor: [51, 65, 85] },
+          headStyles: { fillColor: [51, 65, 85], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          styles: { fontSize: 10, cellPadding: 4, textColor: [51, 65, 85] }
         });
 
         currentY = (doc as any).lastAutoTable.finalY + 15;
@@ -449,15 +472,17 @@ export class ReportService {
 
         autoTable(doc, {
           startY: currentY,
-          head: [['Indicateur', 'Quantité', 'Montant']],
+          head: [['Indicateur Café', 'Volume (Tasses)', 'Montant (FCFA)']],
           body: [
-            ['Production (Coût)', `${totCafeProdQty} tasses`, this.formatCurrency(totCafeProd)],
-            ['Ventes (Chiffre d\'Affaire)', `${totCafeVentesQty} tasses`, this.formatCurrency(totCafeVentes)],
-            ['Dépenses Café', '-', this.formatCurrency(totCafeDep)],
-            [{ content: 'RÉSULTAT NET CAFÉ', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, '-', { content: this.formatCurrency(totCafeVentes - totCafeDep), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }],
+            ['Production (Coût de Revient)', `${totCafeProdQty} tasses`, this.formatCurrency(totCafeProd)],
+            ['Ventes (Chiffre d\'Affaires)', `${totCafeVentesQty} tasses`, this.formatCurrency(totCafeVentes)],
+            ['Charges d\'Exploitation', '-', this.formatCurrency(totCafeDep)],
+            [{ content: 'RÉSULTAT NET EXPLOITATION', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, '-', { content: this.formatCurrency(totCafeVentes - totCafeDep), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: (totCafeVentes - totCafeDep) >= 0 ? [22, 101, 52] : [153, 27, 27] } }],
           ],
           theme: 'grid',
-          headStyles: { fillColor: [154, 52, 18] }, // orange-800
+          headStyles: { fillColor: [154, 52, 18], fontStyle: 'bold' }, // orange-800
+          alternateRowStyles: { fillColor: [255, 247, 237] },
+          styles: { fontSize: 10, cellPadding: 4, textColor: [51, 65, 85] }
         });
 
         currentY = (doc as any).lastAutoTable.finalY + 15;
@@ -484,11 +509,12 @@ export class ReportService {
 
         autoTable(doc, {
           startY: currentY,
-          head: [['Membre', 'Statut', 'Périodes payées', 'Total']],
+          head: [['Membre', 'Statut', 'Mois Payés', 'Total Cumulé']],
           body: memberData,
           theme: 'grid',
-          headStyles: { fillColor: [30, 41, 59] }, // slate-800
-          styles: { fontSize: 8 }
+          headStyles: { fillColor: [30, 41, 59], fontStyle: 'bold' }, // slate-800
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          styles: { fontSize: 9, cellPadding: 3, textColor: [51, 65, 85] }
         });
 
         currentY = (doc as any).lastAutoTable.finalY + 15;
@@ -528,10 +554,12 @@ export class ReportService {
 
           autoTable(doc, {
             startY: currentY,
-            head: [['Revendeur', 'Total Ventes (Tasses)', 'Chiffre d\'Affaire']],
+            head: [['Revendeur', 'Volume Ventes (Tasses)', 'Chiffre d\'Affaires']],
             body: revendeursData,
             theme: 'grid',
-            headStyles: { fillColor: [154, 52, 18] }, // orange-800
+            headStyles: { fillColor: [154, 52, 18], fontStyle: 'bold' }, // orange-800
+            alternateRowStyles: { fillColor: [255, 247, 237] },
+            styles: { fontSize: 9, cellPadding: 4, textColor: [51, 65, 85] }
           });
 
           currentY = (doc as any).lastAutoTable.finalY + 15;
@@ -564,14 +592,199 @@ export class ReportService {
           doc.setPage(i);
           doc.setFontSize(8);
           doc.setTextColor(150);
-          doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Daara Madjmahoune Noreyni UCAD - Page ${i} sur ${totalPages}`, pageWidth / 2, 285, { align: 'center' });
-          doc.text('“La transparence est une responsabilité”', pageWidth / 2, 290, { align: 'center' });
+          doc.text(`Document de gestion interne - Daara Madjmahoune Noreyni - Page ${i} sur ${totalPages}`, pageWidth / 2, 285, { align: 'center' });
+          doc.setFont('helvetica', 'italic');
+          doc.text('“La transparence est le gage de la confiance”', pageWidth / 2, 290, { align: 'center' });
       }
 
       doc.save(`Rapport_DMN_${type}_${year}${month ? '_' + month : ''}.pdf`);
     } catch (e) {
       console.error("PDF generation error:", e);
       throw e;
+    }
+  }
+
+  static generateCafePDFReport(params: {
+    periodString: string;
+    finance: any;
+    ventes: CafeVente[];
+    productions: CafeProduction[];
+    depenses: CafeDepense[];
+  }) {
+    const { periodString, finance, ventes, productions, depenses } = params;
+    const { kpi, sales, costs, production } = finance;
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
+
+      // Header Banner
+      doc.setFillColor(6, 78, 59); // dmn-green-950
+      doc.rect(0, 0, pageWidth, 50, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('MADJMAHOUNE NOREYNI', pageWidth / 2, 20, { align: 'center' });
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'normal');
+      doc.text('RAPPORT ANALYTIQUE CAFÉ', pageWidth / 2, 30, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setTextColor(255, 191, 0); // Gold color
+      doc.text(`PÉRIODE : ${periodString.toUpperCase()}`, pageWidth / 2, 38, { align: 'center' });
+
+      doc.setFontSize(8);
+      doc.setTextColor(200, 200, 200);
+      doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, pageWidth / 2, 45, { align: 'center' });
+
+      let currentY = 65;
+
+      // 1. Synthèse Financière (KPIs)
+      doc.setTextColor(6, 78, 59);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('I. SYNTHÈSE FINANCIÈRE', 14, currentY);
+      currentY += 8;
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Indicateur de Performance', 'Valeur Commerciale']],
+        body: [
+          ['Chiffre d\'Affaires Global', this.formatCurrency(sales.total)],
+          ['Coût de Production (Frais Directs)', this.formatCurrency(costs.totalProd)],
+          ['Marge sur Production', { content: this.formatCurrency(kpi.resultatProduction), styles: { textColor: kpi.resultatProduction >= 0 ? [22, 101, 52] : [153, 27, 27] } }],
+          ['Charges d\'Exploitation (Frais Généraux)', this.formatCurrency(costs.operating)],
+          [{ content: 'RÉSULTAT NET (BÉNÉFICE)', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, 
+           { content: this.formatCurrency(kpi.soldeNet), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: kpi.soldeNet >= 0 ? [22, 101, 52] : [153, 27, 27] } }],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [6, 78, 59], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        styles: { fontSize: 10, cellPadding: 4, textColor: [51, 65, 85] }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 20;
+
+      // 2. Analyse de la Production
+      doc.setTextColor(6, 78, 59);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('II. ANALYSE DE LA PRODUCTION', 14, currentY);
+      currentY += 8;
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Poste de Dépense', 'Détails', 'Montant Investi (FCFA)']],
+        body: [
+          ['Matières Premières (Grains)', 'Achat café vert/torréfié', this.formatCurrency(costs.grains)],
+          ['Emballage', 'Sachets et étiquettes', this.formatCurrency(costs.emballage)],
+          ['Transport', 'Acheminement logistique', this.formatCurrency(costs.transport)],
+          ['Moulage / Usinage', 'Frais de transformation', this.formatCurrency(costs.transfert)],
+          ['Frais de Transaction', 'Commissions & Transferts', this.formatCurrency(costs.autresProduction)],
+          [{ content: 'TOTAL INVESTISSEMENT PRODUCTION', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, 
+           { content: '-', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, 
+           { content: this.formatCurrency(costs.totalProd), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        styles: { fontSize: 9, cellPadding: 4, textColor: [51, 65, 85] }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 20;
+
+      // 3. Ventilation des Ventes
+      if (currentY > 230) { doc.addPage(); currentY = 20; }
+      doc.setTextColor(6, 78, 59);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('III. VENTILATION DES VENTES', 14, currentY);
+      currentY += 8;
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Format du Produit', 'Type Client', 'Quantité Écoulée', 'Chiffre d\'Affaires']],
+        body: [
+          ['Format 1Kg', 'Vente Standard', sales.v1kgNormal.reduce((a:any,b:any)=>a+b.quantite, 0), this.formatCurrency(sales.v1kgNormal.reduce((a:any,b:any)=>a+(b.total||0), 0))],
+          ['Format 1Kg', 'Revendeur / Promo', sales.v1kgReduc.reduce((a:any,b:any)=>a+b.quantite, 0), this.formatCurrency(sales.v1kgReduc.reduce((a:any,b:any)=>a+(b.total||0), 0))],
+          ['Format 500g', 'Vente Standard', sales.v500gNormal.reduce((a:any,b:any)=>a+b.quantite, 0), this.formatCurrency(sales.v500gNormal.reduce((a:any,b:any)=>a+(b.total||0), 0))],
+          ['Format 500g', 'Revendeur / Promo', sales.v500gReduc.reduce((a:any,b:any)=>a+b.quantite, 0), this.formatCurrency(sales.v500gReduc.reduce((a:any,b:any)=>a+(b.total||0), 0))],
+          [{ content: 'TOTAL PERFORMANCE VENTES', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, 
+           { content: '-', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, 
+           { content: `${sales.quantity} sachets`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, 
+           { content: this.formatCurrency(sales.total), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [6, 78, 59], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        styles: { fontSize: 9, cellPadding: 4, textColor: [51, 65, 85] }
+      });
+
+      // 4. Intelligence & Insights
+      currentY = (doc as any).lastAutoTable.finalY + 20;
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, currentY, pageWidth - 28, 40, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(14, currentY, pageWidth - 28, 40, 'D');
+      
+      doc.setTextColor(6, 78, 59);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('NOTES ET RECOMMANDATIONS STRATÉGIQUES', 20, currentY + 10);
+      
+      const insights = this.getCafeInsights({ ventes, productions, depenses });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      
+      insights.forEach((insight, idx) => {
+        doc.text(`• ${insight}`, 22, currentY + 20 + (idx * 6));
+      });
+
+      // Official Signatures
+      doc.addPage();
+      currentY = 40;
+      doc.setTextColor(6, 78, 59);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('VALIDATION OFFICIELLE', pageWidth / 2, currentY, { align: 'center' });
+      
+      currentY += 40;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Responsable de Production', 30, currentY);
+      doc.text('Trésorerie Centrale DMN', pageWidth - 80, currentY);
+      
+      currentY += 40;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(30, currentY, 80, currentY);
+      doc.line(pageWidth - 80, currentY, pageWidth - 30, currentY);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Signature & Date', 45, currentY + 5, { align: 'center' });
+      doc.text('Cachet & Signature', pageWidth - 55, currentY + 5, { align: 'center' });
+
+      // Footer
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Page ${i} sur ${totalPages} - Système Certifié Noreyni Analytique`, pageWidth / 2, 285, { align: 'center' });
+        doc.setFont('helvetica', 'italic');
+        doc.text('“Ligeyal Serigne Touba amul ludul ndiarigne”', pageWidth / 2, 290, { align: 'center' });
+        doc.text('Unis pour le service de Borom Touba - Madjmahoune Noreyni', pageWidth / 2, 294, { align: 'center' });
+      }
+
+      doc.save(`Rapport_Cafe_Noreyni_${periodString.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error("PDF generation failure:", error);
+      throw error;
     }
   }
 }

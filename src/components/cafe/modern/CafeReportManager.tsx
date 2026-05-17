@@ -41,45 +41,23 @@ export function CafeReportManager({ productions, ventes, depenses, finance, peri
   };
 
   const downloadPDF = async () => {
-    if (!printRef.current) return;
     setIsExporting(true);
     try {
-      const element = printRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
+      // Direct PDF generation using jsPDF and jspdf-autotable for higher reliability
+      ReportService.generateCafePDFReport({
+        periodString,
+        finance,
+        ventes,
+        productions,
+        depenses
       });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`Rapport_Noreyni_${periodString.replace(/\s+/g, '_')}.pdf`);
+      // Give a tiny delay for UX
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       console.error("PDF Export Error:", error);
-      alert("Erreur lors de la génération du PDF.");
+      alert("Erreur lors de la génération du PDF. Tentative d'impression alternative...");
+      // Fallback to basic print if direct generation fails for some reason
+      window.print();
     } finally {
       setIsExporting(false);
     }

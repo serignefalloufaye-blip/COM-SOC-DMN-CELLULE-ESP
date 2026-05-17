@@ -132,12 +132,12 @@ export function CafeSuperModule(props: CafeModuleProps) {
 
   const tabs = useMemo(() => {
     const allTabs = [
-      { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+      { id: 'dashboard', label: 'Vue Globale', icon: BarChart3 },
       { id: 'production', label: 'Production', icon: Box },
       { id: 'ventes', label: 'Ventes', icon: ShoppingCart },
       { id: 'revendeurs', label: 'Revendeurs', icon: Users },
       { id: 'depenses', label: 'Dépenses', icon: Receipt },
-      { id: 'bilans', label: 'Bilans', icon: TrendingUp },
+      { id: 'bilans', label: 'Statistiques', icon: TrendingUp },
       { id: 'rapports', label: 'Rapports', icon: Download },
     ];
 

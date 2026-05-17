@@ -1,12 +1,12 @@
 import { motion, AnimatePresence } from 'motion/react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Membre, TicketCollecte, TicketConversion, TicketDistribution, UserRole } from '../types';
 import { db } from '../firebase';
 import { hasPermission, logAudit } from '../utils/permissions';
-import { addDoc, deleteDoc, doc, setDoc, collection } from 'firebase/firestore';
+import { addDoc, deleteDoc, doc, setDoc, collection, updateDoc } from 'firebase/firestore';
 import { MOIS } from '../data';
 import { relativeDate } from '../utils/date';
-import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar, TrendingUp, TrendingDown, Clock, X, AlertCircle, CheckCircle2, Download, Table, Printer, BarChart3, MessageCircle, Share2, Copy, Info, Smartphone } from 'lucide-react';
+import { Ticket, ArrowRightLeft, Users, History, Minus, Plus, Search, Activity, Calendar, TrendingUp, TrendingDown, Clock, X, AlertCircle, CheckCircle2, Download, Table, Printer, BarChart3, MessageCircle, Share2, Copy, Info, Smartphone, Edit2 } from 'lucide-react';
 import { TicketsStats } from './TicketsStats';
 import { useAdaptive } from '../hooks/useAdaptive';
 
@@ -39,6 +39,13 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
     'goorYalla': '43G et 47B',
     'sokhnaYi': '59B et 66G'
   });
+
+  // State for editing operations
+  const [editingOperation, setEditingOperation] = useState<{
+    id: string;
+    type: 'Collecte' | 'Conversion' | 'Distribution';
+    data: any;
+  } | null>(null);
 
 
   // Calculate global numbers
@@ -130,9 +137,9 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
             'tickets_distributions';
           
           if (type === 'Collecte') {
-            const collecte = collectes.find(c => c.id === id);
-            if (collecte && collecte.type === 'argent' && collecte.montantArgent) {
-              const matchingConv = conversions.find(c => c.montant === collecte.montantArgent);
+            const traite = collectes.find(c => c.id === id);
+            if (traite && traite.type === 'argent' && traite.montantArgent) {
+              const matchingConv = conversions.find(conv => conv.montant === traite.montantArgent);
               if (matchingConv) {
                 await deleteDoc(doc(db, 'tickets_conversions', matchingConv.id!));
               }
@@ -147,6 +154,105 @@ export function Tickets({ membres, globalYear, globalMonth, showToast, collectes
         }
       }
     );
+  };
+
+  const handleResetTicketsData = async () => {
+    if (userRole !== 'admin' && !isTickets) {
+      showToast("Accès refusé", 'error');
+      return;
+    }
+
+    confirmAction(
+      'Réinitialiser le Module Tickets',
+      'ATTENTION : Vous allez supprimer TOUTES les données (Collectes, Conversions, Distributions). Cette action est irréversible. Continuer ?',
+      async () => {
+        try {
+          showToast("Début de la suppression...");
+          
+          // Delete all locally loaded items from Firestore
+          const promises = [
+            ...collectes.map(c => deleteDoc(doc(db, 'tickets_collectes', c.id!))),
+            ...conversions.map(c => deleteDoc(doc(db, 'tickets_conversions', c.id!))),
+            ...distributions.map(d => deleteDoc(doc(db, 'tickets_distributions', d.id!)))
+          ];
+
+          await Promise.all(promises);
+          
+          logAudit(userRole, 'tickets.delete', 'Social', 'Réinitialisation complète du module Tickets');
+          showToast("Toutes les données ont été vidées avec succès !", "success");
+        } catch (e) {
+          console.error("Reset error:", e);
+          showToast("Erreur lors de la réinitialisation massive", "error");
+        }
+      }
+    );
+  };
+
+  const handleEditOperation = (id: string, type: 'Collecte' | 'Conversion' | 'Distribution') => {
+    if (!isTickets) {
+      showToast("Accès refusé", 'error');
+      return;
+    }
+
+    let data = null;
+    if (type === 'Collecte') data = collectes.find(c => c.id === id);
+    else if (type === 'Conversion') data = conversions.find(c => c.id === id);
+    else if (type === 'Distribution') data = distributions.find(d => d.id === id);
+
+    if (data) {
+      setEditingOperation({ id, type, data: { ...data } });
+    }
+  };
+
+  const handleUpdateOperation = async (id: string, type: 'Collecte' | 'Conversion' | 'Distribution', newData: any) => {
+    try {
+      const collectionName = 
+        type === 'Collecte' ? 'tickets_collectes' : 
+        type === 'Conversion' ? 'tickets_conversions' : 
+        'tickets_distributions';
+
+      if (type === 'Conversion') {
+        const neededMoney = (newData.petitDej * 50) + (newData.repas * 100);
+        if (newData.montant !== neededMoney) {
+          showToast(`Le montant doit être exactement ${neededMoney} FCFA pour ces tickets`, "error");
+          return;
+        }
+        // Check if we have enough money (accounting for the original amount we are editing)
+        const oldConv = conversions.find(c => c.id === id);
+        const originalAmount = oldConv?.montant || 0;
+        if (newData.montant > (argentDisponible + originalAmount)) {
+          showToast("Montant supérieur au disponible", "error");
+          return;
+        }
+      }
+
+      if (type === 'Distribution') {
+        const oldDist = distributions.find(d => d.id === id);
+        const originalPD = oldDist?.petitDej || 0;
+        const originalRepas = oldDist?.repas || 0;
+        
+        if (newData.petitDej > (stockPetitDej + originalPD)) {
+          showToast("Stock Petit Dèj insuffisant", "error");
+          return;
+        }
+        if (newData.repas > (stockRepas + originalRepas)) {
+          showToast("Stock Repas insuffisant", "error");
+          return;
+        }
+      }
+
+      await updateDoc(doc(db, collectionName, id), {
+        ...newData,
+        updatedAt: Date.now()
+      });
+
+      logAudit(userRole, 'tickets.create', 'Social', `Modification ${type.toLowerCase()}`, { id, newData });
+      showToast("Modification enregistrée !");
+      setEditingOperation(null);
+    } catch (e) {
+      console.error("Error updating operation:", e);
+      showToast("Erreur lors de la modification", "error");
+    }
   };
 
   const handleSendReminder = (m: Membre, platform: 'whatsapp' | 'sms') => {
@@ -549,14 +655,24 @@ Barakallahou fikoum.`;
            {sortedHistory.map((h, i) => (
              <div key={h.id || i} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex flex-col gap-2 relative">
                 {isTickets && (
-                  <button 
-                    onClick={() => handleAnnulerOperation(h.id, h.type)}
-                    className="absolute top-4 right-4 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                  >
-                    <Minus size={16} />
-                  </button>
+                  <div className="absolute top-4 right-4 flex gap-1">
+                    <button 
+                      onClick={() => handleEditOperation(h.id, h.type)}
+                      className="p-2 text-dmn-green-600 hover:bg-dmn-green-50 rounded-lg transition-all"
+                      title="Modifier"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleAnnulerOperation(h.id, h.type)}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                      title="Supprimer"
+                    >
+                      <Minus size={16} />
+                    </button>
+                  </div>
                 )}
-                <div className="flex justify-between items-center pr-8">
+                <div className="flex justify-between items-center pr-16">
                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
                      h.type === 'Collecte' ? 'bg-dmn-green-100 text-dmn-green-700' :
                      h.type === 'Conversion' ? 'bg-purple-100 text-purple-700' :
@@ -604,13 +720,22 @@ Barakallahou fikoum.`;
                   <td className="px-6 py-4 font-mono text-xs text-gray-600 bg-gray-50/50">{h.detail}</td>
                   {isTickets && (
                     <td className="px-6 py-4 text-center">
-                      <button 
-                        onClick={() => handleAnnulerOperation(h.id, h.type)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        title="Supprimer"
-                      >
-                        <Minus size={18} />
-                      </button>
+                      <div className="flex justify-center gap-1">
+                        <button 
+                          onClick={() => handleEditOperation(h.id, h.type)}
+                          className="p-2 text-dmn-green-600 hover:bg-dmn-green-50 rounded-lg transition-all"
+                          title="Modifier"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleAnnulerOperation(h.id, h.type)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Supprimer"
+                        >
+                          <Minus size={18} />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -642,7 +767,18 @@ Barakallahou fikoum.`;
       {/* NAVIGATION SECONDAIRE */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] shadow-soft border border-gray-100/80">
         <div className="space-y-2 sm:space-y-3">
-          <h2 className="text-2xl sm:text-4xl fintech-heading">Gestion Tickets Resto</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl sm:text-4xl fintech-heading">Gestion Tickets Resto</h2>
+            {(userRole === 'admin' || isTickets) && (
+              <button 
+                onClick={handleResetTicketsData}
+                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                title="Vider les données"
+              >
+                <X size={20} />
+              </button>
+            )}
+          </div>
           <p className="text-[10px] font-black text-dmn-green-600 uppercase tracking-[0.4em] flex items-center gap-3">
             <span className="w-2 h-2 bg-dmn-gold rounded-full shadow-[0_0_8px_rgba(107,63,42,0.4)]"></span> Flux Logistique – {effectiveMonth} {globalYear}
           </p>
@@ -718,6 +854,13 @@ Barakallahou fikoum.`;
           {activeTab === 'historique' && renderHistorique()}
         </motion.div>
       </AnimatePresence>
+
+      <EditTicketModal 
+        isOpen={!!editingOperation}
+        onClose={() => setEditingOperation(null)}
+        operation={editingOperation}
+        onUpdate={handleUpdateOperation}
+      />
 
       <AnnouncementModal 
         isOpen={isAnnouncementModalOpen} 
@@ -887,6 +1030,98 @@ function TicketForm({ onSubmit }: { onSubmit: (pd: number, repas: number) => voi
         <Ticket size={18} />
         Enregistrer les tickets
       </button>
+    </div>
+  );
+}
+
+function EditTicketModal({ 
+  isOpen, 
+  onClose, 
+  operation, 
+  onUpdate 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  operation: { id: string, type: 'Collecte' | 'Conversion' | 'Distribution', data: any } | null,
+  onUpdate: (id: string, type: 'Collecte' | 'Conversion' | 'Distribution', newData: any) => void
+}) {
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    if (operation) {
+      setData({ ...operation.data });
+    }
+  }, [operation]);
+
+  if (!isOpen || !data) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (operation) {
+      onUpdate(operation.id, operation.type, data);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl relative border border-gray-100"
+      >
+        <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-700 transition-colors">
+          <X size={20} />
+        </button>
+
+        <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
+          <Edit2 className="text-dmn-green-600" size={24} />
+          Modifier {operation?.type}
+        </h3>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {operation?.type === 'Conversion' && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Montant (FCFA)</label>
+              <input 
+                type="number" 
+                value={data.montant || ''} 
+                onChange={e => setData({ ...data, montant: parseFloat(e.target.value) })}
+                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 focus:border-dmn-green-500 outline-none"
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Petit Dèj</label>
+              <div className="flex items-center justify-between bg-gray-50 p-1 rounded-xl border border-gray-200">
+                <button type="button" onClick={() => setData({ ...data, petitDej: Math.max(0, (data.petitDej || 0) - 1) })} className="p-3 bg-white hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Minus size={16}/></button>
+                <span className="text-base font-black w-8 text-center">{data.petitDej || 0}</span>
+                <button type="button" onClick={() => setData({ ...data, petitDej: (data.petitDej || 0) + 1 })} className="p-3 bg-white hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Plus size={16}/></button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Repas</label>
+              <div className="flex items-center justify-between bg-gray-50 p-1 rounded-xl border border-gray-200">
+                <button type="button" onClick={() => setData({ ...data, repas: Math.max(0, (data.repas || 0) - 1) })} className="p-3 bg-white hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Minus size={16}/></button>
+                <span className="text-base font-black w-8 text-center">{data.repas || 0}</span>
+                <button type="button" onClick={() => setData({ ...data, repas: (data.repas || 0) + 1 })} className="p-3 bg-white hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><Plus size={16}/></button>
+              </div>
+            </div>
+          </div>
+
+          {operation?.type === 'Conversion' && (
+            <div className="p-3 bg-dmn-green-50 text-dmn-green-700 rounded-xl font-bold text-center text-xs">
+              Total Validé : {(data.petitDej * 50) + (data.repas * 100)} FCFA
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl font-bold transition-all">Annuler</button>
+            <button type="submit" className="flex-1 py-4 bg-dmn-green-600 hover:bg-dmn-green-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-dmn-green-600/20">Enregistrer</button>
+          </div>
+        </form>
+      </motion.div>
     </div>
   );
 }

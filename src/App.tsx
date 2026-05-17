@@ -157,13 +157,13 @@ export default function App() {
   const navigationTabs = useMemo(() => {
     const ALL_TABS = [
       { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
-      { id: 'etat', label: 'Mon État', icon: UserCheck },
-      { id: 'finance', label: 'Caisse', icon: Wallet },
+      { id: 'etat', label: 'Mon Espace', icon: UserCheck },
+      { id: 'finance', label: 'Cotisations', icon: Wallet },
       { id: 'tickets', label: 'Tickets', icon: Ticket },
       { id: 'cafe', label: 'Café', icon: Coffee },
       { id: 'membres', label: 'Membres', icon: Users },
       { id: 'rapports', label: 'Rapports', icon: TrendingUp },
-      { id: 'roles', label: 'Profil', icon: Shield },
+      { id: 'roles', label: 'Paramètres', icon: Shield },
     ];
 
     const isMember = !!myMembre;
@@ -267,7 +267,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeTab, financeSubTab, membreSubTab]);
 
-  const handleQuickAction = (action: 'membre' | 'ticket' | 'cafe' | 'rapport') => {
+  const handleQuickAction = (action: 'membre' | 'ticket' | 'cafe' | 'rapport' | 'pay') => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     switch (action) {
       case 'membre':
@@ -275,6 +275,10 @@ export default function App() {
         setMembreSubTab('liste');
         setEditingMembre(null);
         setIsMembreModalOpen(true);
+        break;
+      case 'pay':
+        setActiveTab('finance');
+        setFinanceSubTab('saisie');
         break;
       case 'ticket':
         setActiveTab('tickets');
@@ -2279,14 +2283,14 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
               </select>
             </div>
 
-            <div className="relative flex-1 min-w-[140px] sm:min-w-[200px]">
-              <Search className="absolute left-2.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
+            <div className="relative flex-1 min-w-[200px] sm:min-w-[300px]">
+              <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input 
                 type="text" 
-                placeholder="Chercher..." 
+                placeholder="Rechercher un membre (nom, tél...)" 
                 value={globalSearch}
                 onChange={e => setGlobalSearch(e.target.value)}
-                className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-100 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-bold focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 shadow-soft"
+                className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-white border border-gray-100 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-bold focus:outline-none focus:ring-2 focus:ring-dmn-green-500/20 shadow-soft transition-all"
               />
             </div>
           </div>
@@ -2305,12 +2309,12 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
           >
             <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-4 sm:py-6">
               {activeTab === 'finance' && [
-                ...((userRole === 'admin' || userRole === 'caisse') ? [{ id: 'saisie', label: 'Saisie', icon: Zap }] : []),
-                { id: 'validations', label: 'Validations', icon: CheckCircle, badge: paiementsAttente.filter(p => p.statut === 'EN_ATTENTE').length },
-                { id: 'cotisations', label: 'Cotis.', icon: CreditCard },
+                ...((userRole === 'admin' || userRole === 'caisse') ? [{ id: 'saisie', label: 'Ajouter', icon: Zap }] : []),
+                { id: 'validations', label: 'À Valider', icon: CheckCircle, badge: paiementsAttente.filter(p => p.statut === 'EN_ATTENTE').length },
+                { id: 'cotisations', label: 'Historique', icon: CreditCard },
                 { id: 'recettes', label: 'Recettes', icon: Plus },
                 { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
-                { id: 'dettes', label: 'Dettes', icon: Banknote },
+                { id: 'dettes', label: 'Dettes', icon: AlertTriangle },
               ].map(sub => (
                 <motion.button 
                   key={sub.id} 
@@ -2413,6 +2417,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
             membres={membres}
             currentUser={user}
             cotisations={cotisations} 
+            ticketDistributions={ticketDistributions}
             globalYear={globalYear} 
             MOIS={MOIS} 
             paiementsAttente={paiementsAttente}
@@ -2584,7 +2589,7 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
           animate={{ y: 0, opacity: 1 }}
           className="bg-gray-900/90 backdrop-blur-xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-[2.5rem] h-[72px] flex items-center justify-around overflow-hidden relative pointer-events-auto mx-auto max-w-md w-full ring-1 ring-black/5"
         >
-          {navigationTabs.map(tab => (
+          {navigationTabs.slice(0, 4).map(tab => (
             <motion.button
               key={tab.id}
               whileTap={{ scale: 0.8 }}
@@ -2601,13 +2606,28 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
                <div className={`relative z-10 p-1.5 transition-colors duration-300 ${activeTab === tab.id ? 'text-black' : 'text-gray-400'}`}>
                  <tab.icon size={22} className={activeTab === tab.id ? 'stroke-[3px]' : 'stroke-[1.5px] opacity-70'} />
                </div>
-               <span className={`relative z-10 text-[7px] font-black uppercase tracking-widest mt-0.5 transition-colors duration-300 ${
+               <span className={`relative z-10 text-[7px] font-black uppercase tracking-tight mt-0.5 transition-colors duration-300 ${
                  activeTab === tab.id ? 'text-black' : 'text-gray-500'
                }`}>
-                 {tab.label}
+                 {tab.label.substring(0, 8)}
                </span>
             </motion.button>
           ))}
+          {navigationTabs.length > 4 && (
+            <motion.button
+              key="menu"
+              whileTap={{ scale: 0.8 }}
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center flex-1 h-full relative group outline-none"
+            >
+               <div className={`relative z-10 p-1.5 transition-colors duration-300 text-gray-400`}>
+                 <Menu size={22} className="stroke-[1.5px] opacity-70" />
+               </div>
+               <span className={`relative z-10 text-[7px] font-black uppercase tracking-tight mt-0.5 transition-colors duration-300 text-gray-500`}>
+                 MENU
+               </span>
+            </motion.button>
+          )}
         </motion.nav>
       </div>
 
@@ -2678,15 +2698,15 @@ Que par la baraka de Khadimou Rassoul, Allah agrée votre dévouement. Jaajëf M
               <form onSubmit={handleSaveMembre} className="space-y-6 overflow-y-auto pr-2 scrollbar-thin">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Prénom</label>
-                  <input name="prenom" defaultValue={editingMembre?.prenom} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                  <input name="prenom" defaultValue={editingMembre?.prenom} placeholder="Ex: Modou" required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Nom</label>
-                  <input name="nom" defaultValue={editingMembre?.nom} required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                  <input name="nom" defaultValue={editingMembre?.nom} placeholder="Ex: Diop" required className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Téléphone</label>
-                  <input name="telephone" defaultValue={editingMembre?.telephone} placeholder="77 000 00 00" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
+                  <input name="telephone" defaultValue={editingMembre?.telephone} placeholder="Ex: 77 123 45 67" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:ring-4 ring-dmn-green-500/10 focus:bg-white transition-all shadow-sm" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Statut</label>

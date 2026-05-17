@@ -1,7 +1,7 @@
 export const formatPrice = (price: number) => {
-  if (price === undefined || price === null) return "0";
-  // Forcer le format avec point comme séparateur de milliers pour éviter les ambiguités (le slash 1/500 mentionné par l'utilisateur)
-  return new Intl.NumberFormat('fr-FR').format(price).replace(/\s/g, '.').replace(/\u00a0/g, '.');
+  if (price === undefined || price === null || isNaN(price)) return "0";
+  // Replacing all types of space variants (space, no-break space, narrow no-break space) with a simple classic space.
+  return new Intl.NumberFormat('fr-FR').format(price).replace(/[\s\u00A0\u202F]/g, ' ');
 };
 
 export const formatFullPrice = (price: number) => {

@@ -500,17 +500,16 @@ export function PremiumDashboard({
       )}
 
       {/* KPI GRID */}
-      <motion.div layout className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 px-1">
+      <motion.div layout className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 px-1">
         {[
-          { show: canViewGlobalKPIs, label: 'Cotis. Annuelles', value: formatPrice(annualCotisations.reduce((s, c) => s + c.montant, 0)) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `${globalYear}` },
-          { show: canViewGlobalKPIs, label: 'Membres Actifs', value: membresActifs, color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: Users, sub: `${membres.length} total` },
-          { show: isAdmin || isCaisse || isStats, label: 'Dettes / Attentes', value: formatPrice(totDettesEnAttente) + ' F', color: 'text-red-500', bg: 'bg-red-50', icon: AlertCircle, sub: 'À recouvrer' },
-          { show: isAdmin || isTickets || isLecteur, label: 'Repas', value: stockRepas, color: 'text-amber-600', bg: 'bg-amber-50', icon: Ticket, sub: 'En stock' },
-          { show: isAdmin || isCafe || isLecteur, label: 'Café (Global)', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités dispo' },
+          { show: canViewGlobalKPIs, label: 'Cotisations', value: formatPrice(annualCotisations.reduce((s, c) => s + c.montant, 0)) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `${globalYear}` },
+          { show: isAdmin || isCaisse || isStats, label: 'Dépenses', value: formatPrice(totDepenses) + ' F', color: 'text-red-500', bg: 'bg-red-50', icon: TrendingDown, sub: `Année ${globalYear}` },
+          { show: isAdmin || isCaisse || isStats, label: 'Retards', value: formatPrice(totDettesEnAttente) + ' F', color: 'text-orange-500', bg: 'bg-orange-50', icon: AlertCircle, sub: 'À recouvrer' },
+          { show: isAdmin || isCafe || isLecteur, label: 'Bénéfices Café', value: formatPrice(filteredCafeVentes.reduce((s, v) => s + v.total, 0) - (cafeDepenses.filter(d => new Date(d.date).getFullYear() === globalYear).reduce((s,d) => s + d.montant, 0) + cafeProductions.filter(p => new Date(p.date).getFullYear() === globalYear).reduce((s,p) => s + p.coutsProduction, 0))) + ' F', color: 'text-green-600', bg: 'bg-green-50', icon: TrendingUp, sub: 'Net' },
+          { show: isAdmin || isCafe || isLecteur, label: 'Stock Café', value: cafeStock, color: 'text-[#78350f]', bg: 'bg-[#f5ebe0]', icon: Coffee, sub: 'Unités' },
           { show: isRevendeur, label: 'Mon Stock', value: sellerStock, color: 'text-purple-600', bg: 'bg-purple-50', icon: Package, sub: 'Unités' },
           { show: isRevendeur, label: 'Mes Ventes', value: formatPrice(sellerRevenue) + ' F', color: 'text-dmn-green-600', bg: 'bg-dmn-green-50', icon: TrendingUp, sub: `${sellerQtySold} vendus` },
           { show: isMembreSimple && myMembre, label: 'Mon Statut', value: myMembre ? getMembreStatus(myMembre.id) : '-', color: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'text-dmn-green-600' : 'text-red-500', bg: myMembre && getMembreStatus(myMembre.id) === 'À jour' ? 'bg-dmn-green-50' : 'bg-red-50', icon: Shield, sub: 'Cotisations' },
-          { show: isMembreSimple && myMembre, label: 'Mes Cotisations', value: formatPrice(myMembre ? cotisations.filter(c => c.mId === myMembre.id && c.annee === globalYear).reduce((s, c) => s + c.montant, 0) : 0) + ' F', color: 'text-dmn-gold', bg: 'bg-amber-50', icon: Wallet, sub: `En ${globalYear}` },
         ].filter(item => item.show).map((item, i) => (
           <motion.div
             key={i}
@@ -593,9 +592,9 @@ export function PremiumDashboard({
         <div className="absolute inset-0 bg-gradient-to-r from-dmn-green-900/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
         <div className="flex gap-2 sm:gap-6 overflow-x-auto no-scrollbar py-1">
            {[
-             { id: 'membre', label: 'Inscrire Membre', icon: Users, color: 'bg-dmn-green-500', perm: ['admin'] },
-             { id: 'ticket', label: 'Distribuer Tickets', icon: Ticket, color: 'bg-amber-500', perm: ['admin', 'tickets'] },
-             { id: 'cafe', label: 'Action Café', icon: Coffee, color: 'bg-orange-500', perm: ['admin', 'cafe'] },
+             { id: 'membre', label: 'Ajouter Membre', icon: Users, color: 'bg-dmn-green-500', perm: ['admin'] },
+             { id: 'pay', label: 'Enregistrer Paiement', icon: Wallet, color: 'bg-emerald-500', perm: ['admin', 'caisse'] },
+             { id: 'cafe', label: 'Ajouter Vente', icon: Coffee, color: 'bg-orange-500', perm: ['admin', 'cafe', 'revendeur'] },
              { id: 'rapport', label: 'Générer Rapport', icon: BarChart3, color: 'bg-blue-500', perm: ['admin', 'caisse'] }
            ].filter(a => !userRole || a.perm.includes(userRole as any)).map((action) => (
              <button 
